@@ -33,8 +33,9 @@ deeper on one construct.
 1. **Example first.** A minimal `.jip` example, then the Go or TypeScript
    equivalent so the section doubles as few-shot context.
 2. **Rules.** Numbered, each one checkable by the compiler or `jip check`.
-3. **Diagnostics.** At least one example error in the v0 format
-   (`file:line:col`, expected vs. found, suggested edit).
+3. **Diagnostics.** At least one example error in the normative format of
+   section 13 (`error[Ennnn]`, `-->` file:line:col, source gutter, `= note:`,
+   `= help:` with a concrete edit).
 4. **Grammar.** The BNF subset for the section. `grammar.md` concatenates
    them.
 

@@ -148,29 +148,37 @@ except that a rejected promise does not cancel its sibling.
 
 Capturing a `var` in a `spawn` block (rule 7):
 
-```
-orders/pricing.jip:31:28: error: `spawn` block captures the `var` binding `total`
-  expected: only `let` bindings of immutable types, or a `Cell`
-  found:    `var total: Int`, declared at orders/pricing.jip:29:7
-  suggested edit: replace `var total = 0` with `let total = Cell.new(0)` and use `total.update((t) => t + x)`
+```text
+error[E0450]: `spawn` block captures the `var` binding `total`
+  --> orders/pricing.jip:31:28
+   |
+31 |     let t = task { total += price(l).0 }
+   |                    ^^^^^ `total` is a `var`, declared at orders/pricing.jip:29:7
+   = note: a `spawn` block may capture only `let` bindings of immutable types, or a `Cell`
+   = help: replace `var total = 0` with `let total = Cell.new(0)` and write `total.update((t) => t + price(l).0)`
 ```
 
 `Cell.get` without `mut` (rule 13):
 
-```
-orders/pricing.jip:40:3: error: missing effect `mut` in `read_count`
-  `read_count` is pure but calls `Cell.get`, which requires `mut`
-  expected: with {mut}
-  found:    (no effect set)
-  suggested edit: add `mut` to the effect set of `read_count`
-    38 | pub fn read_count(n: Cell<Int>) -> Int with {mut}
+```text
+error[E0412]: missing effect `mut`
+  --> orders/pricing.jip:40:3
+   |
+40 |   n.get()
+   |   ^^^^^^^ `Cell.get` has effect `mut`
+   = note: `read_count` declares no effect set
+   = help: change the signature to `-> Int with {mut}`
 ```
 
 `task` outside `spawn` (rule 2):
 
-```
-orders/pricing.jip:52:12: error: `task` outside a `spawn` block
-  suggested edit: wrap the statements that start and join the task in `spawn { … }` and add `spawn` to the effect set of `fetch_all`
+```text
+error[E0451]: `task` outside a `spawn` block
+  --> orders/pricing.jip:52:12
+   |
+52 |   let ta = task http.get(a)
+   |            ^^^^ no enclosing `spawn { … }`
+   = help: wrap the statements that start and join the task in `spawn { … }` and add `spawn` to the effect set of `fetch_all`
 ```
 
 ## Grammar

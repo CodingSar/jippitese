@@ -169,24 +169,24 @@ func Push[T any](s Stack[T], x T) Stack[T] {
 
 ## Diagnostics
 
-An effectful call inside a contract:
+An effectful call inside a contract (rule 2):
 
-```
-collections/stack.jip:47:12: error: effect in contract
-  inv seen.get() >= 0
-           ^^^^^ `Cell.get` has effect {mut}; contracts are typed with {}
-  expected: pure expression
-  found:    call with effect set {mut}
-  suggested edit: write the field name; a Cell field in an impl inv reads as its payload
-    inv seen >= 0
+```text
+error[E0601]: effect in contract
+  --> collections/stack.jip:55:7
+   |
+55 |   inv seen.get() >= 0
+   |       ^^^^^^^^^^ `Cell.get` has effect {mut}; contracts are typed with {}
+   = note: a `Cell` field in an `impl` inv reads as its payload
+   = help: replace `seen.get()` with `seen`
 ```
 
 A derived check failing on a `post` (here `pop` was changed to return the
 stack unchanged):
 
-```
+```text
 FAIL  collections.stack  derived pop  (failed on run 3, shrunk in 9 steps)
-  collections/stack.jip:19:3: post failed
+  collections/stack.jip:28:3: post failed
   post match ret { Some((_, r)) => r.items.len() == s.items.len() - 1, None => s.items.len() == 0 }
   s   = Stack { items: [0], cap: 1 }
   ret = Some((0, Stack { items: [0], cap: 1 }))
@@ -196,9 +196,9 @@ FAIL  collections.stack  derived pop  (failed on run 3, shrunk in 9 steps)
 
 The same clause failing in production under `contracts: all` panics:
 
-```
+```text
 panic: contract violation: post
-  collections/stack.jip:19:3  post match ret { Some((_, r)) => … }
+  collections/stack.jip:28:3  post match ret { Some((_, r)) => … }
   s   = Stack { items: [0], cap: 1 }
   ret = Some((0, Stack { items: [0], cap: 1 }))
 ```

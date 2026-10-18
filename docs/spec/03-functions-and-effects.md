@@ -165,30 +165,37 @@ export async function charge(o: Order, gw: Gateway): Promise<Result<Receipt, Bil
 
 Missing effect (rule 7):
 
-```
-orders/billing.jip:29:14: error: missing effect `net` in `charge`
-  `charge` declares `with {nondet}` but calls `http.post` (orders/billing.jip:33:30), which requires `net`
-  expected: with {net, nondet}
-  found:    with {nondet}
-  suggested edit: add `net` to the effect set of `charge`
-    29 | pub fn charge(o: Order, gw: Gateway) -> Result<Receipt, BillError> with {net, nondet}
+```text
+error[E0412]: missing effect `net`
+  --> orders/billing/charge.jip:37:27
+   |
+37 |   let resp = retry(3, () => http.post(gw.url, body))?
+   |                           ^^^^^^^^^ `http.post` has effect `net`
+   = note: `charge` declares `with {nondet}`
+   = help: change the signature to `-> Result<Receipt, BillError> with {net, nondet}`
 ```
 
 Effectful closure where a pure one is required (rule 11):
 
-```
-orders/report.jip:12:21: error: effectful closure passed where a pure one is required
-  parameter `f` of `par_sum` has type `fn(Int) -> Int with {}`
-  expected: a closure with effects {}
-  found:    a closure with effects {net}, from `http.get` at orders/report.jip:12:31
-  suggested edit: fetch outside the closure and pass the data in, or declare `f: fn(Int) -> Int with {net}`
+```text
+error[E0411]: closure exceeds the effect bound of parameter `f`
+  --> orders/report.jip:12:21
+   |
+12 |   par_sum(ids, (i) => http.get(url(i)).len())
+   |                     ^^^^^^^^^^^^^^^^^^ closure has effects {net}
+   = note: `f: fn(Int) -> Int with {}` accepts only pure closures
+   = help: fetch outside the closure and pass the data in, or declare `f: fn(Int) -> Int with {net}`
 ```
 
 Unused declared effect (rule 7, `jip check`):
 
-```
-orders/billing.jip:29:68: warning: declared effect `io` is not used by `charge`
-  suggested edit: remove `io` from the effect set of `charge`
+```text
+warning[W0401]: unused effect `io`
+  --> orders/billing/charge.jip:33:74
+   |
+33 | pub fn charge(o: Order, gw: Gateway) -> Result<Receipt, BillError> with {io, net, nondet}
+   |                                                                          ^^ declared, never used in the body
+   = help: change the signature to `-> Result<Receipt, BillError> with {net, nondet}`
 ```
 
 ## Grammar

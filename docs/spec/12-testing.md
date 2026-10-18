@@ -168,28 +168,32 @@ func TestWithdrawNeverOverdraws(t *testing.T) {
 
 A `then` line that is not `Bool`:
 
-```
-orders/billing/scenarios.jip:15:9: error: then expects Bool
-  then  r
-        ^ found Result<Account, BillError>
-  expected: Bool
-  suggested edit: then  r.is_ok()
+```text
+error[E0801]: `then` expects `Bool`
+  --> orders/billing/scenarios.jip:15:9
+   |
+15 |   then  r
+   |         ^ found `Result<Account, BillError>`
+   = help: replace `r` with `r.is_ok()`
 ```
 
 A `given` after `when`:
 
-```
-orders/billing/scenarios.jip:23:3: error: step out of order
-  given amt = Money(5)
-  ^^^^^ a given cannot follow when; order is given* when then+
-  suggested edit: move this line above `when  r = withdraw(acc, amt)` (line 22)
+```text
+error[E0802]: step out of order
+  --> orders/billing/scenarios.jip:23:3
+   |
+23 |   given amt = Money(5)
+   |   ^^^^^ a `given` cannot follow `when`
+   = note: the order inside a scenario is given* when then+
+   = help: move this line above `when  r = withdraw(acc, amt)` (line 22)
 ```
 
 A failing property scenario (here `withdraw` was changed to subtract one
 unit too many). The same block is printed when a `post` fires instead of a
 `then`; the `contract` line then names the clause:
 
-```
+```text
 FAIL  orders.billing.scenarios  "withdraw never overdraws"  (failed on run 41, shrunk in 14 steps)
   orders/billing/scenarios.jip:9:3: then failed
   then  match r { Ok(a) => a.balance.0 >= 0, Err(_) => true }
