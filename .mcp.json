@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "decisions": {
+      "type": "http",
+      "url": "http://127.0.0.1:47821/mcp",
+      "headers": {
+        "X-Project-Dir": "${PWD}"
+      }
+    },
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp"
+    },
+    "tessl": {
+      "type": "stdio",
+      "command": "tessl",
+      "args": [
+        "mcp",
+        "start"
+      ]
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "jippitese",
+  "mode": "vendored",
+  "agents": [
+    "claude-code"
+  ],
+  "dependencies": {}
+}
