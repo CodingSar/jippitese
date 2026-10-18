@@ -129,7 +129,9 @@ func TestWithdrawNeverOverdraws(t *testing.T) {
 10. **Fakes.** `std.testing` provides `FakeHttp` (`net`), `FakeClock` and
     `FakeRandom` (`nondet`), `FakeLlm` (scripted replies per role),
     `FakeDecide` (scripted or constant decisions) and `FakeApprove`
-    (scripted `Ok(value)` or `Err(Rejected)` or `Timeout` answers). Binding a
+    (scripted `Ok(value)` or `Err(Rejected)` or `Timeout` answers), and the
+    in-memory `MemRepo` and `MemCache` that stand in for `Repository` and
+    `Cache` impls in derived checks (section 06). Binding a
     fake in a `given` installs it for the rest of that scenario; the effect
     it fakes is routed to it. `net`, `llm`, `decide` and `approve` must be
     faked: reaching one with no fake installed fails the scenario with

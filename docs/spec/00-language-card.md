@@ -71,7 +71,7 @@ impl Workflow for Billing {
   fn run(self, o: Order) -> Result<Receipt, WorkflowError> with {net, nondet, decide<fast>, approve} {
     let r = charge(o, self.gw)?                  // journaled step charge#1
     if risk(o) == Tier.High {                    // journaled step risk#1
-      let ok: Bool = approve(Review { title: "High-risk order {o.id}", timeout: 48h })?
+      let ok: Bool = approve(Review { title: "High-risk order {o.id}", body: "Total {o.total.0}", timeout: 48h })?
       if !ok { return Err(WorkflowError.Rejected) }
     }
     Ok(r)
