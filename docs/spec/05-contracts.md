@@ -58,9 +58,9 @@ impl Service for Counter {
     Ok(Counter { seen: Cell.new(0), limit: cfg.limit })
   }
   fn handle(self, req: Tick) -> Result<Int, CounterError> with {mut}
-    pre  req.n > 0
+    post match ret { Ok(k) => k <= self.limit, Err(_) => true }   // impls add post, never pre (06)
   {
-    if self.seen.get() + req.n > self.limit { return Err(CounterError.Full) }
+    if req.n <= 0 || self.seen.get() + req.n > self.limit { return Err(CounterError.Full) }
     Ok(self.seen.update((k) => k + req.n))
   }
   fn stop(self) {}

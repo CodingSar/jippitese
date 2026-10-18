@@ -101,8 +101,8 @@ File extension: `.jip`. CLI: `jip`.
 ### Contracts
 
 - **`pre`, `post`, `inv` lines** sit between a signature and its body, one per
-  line. `ret` names the result in `post`. `old(e)` is allowed only in `post`
-  and only on names. `forall x in c` and `exists x in c` quantify only over
+  line. `ret` names the result in `post`. `old(e)` is allowed only in `post`;
+  `e` is a pure expression over parameter names. `forall x in c` and `exists x in c` quantify only over
   finite collections and ranges. Contract expressions are typed with the empty
   effect set, so purity is compiler-enforced.
 - **`inv` attaches to ADTs** and is checked at construction; `mut` cells
