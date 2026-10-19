@@ -1,0 +1,18 @@
+diff -ruN '--exclude=.jip' '--exclude=interface.jipi' a/orders/billing/billing.jip b/orders/billing/billing.jip
+--- a/orders/billing/billing.jip	2026-10-19 21:30:37.336019761 +0000
++++ b/orders/billing/billing.jip	2026-10-19 21:30:37.369437839 +0000
+@@ -35,6 +35,14 @@
+   Ok(Account { ..acc, balance: Money(acc.balance.0 - amt.0) })
+ }
+ 
++/// Adds amt back to the balance.
++pub fn refund(acc: Account, amt: Money) -> Account
++  pre  amt.0 > 0
++  post ret.balance.0 == acc.balance.0 + amt.0
++{
++  Account { ..acc, balance: Money(acc.balance.0 + amt.0) }
++}
++
+ /// Generator for `any Money via positive_money`: draws through `g` so failures shrink.
+ pub fn positive_money(g: Gen) -> Money { Money(g.int(1, 1_000_000)) }
+ 

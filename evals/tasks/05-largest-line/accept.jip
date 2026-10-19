@@ -1,0 +1,6 @@
+scenario "accept 05: largest line by line total" {
+  given o = Order { id: OrderId(5), lines: [Line { price: Money(10), qty: 3 }, Line { price: Money(25), qty: 1 }], total: Money(55) }
+  when  l = largest_line(o)
+  then  l == Some(Line { price: Money(10), qty: 3 })
+  then  largest_line(Order { id: OrderId(6), lines: [], total: Money(0) }) == None
+}

@@ -1,0 +1,26 @@
+diff -ruN '--exclude=.jip' '--exclude=interface.jipi' a/refunds/flow/flow.jip b/refunds/flow/flow.jip
+--- a/refunds/flow/flow.jip	2026-10-19 21:31:58.175244831 +0000
++++ b/refunds/flow/flow.jip	2026-10-19 21:31:58.218465021 +0000
+@@ -30,7 +30,7 @@
+   type Output = Refunded
+   type Signal = Cancel
+   type E = RefundError
+-  const version = 1
++  const version = 2
+   fn init(cfg: Config) -> Result<Self, RefundError> with {io} { Ok(Refund {}) }
+   fn run(self, r: RefundReq) -> Result<Refunded, WorkflowError<RefundError>> with {nondet, approve} {
+     if r.amount > 10_000 { return Err(WorkflowError.App(RefundError.TooLarge(r.amount))) }
+@@ -40,6 +40,13 @@
+         Approve => {},
+         Deny => return Err(WorkflowError.App(RefundError.Declined)),
+       }
++      if r.amount >= 5_000 {
++        let second = Review { ..review, title: "Second approval: {review.title}" }
++        match approve::<Decision>(second)? {
++          Approve => {},
++          Deny => return Err(WorkflowError.App(RefundError.Declined)),
++        }
++      }
+     }
+     let paid = pay(r)?
+     Ok(paid)

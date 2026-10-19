@@ -1,0 +1,20 @@
+diff -ruN '--exclude=.jip' '--exclude=interface.jipi' a/orders/billing/billing.jip b/orders/billing/billing.jip
+--- a/orders/billing/billing.jip	2026-10-19 21:31:01.426686120 +0000
++++ b/orders/billing/billing.jip	2026-10-19 21:31:01.455720604 +0000
+@@ -16,7 +16,15 @@
+ pub enum BillError { NoFunds(Money), Net(http.Error), Declined(Str) }
+ 
+ /// Charge status.
+-pub enum Status { Pending, Paid, Failed }  // payload-less sum type
++pub enum Status { Pending, Paid, Failed, Refunded }  // payload-less sum type
++
++/// Whether no further transition can happen from s.
++pub fn is_final(s: Status) -> Bool {
++  match s {
++    Pending => false,
++    Paid | Failed | Refunded => true,
++  }
++}
+ 
+ /// What finance answers on a high-risk order.
+ pub enum Decision { Proceed, Decline }  // closed sum: usable as an `approve` answer

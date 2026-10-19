@@ -393,6 +393,8 @@ File extension: `.jip`. CLI: `jip`.
   version, reported together with iterations to green. The Go baseline runs
   the same tasks with `go doc` output counted the same way. **No token
   number appears in any document before it is measured this way** (R15).
+- **Tokenizer:** `o200k_base` from `js-tiktoken` 1.0.21 (`evals/package.json`).
+  **Task set:** the twelve changes frozen in `evals/tasks/` (Phase F).
 - The performance eval includes a **collections benchmark** (persistent vs.
   mutable) before v1 locks the §7 default.
 - Run across multiple models. The eval harness is built after the spec and
@@ -468,6 +470,7 @@ are in `backlog.md` under "Spec bugs found".
 | Config overlay paths | A config leaf is `config.<name>` (`JIP_CONFIG__<NAME>`), secrets `secrets.<name>`, run fields `run.<Impl>.<field>`. Scenarios load the `env test` block whatever `JIP_ENV` says. |
 | Worker topics | A `run X { topic: t }` subscribes the Worker from a Go `init()`; in scenarios `publish` delivers synchronously. |
 | Interface file layout | Contract lines print as `pre  …`, `post …`, `inv  …`; effects in canonical order; impl members indented two spaces. |
+| API classification of const values | Changing a `const` value, including a workflow `version` bump, is `compatible`: a value is not a signature, and spec 09 rule 8 lists no such break. |
 | Dependency tree hash | SHA-256 over the sorted lines `<path> <sha256 of content>` of every regular file, `.git` excluded, written `sha256-<base64>`. |
 | Toolchain | `compiler/toolchain.go` pins Go 1.24 (`toolchain go1.24.0` in the generated `go.mod`); `jip` uses `JIP_GO` or `go` on `PATH` at or above the pin. |
 | `jip fmt` | Keeps every comment (trailing ones aligned), literal text (`1_000_000`, `60s`) and schedule sugar (`every 5m`); a body stays on one line only when written so. Refuses to write a result that would not reparse to the same program. Skips `vendor/`. |

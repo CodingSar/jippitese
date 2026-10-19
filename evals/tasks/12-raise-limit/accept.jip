@@ -1,0 +1,6 @@
+scenario "accept 12: refunds up to 20_000 are allowed" {
+  given approvals = FakeApprove.script([Ok(Decision.Approve)])
+  when  r = run_workflow(Refund, RefundReq { order: 21, amount: 15_000 })
+  then  r.map(fn(p) => p.amount) == Ok(15_000)
+  then  run_workflow(Refund, RefundReq { order: 22, amount: 20_001 }) == Err(WorkflowError.App(RefundError.TooLarge(20_001)))
+}

@@ -1,0 +1,11 @@
+scenario "accept 01: refund undoes a withdrawal" {
+  given acc = Account { id: AccountId(1), balance: Money(500) }
+  when  r = withdraw(acc, Money(200)).map(fn(a) => refund(a, Money(200)))
+  then  r == Ok(acc)
+}
+
+scenario "accept 01: refund adds to the balance" {
+  given acc = Account { id: AccountId(2), balance: Money(0) }
+  when  a = refund(acc, Money(70))
+  then  a.balance.0 == 70
+}

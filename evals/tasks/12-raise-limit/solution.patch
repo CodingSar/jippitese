@@ -1,0 +1,12 @@
+diff -ruN '--exclude=.jip' '--exclude=interface.jipi' a/refunds/flow/flow.jip b/refunds/flow/flow.jip
+--- a/refunds/flow/flow.jip	2026-10-19 21:31:58.233935194 +0000
++++ b/refunds/flow/flow.jip	2026-10-19 21:31:58.257088368 +0000
+@@ -33,7 +33,7 @@
+   const version = 1
+   fn init(cfg: Config) -> Result<Self, RefundError> with {io} { Ok(Refund {}) }
+   fn run(self, r: RefundReq) -> Result<Refunded, WorkflowError<RefundError>> with {nondet, approve} {
+-    if r.amount > 10_000 { return Err(WorkflowError.App(RefundError.TooLarge(r.amount))) }
++    if r.amount > 20_000 { return Err(WorkflowError.App(RefundError.TooLarge(r.amount))) }
+     if r.amount >= 500 {
+       let review = Review { title: "Refund for order {r.order}", body: "Amount {r.amount}", timeout: Some(24h), data: None }
+       match approve::<Decision>(review)? {

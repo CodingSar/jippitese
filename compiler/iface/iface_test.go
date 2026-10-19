@@ -117,6 +117,7 @@ func TestClassification(t *testing.T) {
 		{"strengthened pre", "pre  amt.0 > 0", "pre  amt.0 > 1", Breaking, "contract-changed"},
 		{"removed pre", "  pre  amt.0 > 0\n", "", Compatible, "removed pre conjunct"},
 		{"removed fn", "pub fn positive_money", "fn positive_money", Breaking, ""},
+		{"version bump", "const version = 2", "const version = 3", Compatible, "changed const value"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

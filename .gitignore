@@ -5,3 +5,4 @@
 **/.jip/gen/
 **/.jip/bin/
 **/.jip/cache/
+/evals/node_modules/

@@ -1,0 +1,6 @@
+scenario "accept 02: refunded is a final status" {
+  when  f = is_final(Status.Refunded)
+  then  f
+  then  !is_final(Status.Pending)
+  then  is_final(Status.Paid) && is_final(Status.Failed)
+}

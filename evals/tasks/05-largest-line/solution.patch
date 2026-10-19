@@ -1,0 +1,12 @@
+diff -ruN '--exclude=.jip' '--exclude=interface.jipi' a/orders/billing/billing.jip b/orders/billing/billing.jip
+--- a/orders/billing/billing.jip	2026-10-19 21:31:57.931976291 +0000
++++ b/orders/billing/billing.jip	2026-10-19 21:31:57.969299406 +0000
+@@ -124,5 +124,8 @@
+   })
+ }
+ 
++/// The line with the greatest price times quantity.
++pub fn largest_line(o: Order) -> Option<Line> { max_by(o.lines, fn(l) => l.price.0 * l.qty) }
++
+ /// Reads a file.
+ extern fn read_file(p: Path) -> Result<Bytes, IoError> with {io} = go "os".ReadFile

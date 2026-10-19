@@ -1,0 +1,24 @@
+diff -ruN '--exclude=.jip' '--exclude=interface.jipi' a/orders/billing/billing.jip b/orders/billing/billing.jip
+--- a/orders/billing/billing.jip	2026-10-19 21:31:57.889726417 +0000
++++ b/orders/billing/billing.jip	2026-10-19 21:31:57.921282980 +0000
+@@ -23,7 +23,7 @@
+ 
+ /// Sum of line totals.
+ pub fn total(lines: List<Line>) -> Money {            // pure: no `with`
+-  Money(lines.map(fn(l) => l.price.0 * l.qty).sum())  // `+ - *` trap on overflow, every build
++  Money(lines.map(fn(l) => l.price.0 * l.qty - l.discount.0).sum())  // `+ - *` trap on overflow, every build
+ }
+ 
+ /// Withdraws amt; Err if funds are insufficient.
+diff -ruN '--exclude=.jip' '--exclude=interface.jipi' a/orders/billing/types.jip b/orders/billing/types.jip
+--- a/orders/billing/types.jip	2026-10-19 21:31:57.889647089 +0000
++++ b/orders/billing/types.jip	2026-10-19 21:31:57.921162574 +0000
+@@ -11,7 +11,7 @@
+ pub type OrderId(Int)
+ 
+ /// One order line.
+-pub type Line { price: Money, qty: Int }
++pub type Line { price: Money, qty: Int, discount: Money }
+ 
+ /// Where to charge.
+ pub type Gateway { url: Url }

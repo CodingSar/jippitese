@@ -1,0 +1,10 @@
+diff -ruN '--exclude=.jip' '--exclude=interface.jipi' a/shop/orders/orders.jip b/shop/orders/orders.jip
+--- a/shop/orders/orders.jip	2026-10-19 21:31:58.030471236 +0000
++++ b/shop/orders/orders.jip	2026-10-19 21:31:58.047791191 +0000
+@@ -44,3 +44,6 @@
+     Ok(())
+   }
+ }
++
++/// The sum of every customer's running total.
++pub fn grand_total() -> Result<Int, RepoError> with {mut} { Ok(Totals.query(Query.all())?.sum()) }

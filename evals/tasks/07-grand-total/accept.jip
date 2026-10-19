@@ -1,0 +1,8 @@
+scenario "accept 07: grand total sums every customer" {
+  when  g = {
+    topics.placed.publish(Placed { customer: 1, total: 10 })?
+    topics.placed.publish(Placed { customer: 2, total: 32 })?
+    grand_total()
+  }
+  then  g == Ok(42)
+}

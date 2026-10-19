@@ -1,0 +1,10 @@
+scenario "accept 08: sessions idle over 30 minutes are swept" {
+  given clock = FakeClock.new()
+  given _ = touch("a")
+  given _ = clock.advance(20m)
+  given _ = touch("b")
+  given _ = clock.advance(20m)
+  when  r = tick(Sweeper)
+  then  Sessions.get("a") == Ok(None)
+  then  Sessions.get("b").map(fn(s) => s.is_some()) == Ok(true)
+}

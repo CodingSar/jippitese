@@ -175,19 +175,19 @@ default fakes.
 - [x] **D5** `decisions.md`: record deviations between spec text and
       what the checker/emitter implement (constructor type params dropped
       on impls, behaviour type args kept on impls, appcfg synthesis).
-- [ ] **D6** Replace placeholder `evals/README.md` once Phase F defines
+- [x] **D6** Replace placeholder `evals/README.md` once Phase F defines
       the task set.
 
 ## 8. Phase F: evaluation and numbers
 
-- [ ] **F1** Pick the tokenizer by name and version; record it in
+- [x] **F1** Pick the tokenizer by name and version; record it in
       decisions §13.
-- [ ] **F2** Freeze a task set of at least ten changes over the
+- [x] **F2** Freeze a task set of at least ten changes over the
       `examples/` corpus (each: description, jippitese diff, Go diff of
       the emitted code or a hand-written Go equivalent).
-- [ ] **F3** Measure the spec 13 metric on jippitese and Go for every
+- [ ] **F3** (blocked: needs model access, the choice of models, and a Go baseline corpus; the harness is ready in `evals/`) Measure the spec 13 metric on jippitese and Go for every
       task; script it under `evals/`.
-- [ ] **F4** Write the numbers into spec 09 r10 and decisions §13; only
+- [ ] **F4** (blocked on F3) Write the numbers into spec 09 r10 and decisions §13; only
       then claim any figure in the docs.
 
 ## Spec bugs found

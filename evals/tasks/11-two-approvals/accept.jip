@@ -1,0 +1,19 @@
+scenario "accept 11: large refunds need two approvals" {
+  given approvals = FakeApprove.script([Ok(Decision.Approve), Ok(Decision.Approve)])
+  when  r = run_workflow(Refund, RefundReq { order: 11, amount: 6_000 })
+  then  r.map(fn(p) => p.amount) == Ok(6_000)
+  then  approvals.asked().len() == 2
+}
+
+scenario "accept 11: the second approver can decline" {
+  given approvals = FakeApprove.script([Ok(Decision.Approve), Ok(Decision.Deny)])
+  when  r = run_workflow(Refund, RefundReq { order: 12, amount: 6_000 })
+  then  r == Err(WorkflowError.App(RefundError.Declined))
+}
+
+scenario "accept 11: mid-size refunds keep one approval" {
+  given approvals = FakeApprove.script([Ok(Decision.Approve)])
+  when  r = run_workflow(Refund, RefundReq { order: 13, amount: 900 })
+  then  r.is_ok()
+  then  approvals.asked().len() == 1
+}

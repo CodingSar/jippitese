@@ -1,0 +1,5 @@
+scenario "accept 04: total subtracts line discounts" {
+  given lines = [Line { price: Money(100), qty: 2, discount: Money(30) }, Line { price: Money(5), qty: 4, discount: Money(0) }]
+  when  t = total(lines)
+  then  t == Money(190)
+}

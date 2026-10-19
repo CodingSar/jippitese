@@ -1,0 +1,10 @@
+diff -ruN '--exclude=.jip' '--exclude=interface.jipi' a/sessions/store/store.jip b/sessions/store/store.jip
+--- a/sessions/store/store.jip	2026-10-19 21:31:58.096020699 +0000
++++ b/sessions/store/store.jip	2026-10-19 21:31:58.114056879 +0000
+@@ -50,3 +50,6 @@
+ pub fn touch(id: Str) -> Result<(), RepoError> with {mut, nondet} {
+   Sessions.put(id, Session { id, last_seen: time.now() })
+ }
++
++/// The number of sessions currently stored.
++pub fn active_count() -> Result<Int, RepoError> with {mut} { Ok(Sessions.query(Query.all())?.len()) }

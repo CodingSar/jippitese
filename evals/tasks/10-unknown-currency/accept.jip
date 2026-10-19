@@ -1,0 +1,6 @@
+scenario "accept 10: unknown currencies are an error" {
+  when  r = rate("XYZ")
+  then  r == Err(RateError.Unknown("XYZ"))
+  then  rate("EUR") == Ok(10850)
+  then  quote("XYZ") == None
+}

@@ -108,6 +108,8 @@ func compare(o, n Entry) (Change, bool) {
 	}
 	if o.Sig != n.Sig {
 		switch {
+		case o.Kind == KConst && constHead(o.Sig) == constHead(n.Sig):
+			set(Compatible, "changed const value")
 		case o.Kind == KFn:
 			ob, oe := splitEffects(o.Sig)
 			nb, ne := splitEffects(n.Sig)
@@ -141,6 +143,8 @@ func compare(o, n Entry) (Change, bool) {
 	nc, nm := splitLines(n.Lines)
 	if strings.Join(om, "\n") != strings.Join(nm, "\n") {
 		switch {
+		case onlyConstValues(om, nm):
+			set(Compatible, "changed const value")
 		case o.Kind == KImpl && subset(om, nm) && !hasBehaviour(o.Sig):
 			set(Compatible, "added method")
 		case o.Kind == KBehaviour && subset(om, nm):
@@ -272,4 +276,31 @@ func (r Report) Text() string {
 		}
 	}
 	return b.String()
+}
+
+// constHead is a const signature without its value.
+func constHead(sig string) string {
+	if i := strings.Index(sig, " = "); i >= 0 {
+		return sig[:i]
+	}
+	return sig
+}
+
+// onlyConstValues says whether two member lists differ only in the values
+// of `const` lines: a value is not part of any signature (spec 09 rule 8
+// lists no such break), and a workflow `version` bump must not need
+// --accept-breaking.
+func onlyConstValues(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] == b[i] {
+			continue
+		}
+		if !strings.HasPrefix(a[i], "const ") || constHead(a[i]) != constHead(b[i]) {
+			return false
+		}
+	}
+	return true
 }

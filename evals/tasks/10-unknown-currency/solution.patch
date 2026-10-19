@@ -1,0 +1,42 @@
+diff -ruN '--exclude=.jip' '--exclude=interface.jipi' a/rates/cache/cache.jip b/rates/cache/cache.jip
+--- a/rates/cache/cache.jip	2026-10-19 21:31:58.123946838 +0000
++++ b/rates/cache/cache.jip	2026-10-19 21:31:58.161075507 +0000
+@@ -34,23 +34,28 @@
+   }
+ }
+ 
++/// Why a rate is not available.
++pub enum RateError { Cache(CacheError), Unknown(Str) }
++
+ /// The rate of a currency: the cached value, or the quoted one cached anew.
+-pub fn rate(code: Str) -> Result<Int, CacheError> with {mut, nondet} {
++pub fn rate(code: Str) -> Result<Int, RateError> with {mut, nondet} {
+   match Rates.get(code)? {
+     Some(r) => Ok(r),
+-    None => {
+-      let r = quote(code)
+-      Rates.set(code, r, None)?
+-      Ok(r)
++    None => match quote(code) {
++      Some(r) => {
++        Rates.set(code, r, None)?
++        Ok(r)
++      },
++      None => Err(RateError.Unknown(code)),
+     },
+   }
+ }
+ 
+-/// A fixed quote standing in for a market data call.
+-pub fn quote(code: Str) -> Int {
++/// A fixed quote standing in for a market data call; None when unknown.
++pub fn quote(code: Str) -> Option<Int> {
+   match code {
+-    "EUR" => 10850,
+-    "GBP" => 12700,
+-    _ => 10000,
++    "EUR" => Some(10850),
++    "GBP" => Some(12700),
++    _ => None,
+   }
+ }

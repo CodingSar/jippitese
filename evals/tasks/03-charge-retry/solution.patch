@@ -1,0 +1,17 @@
+diff -ruN '--exclude=.jip' '--exclude=interface.jipi' a/orders/billing/billing.jip b/orders/billing/billing.jip
+--- a/orders/billing/billing.jip	2026-10-19 21:31:01.474503671 +0000
++++ b/orders/billing/billing.jip	2026-10-19 21:31:11.885779573 +0000
+@@ -41,10 +41,11 @@
+ /// Charges the order through the payment gateway.
+ pub fn charge(o: Order, gw: Gateway) -> Result<Receipt, BillError> with {net, nondet} {
+   let body = json.encode(ChargeReq { order: o.id, amount: o.total })
+-  let resp = http.post(gw.url, body)?  // `?` lifts http.Error into BillError.Net
++  var resp = http.post(gw.url, body)?  // `?` lifts http.Error into BillError.Net
+   let at = time.now()                  // nondet: fake clock under `jip test`
+-  var attempts = 0                     // `var`: local mutable binding
++  var attempts = 1                     // `var`: local mutable binding
+   while attempts < 3 && resp.status == 503 {
++    resp = http.post(gw.url, body)?
+     attempts += 1
+   }
+   match json.decode::<Receipt>(resp.body) {  // turbofish: explicit type argument

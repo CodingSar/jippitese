@@ -1,0 +1,12 @@
+diff -ruN '--exclude=.jip' '--exclude=interface.jipi' a/sessions/store/store.jip b/sessions/store/store.jip
+--- a/sessions/store/store.jip	2026-10-19 21:31:58.057581888 +0000
++++ b/sessions/store/store.jip	2026-10-19 21:31:58.085721594 +0000
+@@ -40,7 +40,7 @@
+   fn run(self) -> Result<(), SweepError> with {mut, nondet} {
+     let now = time.now()
+     for s in Sessions.query(Query.all())? {
+-      if now.since(s.last_seen) > 1h { Sessions.delete(s.id)? }
++      if now.since(s.last_seen) > 30m { Sessions.delete(s.id)? }
+     }
+     Ok(())
+   }

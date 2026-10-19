@@ -1,0 +1,11 @@
+scenario "accept 09: active count follows touches and sweeps" {
+  given clock = FakeClock.new()
+  given _ = touch("x")
+  given _ = touch("y")
+  given before = active_count()
+  given _ = clock.advance(2h)
+  given _ = touch("z")
+  when  _ = tick(Sweeper)
+  then  before == Ok(2)
+  then  active_count() == Ok(1)
+}

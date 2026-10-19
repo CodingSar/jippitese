@@ -1,0 +1,8 @@
+scenario "accept 06: orders above 100_000 are not counted" {
+  when  r = {
+    topics.placed.publish(Placed { customer: 20, total: 200_000 })?
+    topics.placed.publish(Placed { customer: 20, total: 100_000 })?
+    Totals.get(20)
+  }
+  then  r == Ok(Some(100_000))
+}

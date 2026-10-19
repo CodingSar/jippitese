@@ -1,0 +1,15 @@
+scenario "accept 03: charge retries a 503" {
+  given http = FakeHttp.new().reply(503, b"").reply(200, b"{\"id\":\"r2\",\"amount\":500}")
+  given o = Order { id: OrderId(2), lines: [], total: Money(500) }
+  when  r = charge(o, Gateway { url: Url("https://pay.test/charge") })
+  then  r.is_ok()
+  then  http.requests().len() == 2
+}
+
+scenario "accept 03: charge gives up after three posts" {
+  given http = FakeHttp.new().reply(503, b"")
+  given o = Order { id: OrderId(3), lines: [], total: Money(500) }
+  when  r = charge(o, Gateway { url: Url("https://pay.test/charge") })
+  then  r.is_err()
+  then  http.requests().len() == 3
+}

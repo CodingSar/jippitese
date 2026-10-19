@@ -1,0 +1,9 @@
+{
+  "name": "jippitese-evals",
+  "private": true,
+  "type": "module",
+  "description": "Phase F harness: token counting for the decisions §13 metric",
+  "dependencies": {
+    "js-tiktoken": "1.0.21"
+  }
+}
