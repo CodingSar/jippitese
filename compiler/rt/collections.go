@@ -526,3 +526,41 @@ func (g *Gen) GenLen(max int) int {
 	}
 	return int(g.R.Int63n(int64(max + 1)))
 }
+
+// GenAnyInt draws an Int for `any Int`, bounded by Size.
+func GenAnyInt(ctx *Ctx, g *Gen) int64 {
+	n := int64(g.Size)
+	if n < 1 {
+		n = 1
+	}
+	return GenInt(ctx, g, -n, n)
+}
+
+// GenAnyFloat draws a Float for `any Float`.
+func GenAnyFloat(ctx *Ctx, g *Gen) float64 {
+	n := float64(g.Size)
+	return GenFloat(ctx, g, -n, n)
+}
+
+// GenAnyBool draws a Bool for `any Bool`.
+func GenAnyBool(ctx *Ctx, g *Gen) bool { return GenBool(ctx, g) }
+
+// GenAnyStr draws a Str for `any Str`.
+func GenAnyStr(ctx *Ctx, g *Gen) string { return GenStr(ctx, g, int64(g.GenLen(16))) }
+
+// GenAnyBytes draws Bytes for `any Bytes`.
+func GenAnyBytes(ctx *Ctx, g *Gen) []byte {
+	b := make([]byte, g.GenLen(16))
+	for i := range b {
+		b[i] = byte(g.R.Int63n(256))
+	}
+	return b
+}
+
+// GenAnyChar draws a Char for `any Char`.
+func GenAnyChar(ctx *Ctx, g *Gen) rune { return rune(GenInt(ctx, g, 32, 126)) }
+
+// GenAnyDuration draws a Duration for `any Duration`.
+func GenAnyDuration(ctx *Ctx, g *Gen) time.Duration {
+	return time.Duration(GenInt(ctx, g, 0, int64(g.Size))) * time.Millisecond
+}

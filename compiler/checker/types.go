@@ -567,3 +567,12 @@ func effSubset(a, b []ast.Effect) (ast.Effect, bool) {
 	}
 	return ast.Effect{}, true
 }
+
+// Subst replaces generic parameters inside t by m.
+func Subst(t Type, m map[*TParam]Type) Type { return subst(t, m) }
+
+// IsUnit reports whether t resolves to the empty tuple.
+func IsUnit(t Type) bool { return isUnit(t) }
+
+// TypeEqual reports whether two resolved types are structurally equal.
+func TypeEqual(a, b Type) bool { return typeEqual(a, b) }

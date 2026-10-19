@@ -308,3 +308,16 @@ func patString(p ast.Pattern) string {
 	}
 	return fmt.Sprintf("<%T>", p)
 }
+
+// ExprString renders an expression back to source form; the emitter uses it
+// for contract and scenario step text.
+func ExprString(e ast.Expr) string { return exprString(e) }
+
+// TypeExprString renders a syntactic type back to source form.
+func TypeExprString(t ast.TypeExpr) string { return typeExprString(t) }
+
+// PatString renders a pattern back to source form.
+func PatString(p ast.Pattern) string { return patString(p) }
+
+// DurationString prints a duration literal in the largest exact unit.
+func DurationString(ns int64) string { return durationString(ns) }
