@@ -32,8 +32,19 @@ type ConfigLoader struct {
 // NewConfigLoader starts a load with the app's env blocks, keyed by env
 // name then by field path.
 func NewConfigLoader(envBlocks map[string]map[string]string) *ConfigLoader {
+	return NewConfigLoaderFor(os.Getenv("JIP_ENV"), envBlocks)
+}
+
+// NewConfigLoaderFor starts a load under a named env block; scenarios use
+// it with "test" whatever JIP_ENV says (spec 12 rule 9). A missing "test"
+// block is not an error.
+func NewConfigLoaderFor(env string, envBlocks map[string]map[string]string) *ConfigLoader {
 	l := &ConfigLoader{blocks: envBlocks, seen: map[string]bool{"JIP_ENV": true}}
-	l.env = os.Getenv("JIP_ENV")
+	l.env = env
+	if l.env == "test" {
+		l.block = envBlocks["test"]
+		return l
+	}
 	if l.env != "" {
 		b, ok := envBlocks[l.env]
 		if !ok {

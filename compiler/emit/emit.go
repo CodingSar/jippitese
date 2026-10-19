@@ -102,9 +102,10 @@ type emitter struct {
 	fnNames    map[*checker.FnInfo]string
 	constNames map[*checker.ConstInfo]string
 	implNames  map[*checker.ImplInfo]string // the `<Target>` base used for spec/check names
+	invNames   map[*checker.TypeInfo]string
+	cfgPkg     *pkg
 	pkgs       map[*checker.Module]*pkg
 	pkgOrder   []*pkg
-	std        *pkg // jip/std: every stdlib extern wrapper
 	out        *Output
 	mainPkg    string
 }
@@ -150,10 +151,9 @@ func (f *file) use(alias, path string) string {
 	return alias
 }
 
-func (f *file) rt() string      { return f.use("rt", f.p.e.mainPkg+"/rt") }
-func (f *file) std() string     { return f.use("std", f.p.e.mainPkg+"/std") }
-func (f *file) appcfg() string  { return f.use("appcfg", f.p.e.mainPkg+"/appcfg") }
-func (f *file) gotime() string  { return f.use("time", "time") }
+func (f *file) rt() string                        { return f.use("rt", f.p.e.mainPkg+"/rt") }
+func (f *file) appcfg() string                    { return f.use("appcfg", f.p.e.mainPkg+"/appcfg") }
+func (f *file) gotime() string                    { return f.use("time", "time") }
 func (f *file) printf(format string, args ...any) { fmt.Fprintf(&f.body, format, args...) }
 
 // line emits a `//line` directive at column 0 for pos.
@@ -228,6 +228,7 @@ func Emit(prog *checker.Program, opts Options) (out *Output, err error) {
 		fnNames:    map[*checker.FnInfo]string{},
 		constNames: map[*checker.ConstInfo]string{},
 		implNames:  map[*checker.ImplInfo]string{},
+		invNames:   map[*checker.TypeInfo]string{},
 		pkgs:       map[*checker.Module]*pkg{},
 		out:        &Output{Files: map[string][]byte{}, Packages: map[string]string{}},
 		mainPkg:    "jip/" + sanitize(prog.AppName),
@@ -235,7 +236,6 @@ func Emit(prog *checker.Program, opts Options) (out *Output, err error) {
 	e.allocatePackages()
 	e.allocateNames()
 	e.emitRuntime()
-	e.emitStd()
 	e.emitAppCfg()
 	for _, p := range e.pkgOrder {
 		if p.mod == nil || p.mod.IsStd {
@@ -269,8 +269,6 @@ func (e *emitter) failf(format string, args ...any) {
 // allocatePackages creates one Go package per module (scenario modules join
 // their parent as a test file).
 func (e *emitter) allocatePackages() {
-	e.std = &pkg{e: e, name: "std", path: e.mainPkg + "/std", dir: "std", names: map[string]bool{}}
-	e.pkgOrder = append(e.pkgOrder, e.std)
 	for _, m := range e.prog.Modules {
 		if m.IsStd || m.IsScenarios {
 			continue
@@ -425,8 +423,8 @@ func (f *file) ref(q *pkg, name string) string {
 	if q == f.p {
 		return name
 	}
-	if q == f.p.e.std {
-		return f.std() + "." + name
+	if q == nil {
+		f.p.e.failf("reference to `%s` in no package", name)
 	}
 	return f.use(q.importAlias(), q.path) + "." + name
 }

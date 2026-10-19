@@ -227,7 +227,7 @@ pub type Indexer { n: Int }
 impl Worker for Indexer {
   type Msg = OrderEvent
   type E = IndexError
-  const retry = Retry { max: 3, backoff: Backoff.Exp }
+  const retry = Retry { max: 3, backoff: Backoff.Exp(1s) }
   fn init(cfg: Config) -> Result<Self, IndexError> { Ok(Indexer { n: 0 }) }
 }
 `, "")
@@ -247,7 +247,7 @@ pub type Indexer { n: Int }
 impl Worker for Indexer {
   type Msg = OrderEvent
   type E = IndexError
-  const retry = Retry { max: 3, backoff: Backoff.Exp }
+  const retry = Retry { max: 3, backoff: Backoff.Exp(1s) }
   fn init(cfg: Config) -> Result<Self, IndexError> { Ok(Indexer { n: 0 }) }
   fn perform(self, m: OrderEvent) -> Result<(), IndexError> with {spawn} { spawn { Ok(()) } }
 }

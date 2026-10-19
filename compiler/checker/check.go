@@ -408,12 +408,24 @@ func (c *Checker) checkModule(m *Module) {
 		}
 	}
 	for _, name := range m.Order {
+		if ti, ok := m.Types[name]; ok && len(ti.Inv) > 0 && (ti.Kind == Record || ti.Kind == Newtype) {
+			c.checkInv(ti, ti.Inv, m, false)
+		}
+	}
+	for _, name := range m.Order {
 		if fi, ok := m.Fns[name]; ok {
 			c.checkFn(fi)
 		}
 	}
 	for _, impl := range m.Impls {
 		c.checkImpl(impl)
+		if impl.Decl != nil {
+			for _, k := range impl.Decl.Consts {
+				if ci := impl.Consts[k.Name]; ci != nil {
+					c.checkConst(ci)
+				}
+			}
+		}
 	}
 	for _, s := range m.Scenarios {
 		c.checkScenario(s)

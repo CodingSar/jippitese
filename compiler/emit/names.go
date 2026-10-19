@@ -82,10 +82,7 @@ func stdPrefix(mod string) string {
 func (e *emitter) allocateNames() {
 	for _, m := range e.prog.Modules {
 		p := e.pkgs[m]
-		if m.IsStd {
-			p = e.std
-		}
-		if p == nil {
+		if m.IsStd || p == nil {
 			continue
 		}
 		e.allocateModule(m, p)
@@ -199,15 +196,16 @@ func sortStrings(s []string) {
 // fnRef is the qualified Go reference to a function from file f.
 func (f *file) fnRef(fi *checker.FnInfo) string {
 	e := f.p.e
+	if fi.Module != nil && fi.Module.IsStd && fi.Extern != nil {
+		// Every std function is an rt extern (stdlib/*.jip).
+		return f.rt() + "." + fi.Extern.Ident
+	}
 	name, ok := e.fnNames[fi]
 	if !ok {
 		e.failf("no Go name for function `%s`", fi.Name)
 	}
 	if fi.Mod == "appcfg" {
-		return f.appcfg() + "." + name
-	}
-	if fi.Module == nil || fi.Module.IsStd {
-		return f.std() + "." + name
+		return f.cfgRef(name)
 	}
 	return f.ref(e.pkgs[fi.Module], name)
 }
@@ -219,9 +217,6 @@ func (f *file) constRef(ci *checker.ConstInfo) string {
 	if !ok {
 		e.failf("no Go name for constant `%s`", ci.Name)
 	}
-	if ci.Module == nil || ci.Module.IsStd {
-		return f.std() + "." + name
-	}
 	return f.ref(e.pkgs[ci.Module], name)
 }
 
@@ -229,7 +224,7 @@ func (f *file) constRef(ci *checker.ConstInfo) string {
 func (f *file) typeRef(ti *checker.TypeInfo) string {
 	e := f.p.e
 	if ti.Mod == "appcfg" {
-		return f.appcfg() + "." + ti.Name
+		return f.cfgRef(ti.Name)
 	}
 	if ti.Module != nil && ti.Module.IsStd || ti.Mod == "prelude" {
 		return f.rt() + "." + rtTypeName(ti)
@@ -262,4 +257,12 @@ func rtTypeName(ti *checker.TypeInfo) string {
 	}
 	parts := strings.Split(ti.Mod, ".")
 	return capFirst(parts[len(parts)-1]) + ti.Name
+}
+
+// cfgRef is a reference to a name of package appcfg.
+func (f *file) cfgRef(name string) string {
+	if f.p == f.p.e.cfgPkg {
+		return name
+	}
+	return f.appcfg() + "." + name
 }
