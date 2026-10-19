@@ -82,7 +82,7 @@ One pull request. Edits by section:
   spec section is "done" until the card compiles.
 - **Resolved deferred decisions table.** Add a row per R-item with track
   letters. **Still deferred table.** Add `Machine`,
-  `Agent`, the three workflow runtimes, providers beyond one, `any T where`
+  `Agent`, the approvals library (§10), the three workflow runtimes, providers beyond one, `any T where`
   and derived checks, persistent collections as a data structure.
 
 ## 2. Phase B: spec sections
@@ -292,3 +292,44 @@ Answered 2026-10-19:
   for breaking changes. A `pub(module)` change can only break siblings
   under the same parent, which the same commit must already fix for
   `jip check` to pass, so classifying it adds a report nobody acts on.
+
+## 10. Future features (noted, not planned)
+
+Recorded here so later design does not close the door on them. None is
+part of v0, Phase E, or any PR in §8.
+
+### Approvals library
+
+An owner-requested stdlib package, working name `approvals`, built on the
+core `approve` effect (07 r7, r8) rather than replacing it. Candidate
+contents:
+
+- **Decision types beyond `Bool`.** `approve<T>` already admits any `T`;
+  the library supplies ready-made ones: `Choice<A, B, C>`, `Amount` with a
+  cap, `Edit<T>` returning a reviewer-modified value, `Escalate` to a named
+  second reviewer.
+- **Visualisations.** Renderers that turn a `Review` plus typed context
+  (a diff, a table of rows, a before/after record, a workflow journal
+  excerpt) into what the channel shows. Core stays text-only.
+- **Routing and policy.** Reviewer selection by role, quorum (two of
+  three), auto-approve under a threshold, escalation on `timed_out`,
+  delegation. Each is a function `Review -> Review` or a wrapper around
+  `approve`, so the journal key (R6) and durability rules are untouched.
+- **Audit and replay views.** Read the journal's `approve` steps into a
+  decision log: who, when, what was shown, what was chosen.
+- **Channels.** Adapters beyond the default local HTTP endpoint (10 r3):
+  chat, email, a ticket system. One adapter trait, implemented in Go via
+  11 extern.
+
+Constraints this places on v0 so the library can exist later:
+
+- `Review` keeps `title`, `body`, `timeout` and gains one reserved field
+  `data: Option<Json>` for structured context. The core runtime passes it
+  through unread. Without it the library would need a second `approve`.
+- `approve<T>` stays generic in `T` with `T: Decode` so the library's
+  decision types need no core change.
+- The channel configuration stays one name (`effects.approve.channel`,
+  Phase A §6) and takes a module path, so a library adapter can be named
+  there without new config grammar.
+- Nothing in the library may widen the `approve` admission rule (R4); it
+  is called from the same places core `approve` is.
