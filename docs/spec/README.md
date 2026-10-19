@@ -5,28 +5,33 @@ Status: **draft**. Governed by `docs/decisions.md`; where the two disagree,
 
 Primary reader: an agent about to write or change `.jip` code. Secondary
 reader: a human reviewing that code. Read `00-language-card.md` first; it is
-the ~2k-token summary agents load before writing. Each later section goes
-deeper on one construct.
+the summary agents load before writing (its measured size is a §13-evaluation
+figure, R15). Each later section goes deeper on one construct.
 
 ## Sections
 
-| File | Covers |
-|---|---|
-| `00-language-card.md` | Every construct in one compiling example |
-| `01-lexical-structure.md` | Files, `module` line, tokens, literals, comments, statement termination |
-| `02-types.md` | Primitives, records, enums, newtypes, `Option`/`Result`, collections, generics |
-| `03-functions-and-effects.md` | `fn`, signatures, effect sets, closures, `impl` methods |
-| `04-expressions-and-control.md` | `let`/`var`, blocks, `if`, `match`, loops, `?`, operators |
-| `05-contracts.md` | `pre`, `post`, `inv`, levels, derived property checks |
-| `06-behaviours.md` | `behaviour`, `impl … for`, the eight v0 behaviours, child specs |
-| `07-agents-and-workflows.md` | `llm`, `decide`, `approve`, tools, `Workflow`, `Agent` |
-| `08-concurrency-and-mutation.md` | `spawn`/`task`, `Cell`, `mut`, persistent and mutable collections |
-| `09-modules-and-context.md` | `module`, `use`, `pub`, interface files, `jip check`, context packs |
-| `10-config.md` | `app.jip` schema, overlays, dependencies, child specs |
-| `11-extern.md` | Go interop, allowlist, effect floor |
-| `12-testing.md` | `scenarios.jip`, Given/When/Then, `any` generators |
-| `13-tooling-and-diagnostics.md` | `jip` CLI, diagnostics format, build pipeline |
-| `grammar.md` | Consolidated grammar |
+The **v0** column says what each section contributes to the v0 gate
+(`docs/decisions.md` §0 and R1–R15). *Deferred* items carry a
+`*Status: deferred from v0*` banner at the rule and are v1 design, not
+v0 behaviour.
+
+| File | Covers | v0 |
+|---|---|---|
+| `00-language-card.md` | Every construct in one compiling example | all of it compiles under v0 |
+| `01-lexical-structure.md` | Files, `module` line, tokens, literals, comments, statement termination | all |
+| `02-types.md` | Primitives, records, enums, newtypes, `Option`/`Result`, collections, generics | all; `Int` traps on overflow (R2) |
+| `03-functions-and-effects.md` | `fn`, signatures, effect sets, `fn` closures, inherent `impl` (R3) | all |
+| `04-expressions-and-control.md` | `let`/`var`, blocks, `if`, `match`, loops, `?`, operators, turbofish | all |
+| `05-contracts.md` | `pre`, `post`, `inv`, levels, generators | contracts, generators, `via`; derived checks deferred (R9) |
+| `06-behaviours.md` | `behaviour`, `impl … for`, the six v0 behaviours, child specs | `Service, Worker, Cron, Workflow, Repository, Cache`; `Machine` deferred (R1) |
+| `07-agents-and-workflows.md` | `llm`, `decide`, `approve`, `Workflow`, `WorkflowError<E>` | all but `Agent` and tools, deferred (R1) |
+| `08-concurrency-and-mutation.md` | `spawn`/`task`, `Cell`, `mut`, persistent and mutable collections | all |
+| `09-modules-and-context.md` | `module`, `use`, `pub`, interface files, `jip check`, context packs | all; two digests (R7), `--accept-breaking` (R8) |
+| `10-config.md` | `app.jip` schema, `config {}`, overlays, dependencies, child specs | all; `custom` provider and non-embedded workflow runtimes deferred |
+| `11-extern.md` | Go interop, allowlist, effect floor | all; direct-import floor only (R13) |
+| `12-testing.md` | `scenarios.jip`, Given/When/Then, `any T`, `any T via g`, table rows, fakes by default (R14) | all; `any T where` deferred (R9) |
+| `13-tooling-and-diagnostics.md` | `jip` CLI, diagnostics format, build pipeline | `build`, `test`, `check`, `fmt`, `context`; Go 1.24 (R10) |
+| `grammar.md` | Consolidated grammar | v0 grammar; deferred forms marked |
 
 ## How each section is written
 
@@ -59,13 +64,16 @@ also exemplified.
   `Name { ..base, field: value }` (spread first, then overrides).
 - **Newtypes.** `type Money(Int)`; the payload is `.0`.
 - **Tuples and unit.** `(a, b)`, type `(A, B)`; unit is `()`.
-- **Closures.** `(x) => expr` or `(x) => { … }`; parameter types inferred
-  from context, annotations allowed `(x: Int) => …`.
+- **Closures.** `fn(x) => expr` or `fn(x) => { … }`; parameter types
+  inferred from context, annotations allowed `fn(x: Int) => …`. A
+  parenthesised list without `fn` is a tuple.
 - **Method calls.** `x.f(y)`; methods take `self` first; the implementing
   type is `Self`.
-- **Generic calls.** `json.decode<Receipt>(s)`; `llm<smart>(prompt, input)`,
-  `decide<fast>(input)`, `approve(review)` infer `T` from the binding
-  annotation when it is not written.
+- **Generic calls.** An explicit type argument is the turbofish,
+  `json.decode::<Receipt>(s)`, `approve::<Decision>(review)`; a bare `<` in
+  an expression is always less-than. `llm<smart>(prompt, input)` and
+  `decide<fast>(input)` are keywords with a role, not generic calls. `T` is
+  inferred from the binding annotation when it is not written.
 - **Literals.** `1_000`, `3.5`, `"text {expr}"` (interpolation, `{{` for a
   literal brace), `b"bytes"`, `'c'`, `true`, `[1, 2]` for lists, durations
   `5s 100ms 48h`. No map literal; `Map.of((k, v), …)`.
@@ -75,5 +83,6 @@ also exemplified.
   approve}` after the return type; omitted means pure.
 - **Contracts.** `pre`, `post`, `inv` lines between signature and body.
 - **Scenarios.** `scenario "name" { given … when … then … }`, one binding
-  per `given`/`when` line, one boolean per `then` line, `any T where expr`
-  for generated values, `@extern` tag line before `scenario`.
+  per `given`/`when` line, one boolean per `then` line, `any T` or `any T
+  via g` for generated values, `given rows = [...]` then `given (a, b) in
+  rows` for tables, `@extern` tag line before `scenario`.

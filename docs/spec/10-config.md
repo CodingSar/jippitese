@@ -8,28 +8,27 @@ compiler, overlaid by exactly three layers at startup.
 ```jip
 app {
   name: "orders"
+  config { gateway_url: Url, search: Url, db: Path }   // the `Config` record every `init` receives
   deps {
     http  = git("https://github.com/acme/jip-http",  commit: "8f1c2a7", hash: "sha256-Qm…")
     pgsql = git("https://github.com/acme/jip-pgsql", commit: "3be09d4", hash: "sha256-7a…")
     pdf   = gomod("github.com/acme/gopdf",           commit: "c0ffee1", hash: "sha256-Xk…")
   }
-  models { smart = openai("model-id"), fast = jev("jev-1-small"), local = ollama("local-model") }
+  models { smart = openai("gpt-5"), fast = jev("jev-1-small"), local = ollama("local-model") }
   secrets { gateway_key: secret<Str>, db_url: secret<Url> }   // JIP_SECRETS__GATEWAY_KEY
   effects {
     net  { timeout: default 5s, retry: default { max: 3, backoff: exp, base: 200ms }, ratelimit: default { per_second: 50.0 } }
     llm  { timeout: default 60s, budget: default 2_000_000 tokens }
     io   { timeout: default 10s }
     decide { timeout: default 500ms }
-    approve { channel: "finance", default_timeout: default 48h }
+    approve { channel: orders.review_inbox, default_timeout: default 48h }
   }
   telemetry { exporter: otlp, endpoint: default "http://localhost:4317", sample: default 0.1 }
-  externs { allow: ["orders.pdf"], max: 10 }
+  externs { allow: [orders.pdf], max: 10 }
   contracts: pre
-  workflow: embedded
-  workflow.store: default ".jip/workflow.db"
-  http { port: default 8080 }
+  workflow { mode: embedded, store: default ".jip/workflow.db" }
   topics { paid: Topic<Receipt> }
-  run BillingApi { restart: permanent, max_restarts: 3, period: 60s, shutdown_timeout: 10s }
+  run BillingApi { restart: permanent, max_restarts: 3, period: 60s, shutdown_timeout: 10s, port: default 8080 }
   run Billing
   env prod { telemetry.sample = 0.01, effects.net.retry.max = 5 }
 }
@@ -57,17 +56,24 @@ aborts startup.
    there is no implicit typing: `"0.1"` is not `0.1`, `no` is not `false`.
 3. **Fields.** All optional unless marked required.
    - `name: Str` (required).
+   - `config { field: Type }` (R5): the application's own settings, each
+     field a schema-derivable type (section 02). The stdlib record `Config`
+     that every behaviour's `init(cfg: Config)` receives (section 06) is
+     exactly these fields plus one field `secrets` holding the `secrets`
+     block; `cfg.gateway_url`, `cfg.secrets.gateway_key`. A leaf may carry a
+     literal, with or without `default`; one without a literal is required
+     from the overlay (rule 5). An empty or absent block gives `Config` only
+     `secrets`.
    - `deps { alias = git(url: Str, commit: Str, hash: Str) | gomod(path: Str, commit: Str, hash: Str) }`.
-   - `models { role = Provider }` with `Provider ::= openai(Str) | anthropic(Str) | jev(Str) | ollama(Str) | custom(url: Str, model: Str)`. Every role used in code as `llm<role>` or `decide<role>` must be declared (E0307).
+   - `models { role = Provider }` with `Provider ::= openai(Str) | anthropic(Str) | jev(Str) | ollama(Str)`. Every role used in code as `llm<role>` or `decide<role>` must be declared (E0307). **Deferred:** a `custom(url, model)` provider is not in v0.
    - `secrets { name: secret<T> }`, `T` one of `Str`, `Int`, `Url`, `Bytes`. A secret field never carries a literal (E0302); its value comes only from `JIP_SECRETS__<NAME>`.
-   - `effects { net { timeout: Duration, retry { max: Int, backoff: exp | const, base: Duration }, ratelimit { per_second: Float } } llm { timeout: Duration, budget: Tokens | Money, ratelimit { per_second: Float } } io { timeout: Duration } decide { timeout: Duration } approve { channel: Str, default_timeout: Duration } }`. Defaults: `net.timeout 5s`, `net.retry { max: 3, backoff: exp, base: 100ms }`, `llm.timeout 60s`, `io.timeout 10s`, `decide.timeout 1s`, `approve.default_timeout 24h`; no ratelimit, no llm budget, retries only on `net`.
+   - `effects { net { timeout: Duration, retry { max: Int, backoff: exp | const, base: Duration }, ratelimit { per_second: Float } } llm { timeout: Duration, budget: Tokens | Money, ratelimit { per_second: Float } } io { timeout: Duration } decide { timeout: Duration } approve { channel: ModulePath, default_timeout: Duration } }`. `approve.channel` names an app or dependency module implementing `std.approve.Channel` (section 07 rule 7); the stdlib ships `std.approve.http`. Defaults: `net.timeout 5s`, `net.retry { max: 3, backoff: exp, base: 100ms }`, `llm.timeout 60s`, `io.timeout 10s`, `decide.timeout 1s`, `approve.default_timeout 24h`; no ratelimit, no llm budget, retries only on `net`. These are the defaults sections 06 and 07 cite.
    - `telemetry { exporter: otlp | prometheus | none, endpoint: Str, sample: Float }`. Defaults `none`, `""`, `0.1`.
-   - `externs { allow: List<Str>, max: Int }`. Defaults `[]`, `0` (§11).
+   - `externs { allow: List<ModulePath>, max: Int }`, module paths unquoted. Defaults `[]`, `0` (§11).
    - `contracts: all | pre | none`, default `pre` (`jip test` forces `all`).
-   - `workflow: embedded | temporal | restate`, default `embedded`; `workflow.store: Path`, default `.jip/workflow.db`, valid only with `embedded`.
-   - `http { port: Int }`, default `8080`.
+   - `workflow { mode: embedded, store: Path }`, defaults `embedded` and `.jip/workflow.db`. **Deferred:** `mode: temporal | restate` are not in v0; the field exists so that adding a runtime later is a value, not a schema change.
    - `topics { name: Topic<T> }`: one declaration per topic that `Worker` impls chain over (§06).
-   - `run <Impl> { restart: permanent | transient | temporary, max_restarts: Int, period: Duration, shutdown_timeout: Duration }`: one child spec per `impl` instance of `Service`, `Worker`, `Cron`, `Machine`, `Workflow` or `Agent` (§06). Defaults `permanent`, `3`, `60s`, `10s`. `run Billing` with no block takes all defaults. An impl without a `run` line is never started; a `run` naming no impl is E0308.
+   - `run <Impl> { restart: permanent | transient | temporary, max_restarts: Int, period: Duration, shutdown_timeout: Duration, topic: <name>, port: Int, ttl: Duration }`: one child spec per `impl` instance of `Service`, `Worker`, `Cron`, `Workflow`, `Repository` or `Cache` (§06 rule 13). Defaults `permanent`, `3`, `60s`, `10s`; `topic` only for a `Worker`, `port` only for a `Service` (default `8080`), `ttl` only for a `Cache` (default `5m`); a field on the wrong kind of impl is E0308. `run Billing` with no block takes all defaults. An impl without a `run` line is never started; a `run` naming no impl is E0308.
    - `env <name> { path.to.field = value }`: an overlay block, any number, distinct names.
 4. **`default` marker.** `default` before a scalar literal (or a record of
    scalars) marks that leaf overridable. A leaf without `default` is fixed:
@@ -93,7 +99,10 @@ aborts startup.
    fetch --save` writes the computed hash into `app.jip`. A `git(...)` or
    `gomod(...)` without `hash` is a compile error (E0306). Dependencies are
    vendored flat under `vendor/<alias>`; the vendored tree is committed, and
-   `jip check` re-hashes it against `app.jip` (E0309 on mismatch).
+   `jip check` re-hashes it against `app.jip` (E0309 on mismatch). For
+   every `gomod(...)` entry `jip build` synthesises `vendor/modules.txt`
+   from the pinned path and commit, because `go build -mod=vendor` rejects a
+   vendor tree without it; the file is generated, never edited.
 8. **One commit per URL.** A dependency's own `app.jip` contributes only its
    `deps {}` and `externs {}` blocks to the graph. Across the whole graph each
    URL resolves to one commit. Two different commits for one URL (a diamond)
@@ -107,7 +116,8 @@ aborts startup.
 ```text
 app "orders"  env: prod  (JIP_ENV=prod)
   name                              "orders"                    app
-  models.smart                      openai("model-id")          app
+  config.gateway_url                "https://pay.example/charge" JIP_CONFIG__GATEWAY_URL
+  models.smart                      openai("gpt-5")             app
   secrets.gateway_key               <set>                       JIP_SECRETS__GATEWAY_KEY
   secrets.db_url                    <unset>                     -
   effects.net.timeout               5s                          app (default)
@@ -117,7 +127,9 @@ app "orders"  env: prod  (JIP_ENV=prod)
   telemetry.endpoint                "http://collector:4317"     JIP_TELEMETRY__ENDPOINT
   telemetry.sample                  0.01                        env prod
   contracts                         pre                         app
+  workflow.mode                     embedded                    app
   run.BillingApi.restart            permanent                   app
+  run.BillingApi.port               8080                        app (default)
 instrumented: net 3 sites, llm 1 site, decide 1 site, approve 1 site
 ```
 
@@ -159,7 +171,8 @@ The same violation from the environment aborts startup:
 ```text
 jip: startup aborted: JIP_TELEMETRY__EXPORTER sets a non-default field `telemetry.exporter` (fixed at app.jip:17:25)
 jip: startup aborted: JIP_TELEMETRY__SAMPEL matches no field (did you mean JIP_TELEMETRY__SAMPLE?)
-jip: startup aborted: JIP_HTTP__PORT="80a0" does not parse as Int
+jip: startup aborted: JIP_RUN__BILLINGAPI__PORT="80a0" does not parse as Int
+jip: startup aborted: JIP_CONFIG__GATEWAY_URL is unset and `config.gateway_url` has no literal
 ```
 
 ```text
@@ -180,16 +193,23 @@ error[E0305]: dependency `https://github.com/acme/jip-log` is required at two co
 AppDecl     ::= "app" "{" AppField* "}"
 AppField    ::= Ident ":" Value NEWLINE
               | Ident "{" AppField* "}" NEWLINE
-              | DepsBlock | ModelsBlock | SecretsBlock | TopicsBlock | RunSpec | EnvBlock
+              | ConfigBlock | DepsBlock | ModelsBlock | SecretsBlock | ExternsBlock
+              | WorkflowBlock | TopicsBlock | RunSpec | EnvBlock
+ConfigBlock ::= "config" "{" (Ident ":" Type ("=" Value)? ("," Ident ":" Type ("=" Value)?)*)? "}"
 Value       ::= "default"? Scalar | "default"? "{" (Ident ":" Value ("," Ident ":" Value)*)? "}"
 Scalar      ::= Str | Int | Float | Bool | Duration | Ident | Int "tokens" | "Money" "(" Int ")"
 DepsBlock   ::= "deps" "{" (Ident "=" DepSource NEWLINE)* "}"
 DepSource   ::= ("git" | "gomod") "(" Str "," "commit" ":" Str "," "hash" ":" Str ")"
 ModelsBlock ::= "models" "{" (Ident "=" Provider ("," Ident "=" Provider)*)? "}"
-Provider    ::= ("openai" | "anthropic" | "jev" | "ollama") "(" Str ")" | "custom" "(" "url" ":" Str "," "model" ":" Str ")"
+Provider    ::= ("openai" | "anthropic" | "jev" | "ollama") "(" Str ")"
 SecretsBlock::= "secrets" "{" (Ident ":" "secret" "<" Type ">" ("," Ident ":" "secret" "<" Type ">")*)? "}"
+ExternsBlock::= "externs" "{" "allow" ":" "[" (ModulePath ("," ModulePath)*)? "]" ("," "max" ":" Int)? "}"
+WorkflowBlock::= "workflow" "{" "mode" ":" "embedded" ("," "store" ":" "default"? Str)? "}"
 TopicsBlock ::= "topics" "{" (Ident ":" "Topic" "<" Type ">")* "}"
-RunSpec     ::= "run" TypeName ("{" (Ident ":" Scalar ("," Ident ":" Scalar)*)? "}")? NEWLINE
+RunSpec     ::= "run" TypeName ("{" RunField ("," RunField)* "}")? NEWLINE
+RunField    ::= "restart" ":" ("permanent" | "transient" | "temporary")
+              | "max_restarts" ":" Int | "period" ":" Duration | "shutdown_timeout" ":" Duration
+              | "topic" ":" Ident | "port" ":" "default"? Int | "ttl" ":" "default"? Duration
 EnvBlock    ::= "env" Ident "{" (FieldPath "=" Scalar ("," FieldPath "=" Scalar)*)? "}"
 FieldPath   ::= Ident ("." Ident)*
 ```

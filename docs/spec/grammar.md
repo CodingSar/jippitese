@@ -47,7 +47,7 @@ File        ::= ModuleDecl UseDecl* (Item* | ScenarioBody)
 ModuleDecl  ::= "module" ModulePath NEWLINE
 UseDecl     ::= "use" UsePath ("as" Ident)? NEWLINE
 ModulePath  ::= Ident ("." Ident)*
-UsePath     ::= "std" "." Ident | ModulePath
+UsePath     ::= "std" "." Ident | Ident /* dependency alias, 09 rule 4 */ | ModulePath
 
 Item        ::= DocLine* Visibility? "opaque"? (TypeDecl | EnumDecl | FnDecl | ConstDecl
                 | BehaviourDecl | ImplDecl | ExternDecl)
@@ -128,7 +128,7 @@ ConstSig      ::= "const" Ident ":" Type NEWLINE
 FnSig         ::= "fn" Ident TypeParams? "(" Params? ")" ("->" Type)? ("with" EffectExpr)?
                   NEWLINE ContractLine*
 
-ImplDecl      ::= "impl" TypeName TypeArgs? "for" Type "{" ImplItem* "}"
+ImplDecl      ::= "impl" (TypeName TypeArgs? "for")? Type "{" ImplItem* "}"
 ImplItem      ::= AssocType | ImplConst | InvClause | FnDecl
 AssocType     ::= "type" TypeName "=" Type NEWLINE
 ImplConst     ::= "const" Ident "=" ConstExpr NEWLINE
@@ -136,9 +136,10 @@ ConstExpr     ::= Expr | ScheduleLit
 ScheduleLit   ::= "every" DurationLit | "cron" StrLit
 ```
 
-An inherent `impl T { … }` (no `for`) is not in v0: every `impl` names a
-behaviour (06 writes `impl` only with `for`). `RoleLit` constants (`const role = fast`) parse as
-`Expr` whose value is a bare `Ident`.
+An inherent `impl T { … }` (no `for`, 03 rule 4, R3) holds `FnDecl` and
+`InvClause` items only; `AssocType` and `ImplConst` appear in behaviour impls
+only. `RoleLit` constants (`const role = fast`) parse as `Expr` whose value
+is a bare `Ident`.
 
 ## Expressions (04, 05, 07, 08)
 
@@ -147,8 +148,8 @@ Block       ::= "{" (Stmt NEWLINE)* Expr? "}"
 Stmt        ::= "let" Pattern (":" Type)? "=" Expr
                 | "var" Ident (":" Type)? "=" Expr
                 | Ident AssignOp Expr
-                | "while" Expr Block
-                | "for" Pattern "in" Expr Block
+                | "while" CondExpr Block
+                | "for" Pattern "in" CondExpr Block
                 | "break"
                 | "continue"
                 | "return" Expr?
@@ -156,16 +157,17 @@ Stmt        ::= "let" Pattern (":" Type)? "=" Expr
 AssignOp    ::= "=" | "+=" | "-=" | "*=" | "/="
 
 Expr        ::= OrExpr ((".." | "..=") OrExpr)?
+CondExpr    ::= Expr /* no unparenthesised RecordExpr at top level: `if x { … }` is a block, 04 rule E0451 */
 OrExpr      ::= AndExpr ("||" AndExpr)*
 AndExpr     ::= CmpExpr ("&&" CmpExpr)*
 CmpExpr     ::= AddExpr (("==" | "!=" | "<" | "<=" | ">" | ">=") AddExpr)?
 AddExpr     ::= MulExpr (("+" | "-") MulExpr)*
 MulExpr     ::= UnaryExpr (("*" | "/" | "%") UnaryExpr)*
 UnaryExpr   ::= ("!" | "-")? PostfixExpr
-PostfixExpr ::= Primary ("." Ident TypeArgs? Args? | "." IntLit | Args | "[" Expr "]" | "?")*
+PostfixExpr ::= Primary ("." Ident ("::" TypeArgs)? Args? | "." IntLit | Args | "[" Expr "]" | "?")*
 Args        ::= "(" (Expr ("," Expr)* ","?)? ")"
 Primary     ::= Literal
-                | Ident TypeArgs?
+                | Ident ("::" TypeArgs)? /* turbofish: f::<T>(x) */
                 | "(" Expr ("," Expr)* ")" /* parenthesised or tuple */
                 | "(" ")" /* unit */
                 | "[" (Expr ("," Expr)* ","?)? "]" /* List literal */
@@ -177,14 +179,14 @@ Primary     ::= Literal
                 | SpawnExpr
                 | TaskExpr
                 | "panic" "(" Expr ")"
-                | LlmCall | DecideCall | ApproveCall | ToolsExpr | AwaitSignal
+                | LlmCall | DecideCall | ApproveCall | AwaitSignal
                 | ContractExpr /* contracts only */
 RecordExpr  ::= TypePath "{" (".." Expr ",")? (FieldInit ("," FieldInit)* ","?)? "}"
 FieldInit   ::= Ident (":" Expr)?
-IfExpr      ::= "if" Expr Block ("else" (IfExpr | Block))?
-MatchExpr   ::= "match" Expr "{" Arm ("," Arm)* ","? "}"
+IfExpr      ::= "if" CondExpr Block ("else" (IfExpr | Block))?
+MatchExpr   ::= "match" CondExpr "{" Arm ("," Arm)* ","? "}"
 Arm         ::= Pattern ("if" Expr)? "=>" (Expr | Block)
-Closure     ::= "(" (ClosureParam ("," ClosureParam)*)? ")" "=>" (Expr | Block)
+Closure     ::= "fn" "(" (ClosureParam ("," ClosureParam)*)? ")" "=>" (Expr | Block)
 ClosureParam ::= Ident (":" Type)?
 
 SpawnExpr   ::= "spawn" Block
@@ -192,13 +194,14 @@ TaskExpr    ::= "task" Expr /* only inside a spawn block */
 
 LlmCall     ::= "llm" "<" RoleLit ("," Type)? ">" "(" Expr "," Expr ")"
 DecideCall  ::= "decide" "<" RoleLit ("," Type)? ">" "(" Expr ")"
-ApproveCall ::= "approve" ("<" Type ">")? "(" Expr ")"
-ToolsExpr   ::= "tools" "[" (Ident ("," Ident)*)? "]"
-AwaitSignal ::= "await_signal" "<" Type ">" "(" Expr ")"
+ApproveCall ::= "approve" ("::" TypeArgs)? "(" Expr ")" /* only inside Workflow.run, 07 */
+AwaitSignal ::= "await_signal" ("::" TypeArgs)? "(" Expr ")"
 ```
 
-`<` after an `Ident` or `.Ident` with no whitespace opens `TypeArgs`; with
-whitespace it is the comparison operator (01 rule 15).
+`<` in an expression is always less-than; an explicit type argument is the
+turbofish `::<…>` (01 rule 15). `llm`, `decide`, `approve` and `via` are
+keywords. `tools […]` and `Agent` are deferred from v0 (R1) and have no
+grammar here.
 
 ## Patterns (04)
 
@@ -227,25 +230,22 @@ GoIdent     ::= ("A" … "Z") (letter | digit)*
 ## Interface files (09)
 
 ```
-InterfaceFile ::= "interface" ModulePath "digest" "sha256:" Hex NEWLINE Entry*
+InterfaceFile ::= "interface" ModulePath "digest" "sha256:" Hex NEWLINE Entry* ModuleSection?
+ModuleSection ::= "module-visible" "digest" "sha256:" Hex NEWLINE Entry*
 Entry         ::= DocLine Signature ContractLine*
 Signature     ::= "pub" ("(" "module" ")")? "opaque"?
-                  (TypeSig | EnumSig | BehaviourSig | ConstSig | FnSig | ImplSig | RunLine)
+                  (TypeSig | EnumSig | BehaviourSig | ConstSig | FnSig | ImplSig)
+                  /* pub(module) entries appear only under ModuleSection, 09 rule 7 */
 TypeSig       ::= "type" TypeName TypeParams? TypeBody? NEWLINE
 EnumSig       ::= "enum" TypeName TypeParams? ("{" Variant ("," Variant)* "}")? NEWLINE
 BehaviourSig  ::= "behaviour" TypeName TypeParams? NEWLINE (AssocTypeSig | ConstSig | FnSig)*
-ImplSig       ::= "impl" TypeName TypeArgs? "for" Type NEWLINE (AssocType | ImplConst | FnSig)*
-RunLine       ::= "run" TypeName ("{" RunField ("," RunField)* "}")? NEWLINE
-RunField      ::= "restart" ":" ("permanent" | "transient" | "temporary")
-                  | "max_restarts" ":" IntLit
-                  | "period" ":" DurationLit
-                  | "shutdown_timeout" ":" DurationLit
-                  | "topic" ":" Ident
+ImplSig       ::= "impl" (TypeName TypeArgs? "for")? Type NEWLINE (AssocType | ImplConst | FnSig)*
 Hex           ::= (digit | "a" … "f")+
 ```
 
 Interface files are generated by `jip check`, never hand-written; the grammar
-is here so a reader of a `.jipi` can parse it.
+is here so a reader of a `.jipi` can parse it. `run` lines live in `app.jip`
+only (10) and are not interface entries.
 
 ## Configuration, `app.jip` (10)
 
@@ -253,7 +253,8 @@ is here so a reader of a `.jipi` can parse it.
 AppFile     ::= "app" "{" AppField* "}"
 AppField    ::= Ident ":" Value NEWLINE
                 | Ident "{" AppField* "}" NEWLINE
-                | DepsBlock | ModelsBlock | SecretsBlock | TopicsBlock | RunLine | EnvBlock
+                | ConfigBlock | DepsBlock | ModelsBlock | SecretsBlock | TopicsBlock
+                | ExternsBlock | WorkflowBlock | RunLine | EnvBlock
 Value       ::= "default"? Scalar
                 | "default"? "{" (Ident ":" Value ("," Ident ":" Value)*)? "}"
 Scalar      ::= StrLit | IntLit | FloatLit | "true" | "false" | DurationLit | Ident
@@ -262,7 +263,18 @@ DepsBlock   ::= "deps" "{" (Ident "=" DepSource NEWLINE)* "}"
 DepSource   ::= ("git" | "gomod") "(" StrLit "," "commit" ":" StrLit "," "hash" ":" StrLit ")"
 ModelsBlock ::= "models" "{" (Ident "=" Provider ("," Ident "=" Provider)*)? "}"
 Provider    ::= ("openai" | "anthropic" | "jev" | "ollama") "(" StrLit ")"
-                | "custom" "(" "url" ":" StrLit "," "model" ":" StrLit ")"
+ConfigBlock ::= "config" "{" (ConfigField ("," ConfigField)*)? "}"
+ConfigField ::= Ident ":" Type ("=" Value)?
+ExternsBlock ::= "externs" "{" "allow" ":" "[" (ModulePath ("," ModulePath)*)? "]" "," "max" ":" IntLit "}"
+WorkflowBlock ::= "workflow" "{" "mode" ":" "embedded" ("," "store" ":" "default"? StrLit)? "}"
+RunLine     ::= "run" TypeName ("{" RunField ("," RunField)* "}")? NEWLINE
+RunField    ::= "restart" ":" ("permanent" | "transient" | "temporary")
+                | "max_restarts" ":" "default"? IntLit
+                | "period" ":" "default"? DurationLit
+                | "shutdown_timeout" ":" "default"? DurationLit
+                | "port" ":" "default"? IntLit
+                | "ttl" ":" "default"? DurationLit
+                | "topic" ":" Ident
 SecretsBlock ::= "secrets" "{" (SecretField ("," SecretField)*)? "}"
 SecretField ::= Ident ":" "secret" "<" Type ">"
 TopicsBlock ::= "topics" "{" (Ident ":" "Topic" "<" Type ">" NEWLINE)* "}"
@@ -276,7 +288,9 @@ FieldPath   ::= Ident ("." Ident)*
 ScenarioBody ::= (Tag* ScenarioDecl)*
 ScenarioDecl ::= "scenario" StrLit "{" GivenStep* WhenStep ThenStep+ "}"
 GivenStep    ::= "given" Ident "=" (Expr | AnyExpr) NEWLINE
-AnyExpr      ::= "any" Type ("where" Expr)?
+                | "given" "(" Ident ("," Ident)+ ")" "in" Ident NEWLINE /* table rows */
+                | "given" "real_time" NEWLINE
+AnyExpr      ::= "any" Type ("via" Ident)? /* `via` resolves in the module under test; `where` is deferred (R9) */
 WhenStep     ::= "when" (Ident | "_") "=" Expr NEWLINE
 ThenStep     ::= "then" Expr NEWLINE
 Tag          ::= "@extern" NEWLINE | "@slow" NEWLINE | "@skip" "(" StrLit ")" NEWLINE
@@ -296,8 +310,8 @@ section blocks are not wrong, only local; a parser follows this file.
   signature and `EffectSet` is the braces.
 - `Contract` (02, `inv` only) and `Contract` (05, `pre | post`) are both
   `ContractLine`, with placement fixed by the text under Contracts.
-- `ImplDecl`: 03 allows `("for" Type)?`; v0 has no inherent impls, so `for`
-  is mandatory (06). 05 writes the implemented type as `Ident`; it is `Type`.
+- `ImplDecl`: 03, 05 and 06 agree that `for` is optional (inherent impls,
+  R3); 05 writes the implemented type as `Ident`; it is `Type`.
   06's `ImplItem` plus 03's and 05's `InvClause*` are merged into `ImplItem`.
   06's `ConstDecl` inside an impl is `ImplConst`; module-level `ConstDecl`
   (09) carries an optional type.
@@ -308,5 +322,7 @@ section blocks are not wrong, only local; a parser follows this file.
   (`ScenarioBody`), not an item. 12's `ModuleLine`/`UseLine` are `ModuleDecl`/
   `UseDecl`.
 - 10's `Str Int Float Bool Duration` are the lexical `StrLit IntLit FloatLit
-  "true" | "false" DurationLit`, and `RunSpec` is 06's `RunLine`.
+  "true" | "false" DurationLit`, and `RunSpec` is `RunLine`, which lives
+  under Configuration (10), not under Interface files.
+- 12's `GivenStep` and `AnyExpr` are identical to this file's.
 - 09's `Visibility | Opacity` is folded into `Item` as `Visibility? "opaque"?`.

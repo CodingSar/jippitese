@@ -33,7 +33,7 @@ shows a Go error and `jip fmt` has no configuration.
 ### The CLI
 
 1. `jip new <name>` scaffolds `<name>/app.jip` (name set, `contracts: pre`,
-   `workflow: embedded`), one module `<name>/<name>/main.jip` with a
+   `workflow { mode: embedded }`), one module `<name>/<name>/main.jip` with a
    `Service` impl and its `run` line, and `<name>/<name>/scenarios.jip`.
 2. `jip build` runs the pipeline (rule 10) and writes the binary to
    `.jip/bin/<name>`. `--release` strips symbols and disables the Go race
@@ -41,15 +41,19 @@ shows a Go error and `jip fmt` has no configuration.
    `--target GOOS/GOARCH` cross-compiles.
    `--go-positions` emits no `//line` directives, for compiler debugging
    only.
-3. `jip test` runs every scenario and derived property check (§12) under
-   `contracts: all`. `--filter <substring>` matches scenario names or module
-   paths; `--seed <int>` fixes the generator seed and is printed on every
-   failure.
+3. `jip test` runs every scenario (§12) under `contracts: all` with the
+   fake clock and seeded generator installed (R14). `--filter <substring>`
+   matches scenario names or module paths; `--runs <int>` sets the property
+   run count; `--seed <int>` fixes the generator seed and is printed on
+   every failure. The derived checks of §05 are v1 and not run.
 4. `jip check` type-checks without emitting Go, then: extracts interfaces
    and reports drift and API classification (§09); prints warnings (rule 9);
    prints the extern report (§11); verifies vendored hashes (§10).
-   `--write-interfaces` rewrites `interface.jipi` files. `--effective --env
-   <name>` prints the resolved config (§10). `--json` switches to JSON Lines.
+   `--write-interfaces` rewrites `interface.jipi` files. `--accept-breaking
+   <module>` turns a `breaking` classification for that module into exit 0,
+   as does the commit trailer `jip-breaking: <module>` on `HEAD` (§09 rule
+   8, R8). `--effective --env <name>` prints the resolved config (§10).
+   `--json` switches to JSON Lines.
 5. `jip fmt` rewrites every `.jip` under the root to canonical form. Zero
    options. `--check` writes nothing and exits 1 if any file would change.
 6. `jip context <module>` prints the context pack; `--short`, `--for <file>`
@@ -57,9 +61,9 @@ shows a Go error and `jip fmt` has no configuration.
 7. `jip fetch` downloads and verifies every `deps {}` entry into `vendor/`;
    `--save` writes computed hashes into `app.jip`.
 8. **Exit codes.** `0` success; `1` diagnostics with severity `error`, failed
-   scenarios, drift, a breaking classification, an extern violation or
-   `fmt --check` differences; `2` bad invocation; `3` internal compiler
-   error (E9999).
+   scenarios, drift, a breaking classification that is not accepted (rule
+   4), an extern violation or `fmt --check` differences; `2` bad invocation;
+   `3` internal compiler error (E9999).
 9. **Warnings.** Unused effect, unused import, unused variable, unused
    `as` alias and declared-but-unreferenced `pub(module)` items are
    warnings. `jip check` prints them; `jip build` does not. Warnings never
@@ -73,17 +77,18 @@ shows a Go error and `jip fmt` has no configuration.
     `gofmt`-ed Go under `.jip/gen/<module path>/` with one `//line
     <file>:<line>:<col>` directive per statement → generate `.jip/gen/go.mod`
     from `app.jip` (module `jip/<name>`, a `replace` line per `gomod(...)`
-    dependency pointing into `vendor/`, `toolchain go1.27.0`) → `go build
-    -trimpath -mod=vendor`. Output is deterministic: the same sources and
+    dependency pointing into `vendor/`, a synthesised `vendor/modules.txt`,
+    `toolchain go1.24.0`) → `go build -trimpath -mod=vendor`. Output is deterministic: the same sources and
     `app.jip` produce byte-identical Go.
-11. **Toolchain.** The compiler embeds a pinned Go toolchain; v0 pins 1.27.
-    The pin lives in `compiler/toolchain.go` and is bumped deliberately.
-    `JIP_GO=<path>` substitutes a system toolchain; the minimum accepted is
-    1.24, and below 1.27 the emitter lifts generic methods to free
-    functions; nothing else changes.
+11. **Toolchain.** The compiler embeds a pinned Go toolchain; v0 pins 1.24
+    (R10). The pin lives in `compiler/toolchain.go` and is bumped
+    deliberately. `JIP_GO=<path>` substitutes a system toolchain of at least
+    the pinned version; nothing else changes. The emitter never relies on
+    generic methods: behaviours lower to dictionaries (§06 rule 15).
 12. **Two caches.** The jippitese cache at `.jip/cache/<module>` is keyed on
-    the module's source hash plus its direct dependencies' interface digests
-    (§09): a hit skips typecheck, lower and emit for that module. Below it,
+    the module's source hash, its direct dependencies' interface digests and
+    the `module-visible` digests of every module under its parent (§09 rule
+    9): a hit skips typecheck, lower and emit for that module. Below it,
     `GOCACHE` keys on the emitted Go, so unchanged generated files cost
     nothing to rebuild.
 13. **Never a Go error.** Every type, effect, contract and exhaustiveness
@@ -137,8 +142,8 @@ shows a Go error and `jip fmt` has no configuration.
 
 ### Runtime panics
 
-19. A panic (contract violation, `inv` failure, extern panic, runtime bug)
-    prints the reason, then frames mapped through `//line` to `.jip`
+19. A panic (contract violation in a plain function, §05 rule 10; `inv`
+    failure at construction; extern panic; runtime bug) prints the reason, then frames mapped through `//line` to `.jip`
     positions, innermost first, then exits 101:
 
 ```text

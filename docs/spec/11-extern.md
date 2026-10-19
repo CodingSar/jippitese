@@ -6,10 +6,11 @@ doc line and a scenario, and it is allowed only where `app.jip` says so.
 
 ## Example
 
-`orders/pdf/render.jip`, a module listed in `externs { allow: ["orders.pdf"] }`:
+`orders/pdf/render.jip`, a module listed in `externs { allow: [orders.pdf] }`:
 
 ```jip
 module orders.pdf
+use std.gen
 
 /// Renders an invoice to PDF bytes with the vendored gopdf library.
 extern fn render(html: Str, opts: Map<Str, Str>) -> Result<Bytes, GoError> with {io}
@@ -21,6 +22,9 @@ extern fn pages(doc: Bytes) -> Option<Int> = go "github.com/acme/gopdf".Pages
 /// Pure hashing routine; the package touches no I/O, clock or shared state.
 /// why: xxhash is a pure function of its input.
 unsafe pure extern fn fingerprint(doc: Bytes) -> Int = go "github.com/cespare/xxhash/v2".Sum64
+
+/// Generator for `any Bytes via non_pdf`: bytes that never start with the PDF magic.
+pub fn non_pdf(g: Gen) -> Bytes { b"junk-".concat(g.bytes(0, 64)) }
 ```
 
 `orders/pdf/scenarios.jip`:
@@ -38,7 +42,7 @@ scenario "render produces a PDF header" {
 
 @extern
 scenario "pages rejects non-PDF bytes" {
-  given junk = any Bytes where !junk.starts_with(b"%PDF-")
+  given junk = any Bytes via non_pdf              // named generator (§12 rule 4)
   when  n = pdf.pages(junk)
   then  n == None
 }
@@ -48,7 +52,7 @@ scenario "pages rejects non-PDF bytes" {
 
 ```jip
 deps { pdf = gomod("github.com/acme/gopdf", commit: "c0ffee1", hash: "sha256-Xk…") }
-externs { allow: ["orders.pdf"], max: 10 }
+externs { allow: [orders.pdf], max: 10 }
 ```
 
 Go side, as emitted under `.jip/gen/` (conversions inline, no reflection):
@@ -75,9 +79,9 @@ here the compiler checks the declared effects against the Go import path.
    the module path of a `gomod(...)` entry in `deps {}` (E0504 otherwise).
 2. **Explicit effects.** The effect set is written or the extern is pure.
    Effects are never inferred from the Go side; the Go side is only used to
-   check a floor (rule 6).
+   check a floor (rule 5).
 3. **Signature types.** Only jippitese types appear. No Go type, pointer,
-   interface, channel or struct may be named. The boundary mapping table:
+   interface, channel, struct or `context.Context` may be named. The boundary mapping table:
 
    | jippitese | Go |
    |---|---|
@@ -117,13 +121,16 @@ here the compiler checks the declared effects against the Go import path.
    | `net`, `net/http`, `net/*` | `net` |
    | `time`, `math/rand`, `math/rand/v2`, `crypto/rand` | `nondet` |
    | `sync`, `sync/atomic` | `mut` |
-   | `os/exec` | `io, spawn` |
-   | any function that launches a goroutine | `spawn` |
+   | `os/exec` | `io` |
 
-   The floor of an extern is the union over the packages its Go function
-   imports transitively, resolved from the Go source when it is available.
-   A declaration whose set is not a superset of the floor is a compile error
-   (E0501). A declaration above the floor is allowed.
+   The floor of an extern is the union over the Go packages that the target
+   function's own package imports directly (its `import` block), read from
+   the vendored source; nothing is resolved transitively and no goroutine
+   analysis is attempted (R13). `spawn` is never inferred: an extern that
+   wants it writes it. A target package that imports `context` is a compile
+   error (E0508): externs receive no context and are never interrupted
+   (rule 9). A declaration whose set is not a superset of the floor is a
+   compile error (E0501). A declaration above the floor is allowed.
 6. **`unsafe pure`.** A pure extern (no `with`) whose Go package is not in
    the table is E0501 unless prefixed `unsafe pure` and followed by a second
    `///` line starting `why:`. `unsafe pure` on a package that is in the
@@ -137,9 +144,11 @@ here the compiler checks the declared effects against the Go import path.
    line. One commit per Go module path graph-wide, as for `git(...)`.
 9. **Codegen.** The generated Go calls the target directly with inline
    conversions; no reflection, no wrapper interface, no closure per call.
-   A panic inside the Go function becomes a jippitese panic (§08): the trace
-   is `//line`-mapped so the first frame names the `extern` line in `.jip`,
-   followed by the Go frames of the external package.
+   The Go function receives no `context` and is never interrupted
+   (section 08 rule 6); cancellation is observed at the next effectful call
+   after it returns. A panic inside the Go function becomes a jippitese
+   panic (§08): the trace is `//line`-mapped so the first frame names the
+   `extern` line in `.jip`, followed by the Go frames of the external package.
 10. **Interface files.** An extern appears in `interface.jipi` as an
     ordinary `pub fn` entry when it is `pub`; the `= go …` target is omitted,
     so no Go path reaches a dependent module's context pack.
@@ -182,12 +191,12 @@ error[E0501]: extern below the effect floor
 
 ```text
 error[E0502]: extern in a module that is not allow-listed
-  --> orders/billing/leaf.jip:40:1
+  --> orders/customers/leaf.jip:40:1
    |
 40 | extern fn read_file(p: Path) -> Result<Bytes, GoError> with {io} = go "os".ReadFile
-   | ^^^^^^ `orders.billing` is not in `app.jip` externs.allow
-   = note: externs.allow = ["orders.pdf"], 3 of max 10 used
-   = help: either add "orders.billing" to `externs { allow: [...] }` in app.jip, or call `fs.read_file` from `std.fs`
+   | ^^^^^^ `orders.customers` is not in `app.jip` externs.allow
+   = note: externs.allow = [orders.pdf], 3 of max 10 used
+   = help: either add `orders.customers` to `externs { allow: [...] }` in app.jip, or call `fs.read_file` from `std.fs`
 ```
 
 ## Grammar

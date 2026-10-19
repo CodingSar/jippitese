@@ -3,7 +3,8 @@
 jippitese has one kind of test: the BDD scenario. There are no unit-test
 files. Scenarios live beside the module they exercise, draw generated values
 from the contract generators of 05, and run with contracts fully on, so a
-`then` failure and a `post` failure look the same.
+`then` failure and a `post` failure look the same. The clock and the random
+generator are fakes by default (R14).
 
 ## Example
 
@@ -15,8 +16,8 @@ use orders.billing
 use orders.customers
 
 scenario "withdraw never overdraws" {
-  given acc = any Account where acc.balance.0 >= 0
-  given amt = any Money where amt.0 > 0
+  given acc = any Account                        // contract generator: respects `inv`
+  given amt = any Money via positive_money       // named generator (rule 4)
   when  r = withdraw(acc, amt)
   then  match r { Ok(a) => a.balance.0 >= 0, Err(_) => true }
 }
@@ -28,9 +29,16 @@ scenario "withdraw of the whole balance empties the account" {
   then  match r { Ok(a) => a.balance.0 == 0, Err(_) => false }
 }
 
+scenario "withdraw table" {
+  given rows = [(Money(500), Money(200), true), (Money(100), Money(200), false)]
+  given (bal, amt, ok) in rows                   // the block runs once per row
+  when  r = withdraw(Account { id: AccountId(1), balance: bal }, amt)
+  then  r.is_ok() == ok
+}
+
 scenario "service charges through the configured gateway" {
   given http = FakeHttp.new().reply(200, b"{\"id\":\"r1\",\"amount\":500}")
-  given cfg = Config { gateway: Gateway { url: Url("https://pay.test/charge") } }
+  given cfg = Config { gateway_url: Url("https://pay.test/charge"), secrets: Secrets.fake() }
   given svc = BillingApi.init(cfg)?
   given req = BillReq { order: Order { id: OrderId(1), lines: [], total: Money(500) } }
   when  r = svc.handle(req)
@@ -39,10 +47,9 @@ scenario "service charges through the configured gateway" {
 }
 
 scenario "high-risk order waits for finance" {
-  given clock = FakeClock.new()
   given http = FakeHttp.new().reply(200, b"{\"id\":\"r1\",\"amount\":9000}")
   given fast = FakeDecide.always(Tier.High)
-  given finance = FakeApprove.script([Ok(true)])
+  given finance = FakeApprove.script([Ok(Decision.Proceed)])
   given order = Order { id: OrderId(7), lines: [], total: Money(9_000) }
   when  r = run_workflow(Billing, order)
   then  r.is_ok()
@@ -59,8 +66,9 @@ scenario "read_file returns the bytes written" {
 @slow
 @skip("gateway sandbox is down until the Q4 cutover")
 scenario "sandbox round-trip" {
-  given cfg = Config { gateway: Gateway { url: Url("https://sandbox.pay.test") } }
-  when  r = charge(Order { id: OrderId(2), lines: [], total: Money(1) }, cfg.gateway)
+  given real_time                                // opt out of the fake clock (rule 10)
+  given cfg = Config { gateway_url: Url("https://sandbox.pay.test"), secrets: Secrets.fake() }
+  when  r = charge(Order { id: OrderId(2), lines: [], total: Money(1) }, Gateway { url: cfg.gateway_url })
   then  r.is_ok()
 }
 ```
@@ -72,7 +80,7 @@ contract oracle that come free in a scenario are hand-written here:
 ```go
 func TestWithdrawNeverOverdraws(t *testing.T) {
 	f := func(balance uint32, amt uint32) bool {
-		if amt == 0 { return true }                 // the `where` filter, by hand
+		if amt == 0 { return true }                 // the generator's bound, by hand
 		acc := Account{Balance: Money(int64(balance))}
 		a, err := Withdraw(acc, Money(int64(amt)))
 		return err != nil || a.Balance >= 0       // the `then` line
@@ -100,13 +108,21 @@ func TestWithdrawNeverOverdraws(t *testing.T) {
    may have any effect (constructing fakes, reading fixtures). `?` on a
    `given` or `when` fails the scenario with the error value; it does not
    propagate anywhere else, because the scenario block is the boundary.
-4. **`given name = any T where expr`.** Draws `name` from the generator for
-   `T` (05 rule 15), narrowed by `where` exactly as a `pre` narrows a
-   parameter: comparisons, ranges and lengths become bounds, anything else
-   is a filter with the same 90% rejection budget. `where` is optional and
-   may mention earlier `given` names. `T` is any type a generator exists
-   for; a type that contains a function, `Cell` or behaviour value is a
-   compile error.
+4. **`given name = any T`.** Draws `name` from the contract generator for
+   `T` (05 rule 15): the structural generator under the fixed size model,
+   with every `inv` of `T` checked on each candidate. `given name = any T
+   via g` draws through the named generator instead: `g` is a `pub fn
+   g(g: Gen) -> T` of the module under test that takes every random choice
+   from `Gen` (`std.gen`), so shrinking and seed replay apply unchanged;
+   `g` is the way to satisfy a `pre` the structural generator would miss.
+   `T` is any type a generator exists for; a type that contains a function,
+   `Cell` or behaviour value is a compile error. The table form is two
+   lines: `given rows = [(a, b, c), …]` binds a list of tuples, and `given
+   (x, y, z) in rows` runs the rest of the block once per row with the tuple
+   destructured; the pattern must match the tuple arity (E0803), and a
+   table scenario is an example, not a property (rule 7).
+   *Deferred from v0 (R9):* `any T where expr`, the inline filter, is v1;
+   write a `via` generator instead.
 5. **`when name = expr`.** The action under test, exactly one per scenario.
    `expr` may have any effect set; no `with` is written because the scenario
    block is the boundary that declares nothing. `when _ = expr` discards the
@@ -131,21 +147,28 @@ func TestWithdrawNeverOverdraws(t *testing.T) {
     `FakeDecide` (scripted or constant decisions) and `FakeApprove`
     (scripted `Ok(value)` or `Err(Rejected)` or `Timeout` answers), and the
     in-memory `MemRepo` and `MemCache` that stand in for `Repository` and
-    `Cache` impls in derived checks (section 06). Binding a
-    fake in a `given` installs it for the rest of that scenario; the effect
-    it fakes is routed to it. `net`, `llm`, `decide` and `approve` must be
-    faked: reaching one with no fake installed fails the scenario with
-    `effect net reached the boundary with no fake installed`. `nondet` uses
-    the real clock and generator when no fake is bound; `io`, `mut` and
+    `Cache` impls (section 06). Binding a fake in a `given` installs it for
+    the rest of that scenario; the effect it fakes is routed to it. `net`,
+    `llm`, `decide` and `approve` must be faked: reaching one with no fake
+    installed fails the scenario with `effect net reached the boundary with
+    no fake installed`. `nondet` is faked by default (R14): every scenario
+    starts with a `FakeClock` at a fixed epoch and a `FakeRandom` seeded
+    from the run seed, so `time.now()`, `sleep`, `random()` and
+    `await_signal` timeouts are deterministic without a `given`; binding
+    `FakeClock.new()` or `FakeRandom.seeded(n)` explicitly takes control of
+    the installed fake. The line `given real_time` opts a scenario out and
+    routes `nondet` to the real clock and generator. `io`, `mut` and
     `spawn` always run for real. A user-written fake (`FakeGateway` in the
     card) is an ordinary type and needs no installation.
 11. **Behaviours.** A `Service`, `Worker`, `Cron`, `Repository` or `Cache`
     impl is exercised by calling its lifecycle methods directly, as
     `BillingApi.init(cfg)?` above; the behaviour's own contracts and `inv`
-    are on. A `Workflow` or `Agent` is run with `run_workflow(Impl, input)`
-    and `run_agent(Impl, input)` on the embedded runtime with a fresh journal
-    and the bound `FakeClock`, so `sleep` and `await_signal` timeouts advance
-    the fake clock instead of waiting; `approve` answers come from the bound
+    are on. A `Cron` tick is driven with `tick(Name)`, which runs `run` once
+    and returns its result; advancing the fake clock never fires a tick on
+    its own (section 06 rule 9). A `Workflow` is run with
+    `run_workflow(Impl, input)` on the embedded runtime with a fresh journal
+    and the installed `FakeClock`, so `sleep` and `await_signal` timeouts
+    advance the fake clock instead of waiting; `approve` answers come from the bound
     `FakeApprove` script in order, and an exhausted script is a failure.
     `send_signal(run, signal)` delivers a `Signal` to a running workflow.
 12. **Tags.** A tag line immediately precedes `scenario`. `@extern` marks a
@@ -154,14 +177,15 @@ func TestWithdrawNeverOverdraws(t *testing.T) {
     scenarios run only under `jip test --slow` and are otherwise printed as
     `slow` and counted as skipped. `@skip("reason")` skips the scenario; the
     reason is printed. No skip is ever silent.
-13. **`jip test`.** Runs every scenario plus every derived check of 05,
-    prints one line per scenario and per derived check, then a summary, and
-    exits non-zero if any scenario, `then` line or derived check failed.
-    `jip test <module>` runs that module's scenarios and derived checks;
-    `jip test --name "substring"` keeps scenarios whose name contains the
-    text; `--seed N` replays a persisted or printed seed for every property
-    instead of drawing a new one. Lines are `ok`, `FAIL`, `skip` or `slow`,
-    then the module, the scenario name and, for properties, the run count.
+13. **`jip test`.** Runs every scenario, prints one line per scenario, then
+    a summary, and exits non-zero if any scenario or `then` line failed.
+    `jip test <module>` runs that module's scenarios; `jip test --filter
+    "substring"` keeps scenarios whose name contains the text; `--runs N`
+    sets the property run count; `--seed N` replays a persisted or printed
+    seed for every property instead of drawing a new one. Lines are `ok`,
+    `FAIL`, `skip` or `slow`, then the module, the scenario name and, for
+    properties, the run count. The derived checks of 05 rules 14 and 17 are
+    v1 and not run.
 14. **No other test forms.** There is no assertion library, no test
     function, no fixture file format. Shared setup is a pure `fn` in the
     module under test or a `given` line.
@@ -214,11 +238,14 @@ ScenarioFile ::= ModuleLine UseLine* (Tag* ScenarioDecl)*
 ScenarioDecl ::= "scenario" StringLit "{" GivenStep* WhenStep ThenStep+ "}"
 Step         ::= GivenStep | WhenStep | ThenStep
 GivenStep    ::= "given" Ident "=" (Expr | AnyExpr) NEWLINE
-AnyExpr      ::= "any" Type ("where" Expr)?
+               | "given" "(" Ident ("," Ident)+ ")" "in" Ident NEWLINE   /* table row */
+               | "given" "real_time" NEWLINE
+AnyExpr      ::= "any" Type ("via" Ident)?
 WhenStep     ::= "when" (Ident | "_") "=" Expr NEWLINE
 ThenStep     ::= "then" Expr NEWLINE
 Tag          ::= "@extern" NEWLINE | "@slow" NEWLINE | "@skip" "(" StringLit ")" NEWLINE
 ```
 
-`AnyExpr` is valid only on the right of a `given`. A `ScenarioFile` contains
+`AnyExpr` is valid only on the right of a `given`; the `via` name resolves
+in the module under test. A `ScenarioFile` contains
 no `FnDecl`, `TypeDecl` or `ImplDecl`.
