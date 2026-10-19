@@ -84,7 +84,7 @@ pub behaviour Service {
   type Resp
   type E
   fn init(cfg: Config) -> Result<Self, E> with {io, net}
-  fn handle(self, req: Req) -> Result<Resp, E> with {io, net, mut, nondet, llm, decide, spawn}
+  fn handle(self, req: Req) -> Result<Resp, E> with {io, net, mut, llm, decide, nondet, spawn}
   fn stop(self) with {io, net} {}
   fn health(self) -> Health with {io, net} { Health.aggregate(self) }
 }
@@ -94,7 +94,7 @@ pub behaviour Worker {
   type E
   const retry: Retry                       // Retry { max: Int, backoff: Backoff }; Backoff = Fixed(Duration) | Exp(Duration)
   fn init(cfg: Config) -> Result<Self, E> with {io, net}
-  fn perform(self, m: Msg) -> Result<(), E> with {io, net, mut, nondet, llm, decide}
+  fn perform(self, m: Msg) -> Result<(), E> with {io, net, mut, llm, decide, nondet}
   fn stop(self) with {io, net} {}
   fn health(self) -> Health with {io, net} { Health.aggregate(self) }
 }
@@ -103,7 +103,7 @@ pub behaviour Cron {
   type E
   const schedule: Schedule                 // `every 5m` or `cron "0 * * * *"`
   fn init(cfg: Config) -> Result<Self, E> with {io, net}
-  fn run(self) -> Result<(), E> with {io, net, mut, nondet, llm, decide}
+  fn run(self) -> Result<(), E> with {io, net, mut, llm, decide, nondet}
   fn stop(self) with {io, net} {}
   fn health(self) -> Health with {io, net} { Health.aggregate(self) }
 }
@@ -115,7 +115,7 @@ pub behaviour Workflow {                   // semantics in section 07
   type E                                   // closed sum: the application's own failures
   const version: Int
   fn init(cfg: Config) -> Result<Self, E> with {io, net}
-  fn run(self, in: Input) -> Result<Output, WorkflowError<E>> with {io, net, nondet, llm, decide, approve, spawn}
+  fn run(self, in: Input) -> Result<Output, WorkflowError<E>> with {io, net, llm, decide, nondet, spawn, approve}
   fn on_signal(self, s: Signal) {}
 }
 
@@ -175,7 +175,7 @@ pub behaviour Machine {
   fn init(cfg: Config) -> Result<Self, E> with {io, net}
   fn activate(self, key: Key) -> State
   fn on(self, s: State, e: Event) -> (State, List<Action>)
-  fn act(self, key: Key, a: Action) -> Result<List<Event>, E> with {io, net, nondet, llm, decide}
+  fn act(self, key: Key, a: Action) -> Result<List<Event>, E> with {io, net, llm, decide, nondet}
   fn deactivate(self, key: Key, s: State) with {io, net} {}
   fn stop(self) with {io, net} {}
   fn health(self) -> Health with {io, net} { Health.aggregate(self) }
@@ -310,7 +310,7 @@ error[E0701]: `impl Worker for Indexer` is missing `perform`
 14 | impl Worker for Indexer {
    | ^^^^^^^^^^^^^^^^^^^^^^^ required by `Worker`
    = note: `Worker` requires `fn perform(self, m: Msg) -> Result<(), E>`
-   = help: add `fn perform(self, m: OrderEvent) -> Result<(), IndexError> with {net} { … }`
+   = help: add `fn perform(self, m: OrderEvent) -> Result<(), IndexError> with {io, net, mut, llm, decide, nondet} { … }`
 ```
 
 An effect outside the budget (rule 3):
@@ -320,7 +320,7 @@ error[E0702]: effect `spawn` exceeds the budget of `Worker.perform`
   --> orders/index.jip:19:60
    |
 19 |   fn perform(self, m: OrderEvent) -> Result<(), IndexError> with {net, spawn} {
-   |                                                                       ^^^^^ not in {io, net, mut, nondet, llm, decide}
+   |                                                                       ^^^^^ not in {io, net, mut, llm, decide, nondet}
    = help: remove `spawn`, or implement `Service`, whose `handle` budget includes it
 ```
 

@@ -95,7 +95,7 @@ pub behaviour Service {
   type Resp
   type E
   fn init(cfg: Config) -> Result<Self, E> with {io, net}
-  fn handle(self, req: Req) -> Result<Resp, E> with {io, net, mut, nondet, llm, decide, spawn}
+  fn handle(self, req: Req) -> Result<Resp, E> with {io, net, mut, llm, decide, nondet, spawn}
   fn stop(self) with {io, net} {}
   fn health(self) -> Health with {io, net} { Health.aggregate(self) }
 }
@@ -106,7 +106,7 @@ pub behaviour Worker {
   type E
   const retry: Retry
   fn init(cfg: Config) -> Result<Self, E> with {io, net}
-  fn perform(self, m: Msg) -> Result<(), E> with {io, net, mut, nondet, llm, decide}
+  fn perform(self, m: Msg) -> Result<(), E> with {io, net, mut, llm, decide, nondet}
   fn stop(self) with {io, net} {}
   fn health(self) -> Health with {io, net} { Health.aggregate(self) }
 }
@@ -116,7 +116,7 @@ pub behaviour Cron {
   type E
   const schedule: Schedule
   fn init(cfg: Config) -> Result<Self, E> with {io, net}
-  fn run(self) -> Result<(), E> with {io, net, mut, nondet, llm, decide}
+  fn run(self) -> Result<(), E> with {io, net, mut, llm, decide, nondet}
   fn stop(self) with {io, net} {}
   fn health(self) -> Health with {io, net} { Health.aggregate(self) }
 }
@@ -129,7 +129,7 @@ pub behaviour Workflow {
   type E
   const version: Int
   fn init(cfg: Config) -> Result<Self, E> with {io, net}
-  fn run(self, input: Input) -> Result<Output, WorkflowError<E>> with {io, net, nondet, llm, decide, approve, spawn}
+  fn run(self, input: Input) -> Result<Output, WorkflowError<E>> with {io, net, llm, decide, nondet, spawn, approve}
   fn on_signal(self, s: Signal) {}
 }
 

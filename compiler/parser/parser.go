@@ -296,7 +296,7 @@ func (p *parser) typeDecl(pos ast.Pos, doc string, vis ast.Visibility) ast.Item 
 		p.fail("E0002", "expected `{`, `(` or `=` after type name")
 	}
 	p.skipTerms()
-	for p.isKw("inv") {
+	for p.is(lexer.Ident, "inv") {
 		p.next()
 		d.Inv = append(d.Inv, p.expr())
 		p.skipTerms()
@@ -426,7 +426,7 @@ func (p *parser) effects() []ast.Effect {
 		if t.Kind != lexer.Ident && t.Kind != lexer.Keyword {
 			p.fail("E0002", "expected effect name, found %s", t)
 		}
-		e := ast.Effect{Name: t.Text}
+		e := ast.Effect{Pos: t.Pos, Name: t.Text}
 		if p.acceptOp("<") {
 			e.Role = p.ident()
 			p.expectOp(">")
@@ -493,7 +493,7 @@ func (p *parser) fnDecl(pos ast.Pos, doc string, vis ast.Visibility, top bool) *
 		return d
 	}
 	p.skipTerms()
-	for p.isKw("pre") || p.isKw("post") {
+	for p.is(lexer.Ident, "pre") || p.is(lexer.Ident, "post") {
 		if p.next().Text == "pre" {
 			d.Pre = append(d.Pre, p.expr())
 		} else {
@@ -541,7 +541,7 @@ func (p *parser) implDecl(pos ast.Pos, doc string) ast.Item {
 			p.term()
 		case p.isKw("const"):
 			d.Consts = append(d.Consts, p.constDecl(p.peek().Pos, "", ast.Private))
-		case p.isKw("inv"):
+		case p.is(lexer.Ident, "inv"):
 			p.next()
 			d.Inv = append(d.Inv, p.expr())
 			p.term()
@@ -575,7 +575,7 @@ func (p *parser) behaviourDecl(pos ast.Pos, doc string, vis ast.Visibility) ast.
 			p.term()
 		case p.isKw("const"):
 			d.Consts = append(d.Consts, p.constDecl(p.peek().Pos, "", ast.Private))
-		case p.isKw("inv"):
+		case p.is(lexer.Ident, "inv"):
 			p.next()
 			d.Inv = append(d.Inv, p.expr())
 			p.term()
@@ -1061,7 +1061,7 @@ func (p *parser) primary(nr bool) ast.Expr {
 				}
 			}
 			p.skipTerms()
-			p.expectOp("}")
+			m.End = p.expectOp("}").Pos
 			return m
 		case "while":
 			p.next()
@@ -1250,6 +1250,11 @@ func (p *parser) patternAtom() ast.Pattern {
 			for {
 				p.skipTerms()
 				if p.isOp("}") {
+					break
+				}
+				if p.acceptOp("..") {
+					vp.Named = append(vp.Named, ast.FieldPat{Name: ".."})
+					p.skipTerms()
 					break
 				}
 				fp := ast.FieldPat{Name: p.ident()}

@@ -87,6 +87,7 @@ type EnumDecl struct {
 func (d *EnumDecl) ItemPos() Pos { return d.Pos }
 
 type Effect struct {
+	Pos  Pos
 	Name string
 	Role string
 }
@@ -287,6 +288,7 @@ type MatchExpr struct {
 	Pos  Pos
 	X    Expr
 	Arms []Arm
+	End  Pos // position of the closing brace
 }
 type WhileExpr struct {
 	Pos  Pos

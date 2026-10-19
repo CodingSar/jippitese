@@ -131,7 +131,7 @@ func Escalation(ctx workflow.Context, id TicketID) (Summary, error) {
 8. **Declaration.** As in section 06: `Input`, `Output`, `Signal` (closed
    sum), `E` (closed sum), `const version: Int`, `init(cfg: Config) ->
    Result<Self, E>`, `run(self, in: Input) -> Result<Output,
-   WorkflowError<E>> with {io, net, nondet, llm, decide, approve, spawn}`,
+   WorkflowError<E>> with {io, net, llm, decide, nondet, spawn, approve}`,
    `on_signal(self, s: Signal) {}`. `WorkflowError<E> = Replay(ReplayError)
    | Approval(Rejected) | Cancelled | App(E)`. `?` inside `run` is the
    ordinary `?` of section 04: a `Result<_, E>` lifts through `App`, a
@@ -283,7 +283,7 @@ error[E0703]: effect `mut` is not allowed inside `Workflow.run`
    |
 52 |     bump(counter)
    |     ^^^^^^^^^^^^^ `bump` has effect `mut`
-   = note: `run` may use {io, net, nondet, llm, decide, approve, spawn}
+   = note: `run` may use {io, net, llm, decide, nondet, spawn, approve}
    = help: keep workflow state in a `var` or return it from a step
 ```
 

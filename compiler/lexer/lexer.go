@@ -61,7 +61,7 @@ func (t Token) String() string {
 var Keywords = map[string]bool{}
 
 func init() {
-	for _, k := range strings.Fields("module use pub fn type enum impl behaviour for let var if else match while in return break continue spawn task with pre post inv ret old forall exists scenario given when then any where via extern go unsafe pure app env const self Self llm decide approve true false") {
+	for _, k := range strings.Fields("module use pub fn type enum impl behaviour for let var if else match while in return break continue spawn task with ret old forall exists scenario given when then any where via extern go unsafe pure app env const self Self llm decide approve true false") {
 		Keywords[k] = true
 	}
 }

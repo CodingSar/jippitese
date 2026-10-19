@@ -1,0 +1,12 @@
+module orders.customers
+
+/// A customer.
+pub type Customer { id: CustomerId, name: Str }
+
+/// Customer identity.
+pub type CustomerId(Int)
+
+/// Display name.
+pub fn display(c: Customer) -> Str { "{c.name} ({c.id.0})" }
+
+fn hidden(c: Customer) -> Int { c.id.0 }
