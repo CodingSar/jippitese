@@ -1,6 +1,6 @@
 # v0 revision plan: acting on the external critique
 
-Status: **proposed**. Input: `docs/review-brief.md` and the critic's answers
+Status: **ratified 2026-10-19** (all of §0, plus the §9 answers). Input: `docs/review-brief.md` and the critic's answers
 to its §8 questions (recorded in the session that produced this file).
 Output: a sequence of pull requests that bring `docs/decisions.md` and
 `docs/spec/` into one consistent v0, then the first compiled example.
@@ -9,7 +9,7 @@ Rule from `decisions.md` line 3: the spec must not contradict decisions, so
 every change below edits `decisions.md` first and the spec second. Nothing in
 this plan edits the spec ahead of its decision.
 
-## 0. Decisions the owner must ratify before any edit
+## 0. Ratified decisions
 
 Each item reverses or narrows something in brief §5 (user-ratified) or §6
 (invented). The default applies if the owner does not answer; the plan is
@@ -18,20 +18,20 @@ written against the defaults.
 | # | Change | Reverses | Default |
 |---|---|---|---|
 | R1 | v0 behaviours are `Service`, `Worker`, `Repository`, `Workflow`, `Cron`, `Cache`. `Machine` and `Agent` leave v0 (06 r1, decisions §5). | §5 "eight behaviours" narrowed by two | ratified 2026-10-19 |
-| R2 | `Int` traps on overflow instead of wrapping (02 r1). Checked ops `checked_add` etc. return `Option<Int>`. | §6 | adopt |
-| R3 | Inherent impls `impl T { … }` are allowed; the stdlib already needs them (`Cell.new`, `MutList.new`, `List.builder`). Resolves 03 r4 vs `grammar.md`. | §6 | adopt |
-| R4 | `approve` is admitted only in `Workflow.run`, `Agent.gate`, and functions reachable only from them (07 r8, 06 budgets). | §6 budgets | adopt |
-| R5 | `app.jip` gains a `config { field: Type }` block; `Config` is that record plus `secrets`. This defines the `Config` type that 06 r5 and 05 r17 use without defining. | new | adopt |
-| R6 | Step key becomes `<callee>@<site>#<n>` with a per-task execution counter and journaled site-id set (07 r10, r15, r16, r21). | §5 "step rule" | adopt |
-| R7 | Interface file gains a `module-visible` section and second digest covering `pub(module)` items; cache key of modules under the parent includes it (09 r5, r7, r9). | §5 "interface digests" | adopt |
-| R8 | `jip check --accept-breaking <module>` or commit trailer `jip-breaking: <module>` lets an intentional break exit 0 (13 r8). | new | adopt |
-| R9 | Scenario table form `given rows = [...]` (12 r2) and generator escape hatch `given x = any T via g` (12 r4, 05 r15). BDD-only stays. | §5 "BDD-only" narrowed, not reversed | adopt |
-| R10 | Behaviours lower to dictionaries, not Go interfaces; the emitter never emits a generic method; Go pin 1.24, the 1.27 clause is deleted (decisions §2, 02 r19, 06 r16, 13 r11). | §2 | adopt |
-| R11 | `WorkflowError<E> = Replay(ReplayError) \| Approval(Rejected) \| Cancelled \| App(E)`; `?` uses the ordinary 04 r11 rule, no `Show` lift (07 r9). | §6 | adopt |
-| R12 | Contract violations inside a behaviour method become that method's `Err` (or HTTP 500 for `Service`) at the behaviour boundary instead of a supervisor-visible panic (05 r10, 10 r3 `run` restarts). | §4 "violation is a panic" narrowed | adopt |
-| R13 | Extern effect floor uses a direct-import package table only; no transitive union, no goroutine detection (11 r5). | §12 | adopt |
-| R14 | `jip test` installs a fake clock and seeded random by default; `given real_time` opts out (12 r10, 05 r16). | §6 | adopt |
-| R15 | Every number in 09 r10 and decisions §13 (620, 2,900, 240 tokens) is removed until measured. | §13 | adopt |
+| R2 | `Int` traps on overflow instead of wrapping (02 r1). Checked ops `checked_add` etc. return `Option<Int>`. | §6 | ratified 2026-10-19 |
+| R3 | Inherent impls `impl T { … }` are allowed; the stdlib already needs them (`Cell.new`, `MutList.new`, `List.builder`). Resolves 03 r4 vs `grammar.md`. | §6 | ratified 2026-10-19 |
+| R4 | `approve` is admitted only in `Workflow.run`, `Agent.gate`, and functions reachable only from them (07 r8, 06 budgets). | §6 budgets | ratified 2026-10-19 |
+| R5 | `app.jip` gains a `config { field: Type }` block; `Config` is that record plus `secrets`. This defines the `Config` type that 06 r5 and 05 r17 use without defining. | new | ratified 2026-10-19 |
+| R6 | Step key becomes `<callee>@<site>#<n>` with a per-task execution counter and journaled site-id set (07 r10, r15, r16, r21). | §5 "step rule" | ratified 2026-10-19 |
+| R7 | Interface file gains a `module-visible` section and second digest covering `pub(module)` items; cache key of modules under the parent includes it (09 r5, r7, r9). | §5 "interface digests" | ratified 2026-10-19 |
+| R8 | `jip check --accept-breaking <module>` or commit trailer `jip-breaking: <module>` lets an intentional break exit 0 (13 r8). | new | ratified 2026-10-19 |
+| R9 | Scenario table form `given rows = [...]` (12 r2) and generator escape hatch `given x = any T via g` (12 r4, 05 r15). BDD-only stays. | §5 "BDD-only" narrowed, not reversed | ratified 2026-10-19 |
+| R10 | Behaviours lower to dictionaries, not Go interfaces; the emitter never emits a generic method; Go pin 1.24, the 1.27 clause is deleted (decisions §2, 02 r19, 06 r16, 13 r11). | §2 | ratified 2026-10-19 |
+| R11 | `WorkflowError<E> = Replay(ReplayError) \| Approval(Rejected) \| Cancelled \| App(E)`; `?` uses the ordinary 04 r11 rule, no `Show` lift (07 r9). | §6 | ratified 2026-10-19 |
+| R12 | Contract violations inside a behaviour method become that method's `Err` (or HTTP 500 for `Service`) at the behaviour boundary instead of a supervisor-visible panic (05 r10, 10 r3 `run` restarts). | §4 "violation is a panic" narrowed | ratified 2026-10-19 |
+| R13 | Extern effect floor uses a direct-import package table only; no transitive union, no goroutine detection (11 r5). | §12 | ratified 2026-10-19 |
+| R14 | `jip test` installs a fake clock and seeded random by default; `given real_time` opts out (12 r10, 05 r16). | §6 | ratified 2026-10-19 |
+| R15 | Every number in 09 r10 and decisions §13 (620, 2,900, 240 tokens) is removed until measured. | §13 | ratified 2026-10-19 |
 
 Not proposed, because the critic's counter-argument won or the cost is
 low: closed effect set and `nondet` stay (Q1); `Cell.new` stays `mut`;
