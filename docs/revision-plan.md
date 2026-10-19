@@ -17,7 +17,7 @@ written against the defaults.
 
 | # | Change | Reverses | Default |
 |---|---|---|---|
-| R1 | v0 behaviours are `Service`, `Worker`, `Repository`, `Workflow`. `Cache`, `Cron`, `Machine`, `Agent` leave v0 (06 r1, decisions §5). | §5 "eight behaviours" | adopt |
+| R1 | v0 behaviours are `Service`, `Worker`, `Repository`, `Workflow`, `Cron`, `Cache`. `Machine` and `Agent` leave v0 (06 r1, decisions §5). | §5 "eight behaviours" narrowed by two | ratified 2026-10-19 |
 | R2 | `Int` traps on overflow instead of wrapping (02 r1). Checked ops `checked_add` etc. return `Option<Int>`. | §6 | adopt |
 | R3 | Inherent impls `impl T { … }` are allowed; the stdlib already needs them (`Cell.new`, `MutList.new`, `List.builder`). Resolves 03 r4 vs `grammar.md`. | §6 | adopt |
 | R4 | `approve` is admitted only in `Workflow.run`, `Agent.gate`, and functions reachable only from them (07 r8, 06 budgets). | §6 budgets | adopt |
@@ -54,10 +54,12 @@ One pull request. Edits by section:
 - **§4 Contracts.** Add R12. Add the generation size model (depth ≤ 3,
   collection length ≤ 8, `Str` ≤ 32 bytes) and the W0510 filter warning.
   Add R9's `via`.
-- **§5 Behaviours.** Replace the eight with R1. Record the fate of the four
-  removed ones: `Cache` = `Repository` with `ttl`; `Cron` = `Worker` over a
-  `tick` topic; `Machine` = `Workflow` plus signals; `Agent` = stdlib loop
-  over `Workflow`. Each returns only with a compiled example.
+- **§5 Behaviours.** Replace the eight with R1. Record the fate of the two
+  removed ones: `Machine` = `Workflow` plus signals; `Agent` = stdlib loop
+  over `Workflow`. Each returns only with a compiled example. Record that
+  `Cron` and `Cache` stay because the owner wants every v0 behaviour wired
+  through the same dictionary lowering, run lines and `app.jip` overlay
+  from the start rather than retrofitted.
 - **§6 Agent primitives.** Add R6, R11. Reconcile the approval channel to
   one name, `effects.approve.channel`. `Review.timeout` becomes optional and
   takes `effects.approve.default_timeout`.
@@ -79,7 +81,7 @@ One pull request. Edits by section:
 - **§16 Project.** Replace the process line with the gate in Phase E: no
   spec section is "done" until the card compiles.
 - **Resolved deferred decisions table.** Add a row per R-item with track
-  letters. **Still deferred table.** Add `Cache`, `Cron`, `Machine`,
+  letters. **Still deferred table.** Add `Machine`,
   `Agent`, the three workflow runtimes, providers beyond one, `any T where`
   and derived checks, persistent collections as a data structure.
 
@@ -131,8 +133,11 @@ row except `Workflow`. r5: `init(cfg: Config)` with `Config` defined by R5;
 `Repository` default budget drops `net`. r6/r14: run lines required for
 `Repository` too, or `Repository` instances resolve by type name without a
 run line; pick one and align 10 r3. r7: delete "configured on the run line"
-or add `transport { method, path }` to `RunSpec`. r10, r9, r12 (`Machine`,
-`Cron`, `Cache`): move under a "Deferred from v0" heading, not deleted.
+or add `transport { method, path }` to `RunSpec`. r9 (`Cron`), r12
+(`Cache`): stay in v0; `Cron` needs a schedule grammar in `RunSpec` and a
+`tick` fake for scenarios; `Cache` needs `ttl` on the run line and a fake
+clock (R14) so expiry is testable. r10 (`Machine`): move under a "Deferred
+from v0" heading, not deleted.
 r15: `app.paid.publish` needs a grammar form; add `app.<topic>` as a
 `Primary` or rename to `topics.paid`. r16: R10.
 
@@ -198,8 +203,7 @@ greps for `) =>` afterwards.
 
 Rather than deleting text, each deferred construct gets a one-line banner
 `Status: deferred from v0 (revision-plan R1)` under its heading, and the
-spec README table gains a "v0" column. Deferred: `Cache`, `Cron`,
-`Machine`, `Agent`, `temporal`, `restate`, `custom`, `any T where`,
+spec README table gains a "v0" column. Deferred: `Machine`, `Agent`, `temporal`, `restate`, `custom`, `any T where`,
 derived property checks, `approve` outside workflows, persistent
 collections as a data structure, API classification beyond drift.
 
@@ -209,14 +213,20 @@ The spec is frozen only when this passes, and nothing in `stdlib/` or
 `evals/` starts before it:
 
 - `compiler/` builds `jip check`, `jip build`, `jip test`, `jip context`
-  for the subset: 01, 02, 03, 04, 05 r10 only, 06 `Service` and
-  `Repository`, 09 r1 to r7 plus r9 and r10, 10 `name`/`config`/`secrets`/
-  `http`/`run`/overlay, 12 without `any`, 13 pipeline with `//line`.
+  for the subset: 01, 02, 03, 04, 05 r10 only, 06 all six v0 behaviours
+  (R1), 07 journal and replay for `Workflow` on the in-process runtime
+  only, 09 r1 to r7 plus r9 and r10, 10 `name`/`config`/`secrets`/`http`/
+  `run`/`topics`/overlay, 12 without `any`, 13 pipeline with `//line`.
 - Acceptance: the language card's `charge`, `withdraw`, `total`, `max_by`
   and `BillingApi` compile to Go, `go vet` is clean on the output, the
   card's two scenarios pass with a `FakeHttp`, `interface.jipi` round-trips
   through `jip check` with a stable digest, and `jip context orders.billing`
-  prints without a number claimed in advance.
+  prints without a number claimed in advance. Plus one example per
+  remaining v0 behaviour in `examples/`, each with a scenario that passes
+  under the default fakes: a `Worker` consuming a topic, a `Cron` fired by
+  an injected `tick`, a `Cache` whose entry expires under the fake clock, a
+  `Workflow` that replays a journal with one `approve` step. The owner's
+  waterfall rule applies: the gate passes as a whole or not at all.
 - Order inside `compiler/`: lexer and parser with Phase C; type checker
   without behaviours; effects; modules and interface files; behaviours with
   dictionary lowering; contracts as boundary `Err`; scenarios and fakes; Go
@@ -269,13 +279,16 @@ rule number it renumbers, since later sections cite earlier ones by number.
 
 ## 9. Open questions for the owner
 
-- R1: keep `Worker` and topics in v0, or cut to `Service`, `Repository`,
-  `Workflow`? The critic kept `Worker`; the gate in Phase E does not need
-  it.
-- R2: trap on overflow in release builds too, or only under `contracts:
-  all`? The plan assumes always, since Go emission makes the check one
-  compare.
-- Phase C rule 2: `fn(a) => …` or Go's `func`? The plan assumes `fn` to
-  match the declaration keyword.
-- R7: should `pub(module)` items also be classified for breaking changes,
-  or only digested for the cache? The plan assumes digest only.
+Answered 2026-10-19:
+
+- R1: `Worker`, `Cron` and `Cache` stay in v0; only `Machine` and `Agent`
+  defer. Reason: waterfall, wire every behaviour through the same lowering
+  from the start.
+- R2: overflow traps in every build, release included. A trap is one
+  compare per arithmetic op in the emitted Go; the owner does not want a
+  debug/release behaviour split.
+- Phase C rule 2: closures use `fn`.
+- R7: `pub(module)` items are digested for the cache only, not classified
+  for breaking changes. A `pub(module)` change can only break siblings
+  under the same parent, which the same commit must already fix for
+  `jip check` to pass, so classifying it adds a report nobody acts on.
