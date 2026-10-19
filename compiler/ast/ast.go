@@ -1,7 +1,12 @@
 // Package ast is the syntax tree of .jip files.
 package ast
 
-import "github.com/codingsar/jippitese/compiler/lexer"
+import (
+	"sort"
+	"strings"
+
+	"github.com/codingsar/jippitese/compiler/lexer"
+)
 
 type Pos = lexer.Pos
 
@@ -90,6 +95,31 @@ type Effect struct {
 	Pos  Pos
 	Name string
 	Role string
+}
+
+// EffectOrder is the canonical order of effects (spec 03 rule 4).
+var EffectOrder = map[string]int{"io": 0, "net": 1, "mut": 2, "llm": 3, "decide": 4, "nondet": 5, "spawn": 6, "approve": 7}
+
+// SortEffects orders a set canonically.
+func SortEffects(es []Effect) []Effect {
+	out := append([]Effect(nil), es...)
+	sort.SliceStable(out, func(i, j int) bool {
+		a, b := out[i], out[j]
+		if EffectOrder[a.Name] != EffectOrder[b.Name] {
+			return EffectOrder[a.Name] < EffectOrder[b.Name]
+		}
+		return a.Role < b.Role
+	})
+	return out
+}
+
+// EffectSetString prints `{io, net, llm<smart>}` in canonical order.
+func EffectSetString(es []Effect) string {
+	var parts []string
+	for _, e := range SortEffects(es) {
+		parts = append(parts, e.String())
+	}
+	return "{" + strings.Join(parts, ", ") + "}"
 }
 
 func (e Effect) String() string {

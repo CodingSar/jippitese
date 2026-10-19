@@ -6,7 +6,6 @@ package checker
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/codingsar/jippitese/compiler/ast"
@@ -502,29 +501,11 @@ func isUnit(t Type) bool {
 
 // ---- effects --------------------------------------------------------------
 
-var effectOrder = map[string]int{"io": 0, "net": 1, "mut": 2, "llm": 3, "decide": 4, "nondet": 5, "spawn": 6, "approve": 7}
-
 // SortEffects orders a set canonically (spec 03 rule 4).
-func SortEffects(es []ast.Effect) []ast.Effect {
-	out := append([]ast.Effect(nil), es...)
-	sort.SliceStable(out, func(i, j int) bool {
-		a, b := out[i], out[j]
-		if effectOrder[a.Name] != effectOrder[b.Name] {
-			return effectOrder[a.Name] < effectOrder[b.Name]
-		}
-		return a.Role < b.Role
-	})
-	return out
-}
+func SortEffects(es []ast.Effect) []ast.Effect { return ast.SortEffects(es) }
 
 // EffectSetString prints `{io, net, llm<smart>}`.
-func EffectSetString(es []ast.Effect) string {
-	var parts []string
-	for _, e := range SortEffects(es) {
-		parts = append(parts, e.String())
-	}
-	return "{" + strings.Join(parts, ", ") + "}"
-}
+func EffectSetString(es []ast.Effect) string { return ast.EffectSetString(es) }
 
 // effContains reports whether set admits e. An entry without a role admits
 // every role of the same effect (a budget written as `llm`), while a
