@@ -233,6 +233,8 @@ func (p *parser) item() ast.Item {
 		return p.typeDecl(pos, doc, vis)
 	case p.isKw("enum"):
 		return p.enumDecl(pos, doc, vis)
+	case p.isKw("extern") && p.peekN(1).Kind == lexer.Keyword && p.peekN(1).Text == "type":
+		return p.externTypeDecl(pos, doc, vis)
 	case p.isKw("fn") || p.isKw("extern") || p.isKw("unsafe"):
 		return p.fnDecl(pos, doc, vis, true)
 	case p.isKw("impl"):
@@ -369,8 +371,49 @@ func (p *parser) constDecl(pos ast.Pos, doc string, vis ast.Visibility) *ast.Con
 		d.Type = p.typeExpr()
 	}
 	if p.acceptOp("=") {
-		d.Value = p.expr()
+		d.Value = p.constExpr()
 	}
+	p.term()
+	return d
+}
+
+// constExpr desugars the schedule literals of spec 06 (`every 5m`, `cron "…"`)
+// into calls of the prelude `Schedule` constructors; anything else is an Expr.
+func (p *parser) constExpr() ast.Expr {
+	t := p.peek()
+	if t.Kind == lexer.Ident && t.Text == "every" && p.peekN(1).Kind == lexer.Duration {
+		p.next()
+		d := p.next()
+		fn := &ast.FieldExpr{Pos: t.Pos, X: &ast.Ident{Pos: t.Pos, Name: "Schedule"}, Name: "Every"}
+		return &ast.CallExpr{Pos: t.Pos, Fn: fn, Args: []ast.Expr{&ast.DurationLit{Pos: d.Pos, Ns: d.Num}}}
+	}
+	if t.Kind == lexer.Ident && t.Text == "cron" && p.peekN(1).Kind == lexer.Str {
+		p.next()
+		s := p.next()
+		lit, err := lexer.DecodeStr(s.Text, s.Pos)
+		if err != nil {
+			le := err.(*lexer.Error)
+			panic(bailout{&Error{"E0001", le.Pos, le.Msg}})
+		}
+		fn := &ast.FieldExpr{Pos: t.Pos, X: &ast.Ident{Pos: t.Pos, Name: "Schedule"}, Name: "Cron"}
+		return &ast.CallExpr{Pos: t.Pos, Fn: fn, Args: []ast.Expr{&ast.StrLit{Pos: s.Pos, Parts: []ast.StrPart{{Lit: lit}}}}}
+	}
+	return p.expr()
+}
+
+// externTypeDecl parses `extern type Name<Params> = go "pkg".Ident`, the
+// stdlib-only form that binds a jippitese type to a runtime Go type.
+func (p *parser) externTypeDecl(pos ast.Pos, doc string, vis ast.Visibility) ast.Item {
+	d := &ast.TypeDecl{Pos: pos, Doc: doc, Vis: vis, Kind: ast.ExternKind}
+	p.expectKw("extern")
+	p.expectKw("type")
+	d.Name = p.ident()
+	d.Params = p.typeParams()
+	p.expectOp("=")
+	p.expectKw("go")
+	pkg := p.expect(lexer.Str, "").Text
+	p.expectOp(".")
+	d.Extern = &ast.ExternRef{Pkg: pkg, Ident: p.ident()}
 	p.term()
 	return d
 }

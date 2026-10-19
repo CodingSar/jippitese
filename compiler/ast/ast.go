@@ -49,6 +49,7 @@ const (
 	RecordKind TypeKind = iota
 	NewtypeKind
 	AliasKind
+	ExternKind // `extern type Name<Params> = go "pkg".Ident` (stdlib only)
 )
 
 type TypeDecl struct {
@@ -62,6 +63,7 @@ type TypeDecl struct {
 	Fields []Field  // RecordKind
 	Inner  TypeExpr // NewtypeKind, AliasKind
 	Inv    []Expr
+	Extern *ExternRef // ExternKind
 }
 
 func (d *TypeDecl) ItemPos() Pos { return d.Pos }
