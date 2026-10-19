@@ -21,19 +21,19 @@ pub fn both(a: Url, b: Url) -> Result<(Body, Body), http.Error> with {net, spawn
 
 /// Prices every line in parallel; `price` is pure, so only spawn is needed.
 pub fn price_all(lines: List<Line>) -> List<Money> with {spawn} {
-  par.map(lines, (l) => price(l))
+  par.map(lines, fn(l) => price(l))
 }
 
 /// Counts priced lines across tasks; the Cell is the only shared state.
 pub fn count(lines: List<Line>) -> Int with {mut, spawn} {
   let n = Cell.new(0)                          // creating a Cell is already mut
-  par.each(lines, (l) => n.update((c) => c + 1))
+  par.each(lines, fn(l) => n.update(fn(c) => c + 1))
   n.get()
 }
 
 /// Lines over a threshold, built with local mutation and frozen once.
 pub fn expensive(lines: List<Line>, min: Money) -> List<Line> {
-  var out = MutList.new<Line>()               // local working state, no effect
+  var out = MutList.new::<Line>()             // local working state, no effect
   for l in lines { if l.price.0 >= min.0 { out.push(l) } }
   out.freeze()
 }
@@ -89,7 +89,12 @@ except that a rejected promise does not cancel its sibling.
    03, rule 18) and is observed at effect sites: `net`, `io`, `llm`,
    `decide`, `approve`, `time.sleep` and `join`. Pure code is never
    interrupted; a cancelled pure task runs to completion and its value is
-   dropped.
+   dropped. An `extern fn` is never interrupted either: the Go it wraps
+   receives no `context` (section 11 rule 9), so cancellation is observed
+   at the next effect site after it returns. `with_timeout` (rule 9) is the
+   same rule from the other side: it cancels `f` at `f`'s next effect site,
+   a pure or extern `f` runs to completion, and the result is `None` in
+   both cases.
 7. **Capture rule.** A `spawn` block and its tasks may capture only `let`
    bindings of immutable types. Capturing a `var`, a `MutList`, `MutMap` or
    `MutSet`, or a record containing one, is a compile error. `Cell<T>` may be
@@ -115,9 +120,10 @@ except that a rejected promise does not cancel its sibling.
     `var` identifier; the type is fixed by the initialiser. There is no
     field or index assignment: records are updated with `Name { ..base, f:
     v }`, mutable collections through methods.
-12. **Closures and `var`.** A closure may read a captured `var` (it sees the
-    current value) but assigning to it from inside the closure is a compile
-    error; use a `Cell`.
+12. **Closures and `var`.** A closure captures a `var` by value at the
+    point of creation (section 04 rule 17), so it never observes a later
+    reassignment, and assigning to the captured `var` from inside the
+    closure is a compile error; use a `Cell`.
 13. **`Cell<T>`** is the only shared-mutable primitive; every operation on
     it, creation included, is the `mut` effect. `Cell.new(v) -> Cell<T> with
     {mut}`, `get() -> T with {mut}`, `set(v: T) -> () with {mut}`,
@@ -127,8 +133,12 @@ except that a rejected promise does not cancel its sibling.
 14. **Invariants on cells.** If `T` carries an `inv`, `set` and `update`
     re-check it under `contracts: all`; a violation panics (section 05).
 15. **Persistent collections are the default.** `List`, `Map`, `Set` are
-    immutable with structural sharing: `push`, `set`, `remove` return a new
-    value in O(log n) and leave the old one usable. Equality is structural.
+    immutable: `push`, `set`, `remove` return a new value and leave the old
+    one usable. Equality is structural. *Status: deferred from v0
+    (revision-plan R1, decisions §13):* the structurally shared O(log n)
+    implementation. The v0 implementation copies: `List` is a Go slice,
+    `Map` and `Set` are Go maps, and every `push`, `set` and `remove` is
+    O(n). The API and the semantics are the same either way.
 16. **Mutable collections.** `MutList`, `MutMap`, `MutSet` mutate in place
     (`push`, `set`, `remove` return `()`), lower to Go slices and maps, and
     need no effect because they are locally owned working state. They may
@@ -137,12 +147,14 @@ except that a rejected promise does not cancel its sibling.
     module may take or return one.
 17. **Conversion.** `.freeze()` turns a mutable collection into its
     persistent counterpart and `.thaw()` the reverse; both copy, cost O(n).
-    `List.builder<T>()` is an alias for `MutList.new<T>()`, so the builder
-    pattern is `MutList` plus one `.freeze()`.
-18. **Performance flag.** Persistent maps cost roughly 2× a native map on
-    insert (decisions §7); the default is kept until the collections
-    benchmark runs. Code that builds a collection in a loop should use a
-    mutable one and freeze it.
+    `List.builder::<T>()` is an alias for `MutList.new::<T>()`, so the
+    builder pattern is `MutList` plus one `.freeze()`.
+18. **Performance flag.** The persistent default stays until the
+    collections benchmark of decisions §13 runs; until then the copying
+    implementation of rule 15 makes a loop that builds a `List` with `push`
+    quadratic. Code that builds a collection in a loop should use a mutable
+    one and freeze it, and `jip check` warns (W0520) on `push` to a `let`
+    rebinding inside a loop.
 
 ## Diagnostics
 
@@ -155,7 +167,7 @@ error[E0450]: `spawn` block captures the `var` binding `total`
 31 |     let t = task { total += price(l).0 }
    |                    ^^^^^ `total` is a `var`, declared at orders/pricing.jip:29:7
    = note: a `spawn` block may capture only `let` bindings of immutable types, or a `Cell`
-   = help: replace `var total = 0` with `let total = Cell.new(0)` and write `total.update((t) => t + price(l).0)`
+   = help: replace `var total = 0` with `let total = Cell.new(0)` and write `total.update(fn(t) => t + price(l).0)`
 ```
 
 `Cell.get` without `mut` (rule 13):
@@ -173,7 +185,7 @@ error[E0412]: missing effect `mut`
 `task` outside `spawn` (rule 2):
 
 ```text
-error[E0451]: `task` outside a `spawn` block
+error[E0452]: `task` outside a `spawn` block
   --> orders/pricing.jip:52:12
    |
 52 |   let ta = task http.get(a)
@@ -186,7 +198,7 @@ error[E0451]: `task` outside a `spawn` block
 ```
 SpawnExpr   ::= "spawn" Block
 TaskExpr    ::= "task" Expr
-Expr        ::= … | SpawnExpr | TaskExpr | Closure
+Expr        ::= … | SpawnExpr | TaskExpr
 Block       ::= "{" Stmt* Expr? "}"
 Stmt        ::= "let" Pattern (":" Type)? "=" Expr
               | "var" Ident (":" Type)? "=" Expr
