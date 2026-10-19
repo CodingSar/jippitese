@@ -117,7 +117,7 @@ it is settled in `emit.go` and below.
 - [x] **C6** Deterministic output check: two builds of the card produce
       identical `.jip/gen/`.
 
-- [ ] **C7** The jippitese build cache `.jip/cache/<module>` of spec 13
+- [ ] **C7** (deferred, see decisions "Implementation decisions") The jippitese build cache `.jip/cache/<module>` of spec 13
       rule 12 (skip typecheck/emit per module on unchanged digests). Not
       needed for correctness; `GOCACHE` already skips unchanged Go.
 
@@ -150,14 +150,14 @@ default fakes.
 
 ## 6. Acceptance run (gate, all or nothing)
 
-- [ ] **G1** Card's `charge`, `withdraw`, `total`, `max_by`, `BillingApi`
+- [x] **G1** Card's `charge`, `withdraw`, `total`, `max_by`, `BillingApi`
       compile to Go; `go vet` clean.
-- [ ] **G2** Card's two scenarios pass with `FakeHttp`.
-- [ ] **G3** `interface.jipi` round-trips through `jip check` with a
+- [x] **G2** Card's two scenarios pass with `FakeHttp`.
+- [x] **G3** `interface.jipi` round-trips through `jip check` with a
       stable digest.
-- [ ] **G4** `jip context orders.billing` prints.
-- [ ] **G5** X2–X5 each pass `jip test`.
-- [ ] **G6** Replace placeholder `compiler/README.md` with package map,
+- [x] **G4** `jip context orders.billing` prints.
+- [x] **G5** X2–X5 each pass `jip test`.
+- [x] **G6** Replace placeholder `compiler/README.md` with package map,
       build/test commands and the gen layout.
 
 ## 7. Spec and docs edits found during implementation
@@ -166,13 +166,13 @@ default fakes.
       `Repository` and `Cache` budgets, matching the prelude; without it no
       impl could construct in-process state (found while writing the
       Worker example).
-- [ ] **D2** Spec 11: add the extern adapter example matching the
+- [x] **D2** Spec 11: add the extern adapter example matching the
       implemented mapping table.
-- [ ] **D3** Language card: `both` → `http.Body` in the `BillingApi`
+- [x] **D3** Language card: `both` → `http.Body` in the `BillingApi`
       example.
-- [ ] **D4** `grammar.md`: note on contextual keywords (`pre`, `post`,
+- [x] **D4** `grammar.md`: note on contextual keywords (`pre`, `post`,
       `inv`, `old`, `ret` are contextual, lexed as identifiers).
-- [ ] **D5** `decisions.md`: record deviations between spec text and
+- [x] **D5** `decisions.md`: record deviations between spec text and
       what the checker/emitter implement (constructor type params dropped
       on impls, behaviour type args kept on impls, appcfg synthesis).
 - [ ] **D6** Replace placeholder `evals/README.md` once Phase F defines

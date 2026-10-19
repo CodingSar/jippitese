@@ -102,8 +102,11 @@ func Greet(names []string) string {
    is recognised only between `pub` or `pub(module)` and `type` or `enum`
    (`09-modules-and-context.md`); `pre` and `post` only between a function
    signature and its body, `inv` only after a record declaration or inside an
-   `impl` body (`04-contracts.md`). Elsewhere they are ordinary identifiers, so
-   `http.post(…)` is a call, not a contract.
+   `impl` body (`05-contracts.md`). Elsewhere they are ordinary identifiers, so
+   `http.post(…)` is a call, not a contract. Four more words are contextual
+   in the same way: `default` before a value in `app.jip` (`10-config.md`),
+   `every` and `cron` at the start of a `schedule` const value (`06-behaviours.md`), and
+   `real_time` directly after `given` (`12-testing.md`).
 6. **Int literals** are decimal (`42`, `1_000`) or hex (`0xFF`, `0xdead_beef`)
    and have type `Int` (signed 64-bit). `_` may appear between digits only. A
    literal outside the `Int` range is a compile error. No octal or binary

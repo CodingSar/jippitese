@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/codingsar/jippitese/compiler/app"
@@ -173,8 +174,8 @@ func (e *Env) externReport(prog *checker.Program) {
 	}
 }
 
-// printEffective prints the resolved config of an env (spec 10): the app
-// body under the env block under JIP_* variables.
+// printEffective prints the resolved config of an env (spec 10 rule 6):
+// one line per leaf with its value and the layer it came from.
 func (e *Env) printEffective(prog *checker.Program, env string) {
 	a := prog.App
 	if a == nil {
@@ -188,28 +189,54 @@ func (e *Env) printEffective(prog *checker.Program, env string) {
 			}
 		}
 	}
-	fmt.Fprintf(e.Stdout, "effective config (env %s)\n", orNone(env))
-	for _, cf := range a.Config {
-		val, src := "<unset>", "required"
-		if cf.Default != nil {
-			val, src = appValue(&ast.AppLit{X: cf.Default}), "app.jip"
-		}
-		if v, ok := block[cf.Name]; ok {
+	envNote := ""
+	if env != "" {
+		envNote = "  (JIP_ENV=" + env + ")"
+	}
+	fmt.Fprintf(e.Stdout, "app %q  env: %s%s\n", a.Name, orNone(env), envNote)
+	line := func(path, val, src string) {
+		fmt.Fprintf(e.Stdout, "  %-32s %-28s %s\n", path, val, src)
+	}
+	resolve := func(path, val, src string, overridable bool) {
+		if v, ok := block[path]; ok && overridable {
 			val, src = v, "env "+env
 		}
-		key := "JIP_" + strings.ToUpper(strings.ReplaceAll(cf.Name, ".", "__"))
-		if v, ok := os.LookupEnv(key); ok {
+		key := "JIP_" + strings.ToUpper(strings.ReplaceAll(path, ".", "__"))
+		if v, ok := os.LookupEnv(key); ok && overridable {
 			val, src = v, key
 		}
-		fmt.Fprintf(e.Stdout, "  %-24s = %-30s (%s)\n", cf.Name, val, src)
+		line(path, val, src)
+	}
+	line("name", strconv.Quote(a.Name), "app")
+	for _, cf := range a.Config {
+		val, src, over := "<unset>", "-", true
+		if cf.Default != nil {
+			val, src, over = appValue(&ast.AppLit{X: cf.Default}), "app", cf.IsDefault
+			if cf.IsDefault {
+				src = "app (default)"
+			}
+		}
+		resolve("config."+cf.Name, val, src, over)
 	}
 	for _, s := range a.Secrets {
 		key := "JIP_SECRETS__" + strings.ToUpper(s.Name)
-		state := "unset"
 		if _, ok := os.LookupEnv(key); ok {
-			state = "set"
+			line("secrets."+s.Name, "<set>", key)
+		} else {
+			line("secrets."+s.Name, "<unset>", "-")
 		}
-		fmt.Fprintf(e.Stdout, "  secrets.%-16s = <%s> (%s)\n", s.Name, state, key)
+	}
+	line("contracts", a.ContractLevel(), "app")
+	for _, r := range a.Runs {
+		defs := [][3]string{{"restart", "permanent"}, {"max_restarts", "3"}, {"period", "60s"}, {"shutdown_timeout", "10s"}}
+		for _, d := range defs {
+			path := "run." + r.Name + "." + d[0]
+			if en := r.Fields[d[0]]; en != nil {
+				resolve(path, appValue(en.Value), "app", true)
+			} else {
+				resolve(path, d[1], "app (default)", true)
+			}
+		}
 	}
 }
 

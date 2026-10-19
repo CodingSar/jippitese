@@ -449,6 +449,30 @@ File extension: `.jip`. CLI: `jip`.
   (`docs/revision-plan.md` Phase E). The gate passes as a whole or not at
   all.
 
+## Implementation decisions (Phase E)
+
+Settled while building the gate compiler. Each either fills a gap the spec
+left open or is a spec change made in the same commit; open contradictions
+are in `backlog.md` under "Spec bugs found".
+
+| Item | Decision |
+|---|---|
+| `init` budget | `{io, net, mut}` for every behaviour; `Repository` and `Cache` methods carry `mut`. Without it no impl can construct in-process state (spec 06 updated). |
+| Standard library shape | Every std function is `extern fn … = go "rt".X`; the generated tree has no `std` package. |
+| `Query<T>` | `Query.all()` is the v0 constructor; queries carry no filter. |
+| Workflow replay in scenarios | Builtins `record_workflow(Impl, input) -> (Result, Journal)` and `replay_workflow(Impl, input, journal)`; `std.testing.Journal` is opaque with `len()`. |
+| `Ord` bound | A type parameter bounded by `Ord` lowers to Go `cmp.Ordered`; other bounds are checked and erased. |
+| Unary minus on `Int` | Lowers to `rt.Sub(ctx, 0, x)` and traps on overflow like every `Int` operation (R2). |
+| Extern codegen | Direct call with inline conversions (11 rule 9); `rt.IoErrorOf`, `NetErrorOf`, `GoErrorOf`, `MapToGo`, `MapFromGo` carry the boundary. Effect floor from the target package itself (see backlog spec bug). |
+| `rt` as an extern target | Treated as the toolchain's own package: exempt from 11 rules 1–7; a `Result<R, E>` result instantiates rt's generic `R, E`. |
+| Config overlay paths | A config leaf is `config.<name>` (`JIP_CONFIG__<NAME>`), secrets `secrets.<name>`, run fields `run.<Impl>.<field>`. Scenarios load the `env test` block whatever `JIP_ENV` says. |
+| Worker topics | A `run X { topic: t }` subscribes the Worker from a Go `init()`; in scenarios `publish` delivers synchronously. |
+| Interface file layout | Contract lines print as `pre  …`, `post …`, `inv  …`; effects in canonical order; impl members indented two spaces. |
+| Dependency tree hash | SHA-256 over the sorted lines `<path> <sha256 of content>` of every regular file, `.git` excluded, written `sha256-<base64>`. |
+| Toolchain | `compiler/toolchain.go` pins Go 1.24 (`toolchain go1.24.0` in the generated `go.mod`); `jip` uses `JIP_GO` or `go` on `PATH` at or above the pin. |
+| `jip fmt` | Keeps every comment (trailing ones aligned), literal text (`1_000_000`, `60s`) and schedule sugar (`every 5m`); a body stays on one line only when written so. Refuses to write a result that would not reparse to the same program. Skips `vendor/`. |
+| Not in v0 | `gomod(...)` Go dependencies for externs (any non-stdlib Go path is E0504); the per-module `.jip/cache` of 13 rule 12 (needs separate compilation in the checker; `GOCACHE` covers the Go side). |
+
 ## Resolved deferred decisions
 
 | Item | Resolution | Track |

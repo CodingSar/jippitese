@@ -19,6 +19,8 @@ encoded in the `Expr` chain and in 04 rule 2.
 
 ```
 Ident       ::= letter (letter | digit | "_")* /* not a keyword, not "_" */
+/* Contextual words, identifiers elsewhere (01 rule 5): `opaque`, `pre`,
+   `post`, `inv`, `default`, `every`, `cron`, `real_time`. */
 TypeName    ::= Ident /* PascalCase by convention */
 letter      ::= "A" … "Z" | "a" … "z" | "_"
 digit       ::= "0" … "9"

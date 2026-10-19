@@ -55,18 +55,24 @@ deps { pdf = gomod("github.com/acme/gopdf", commit: "c0ffee1", hash: "sha256-Xkâ
 externs { allow: [orders.pdf], max: 10 }
 ```
 
-Go side, as emitted under `.jip/gen/` (conversions inline, no reflection):
+Go side, as emitted under `.jip/gen/` (conversions inline, no reflection;
+the Go package is imported under an alias derived from its path):
 
 ```go
 //line orders/pdf/render.jip:4:1
-func render(ctx *rt.Ctx, html string, opts rt.Map[string, string]) rt.Result[[]byte, GoError] {
-	v, err := gopdf.Render(html, opts.ToGo())
+func Render(ctx *rt.Ctx, html string, opts rt.Map[string, string]) rt.Result[[]byte, rt.GoError] {
+	v, err := x_github_com_acme_gopdf.Render(html, rt.MapToGo(opts))
 	if err != nil {
-		return rt.Result[[]byte, GoError]{E: GoError{err.Error()}}
+		return rt.Result_Err[[]byte, rt.GoError](rt.GoErrorOf(err))
 	}
-	return rt.Result[[]byte, GoError]{Ok: true, V: v}
+	return rt.Result_Ok[[]byte, rt.GoError](v)
 }
 ```
+
+An `Option<T>` result reads `v, ok := â€¦` and returns `rt.Option_None` or
+`rt.Option_Some`; a newtype argument converts to its inner Go type
+(`string(p)` for a `Path`); `IoError` and `NetError` results map the Go
+error through `rt.IoErrorOf` and `rt.NetErrorOf`.
 
 TypeScript equivalent: a hand-written `.d.ts` over a JS module, except that
 here the compiler checks the declared effects against the Go import path.

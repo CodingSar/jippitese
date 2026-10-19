@@ -195,3 +195,44 @@ func TestFetchFromLocalRepo(t *testing.T) {
 		t.Fatalf("hash not saved:\n%s", b)
 	}
 }
+
+func TestEffectiveConfig(t *testing.T) {
+	env, out, _ := card(t)
+	t.Setenv("JIP_CONFIG__GATEWAY_URL", "https://pay.example/charge")
+	if code := env.Check(CheckOptions{Effective: true, EnvName: "prod"}); code != ExitOK {
+		t.Fatalf("exit %d", code)
+	}
+	for _, want := range []string{
+		`app "orders"  env: prod`,
+		"config.gateway_url", "https://pay.example/charge", "JIP_CONFIG__GATEWAY_URL",
+		"secrets.gateway_key", "<unset>",
+		"run.BillingApi.period", "60s",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("missing %q in\n%s", want, out.String())
+		}
+	}
+}
+
+// TestBinaryConfigOverlay runs the built card: it refuses to start
+// without the required config and names the variable (spec 10 rule 5).
+func TestBinaryConfigOverlay(t *testing.T) {
+	needGo(t)
+	env, _, errb := card(t)
+	if code := env.Build(BuildOptions{}); code != ExitOK {
+		t.Fatalf("build: %s", errb.String())
+	}
+	bin := filepath.Join(env.Root, ".jip/bin/orders")
+	cmd := exec.Command(bin)
+	cmd.Env = []string{"PATH=" + os.Getenv("PATH")}
+	out, err := cmd.CombinedOutput()
+	if ee, ok := err.(*exec.ExitError); !ok || ee.ExitCode() != 2 || !strings.Contains(string(out), "JIP_CONFIG__GATEWAY_URL is unset") {
+		t.Fatalf("want exit 2 naming JIP_CONFIG__GATEWAY_URL, got %v\n%s", err, out)
+	}
+	cmd = exec.Command(bin)
+	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "JIP_CONFIG__GATEWAY_URL=http://x", "JIP_SECRETS__GATEWAY_KEY=k", "JIP_CONFIG__NOPE=1"}
+	out, _ = cmd.CombinedOutput()
+	if !strings.Contains(string(out), "JIP_CONFIG__NOPE matches no field") {
+		t.Fatalf("unknown variable must abort startup:\n%s", out)
+	}
+}

@@ -106,7 +106,7 @@ impl Service for BillingApi {
 }
 
 /// Fetches two pages concurrently; the block joins or cancels both.
-fn both(a: Url, b: Url) -> Result<(Body, Body), http.Error> with {net, spawn} {
+fn both(a: Url, b: Url) -> Result<(http.Body, http.Body), http.Error> with {net, spawn} {
   spawn {
     let ta = task http.get(a)
     let tb = task http.get(b)

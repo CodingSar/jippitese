@@ -76,8 +76,9 @@ func (e *emitter) emitAppCfg() {
 			def = configLit(cf.Default)
 			at = strconv.Quote(cf.Default.ExprPos().String())
 		}
-		known = append(known, envKey(fl.Name))
-		f.printf("\tc.%s = %s\n", fieldName(fl.Name), f.configRead(fl.Type, strconv.Quote(fl.Name), def, mode, at))
+		// A config leaf's overlay path is `config.<name>` (spec 10 rule 5).
+		known = append(known, envKey("config."+fl.Name))
+		f.printf("\tc.%s = %s\n", fieldName(fl.Name), f.configRead(fl.Type, strconv.Quote("config."+fl.Name), def, mode, at))
 	}
 	for _, fl := range e.prog.Secrets.Fields {
 		known = append(known, envKey("secrets."+fl.Name))
