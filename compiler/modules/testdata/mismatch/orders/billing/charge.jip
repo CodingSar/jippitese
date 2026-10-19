@@ -1,0 +1,3 @@
+module orders.biling
+
+pub fn one() -> Int { 1 }
