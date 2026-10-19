@@ -125,7 +125,7 @@ func (f *file) constValue(ci *checker.ConstInfo) string {
 func workflowSites(prog *checker.Program, body *ast.Block) []string {
 	var sites []string
 	seen := map[string]bool{}
-	walkBlock(body, func(x ast.Expr) {
+	ast.WalkBlock(body, func(x ast.Expr) {
 		var site string
 		switch c := x.(type) {
 		case *ast.CallExpr:

@@ -90,10 +90,10 @@ it is settled in `emit.go` and below.
 
 ## 2. Interface files (`compiler/iface`, new)
 
-- [ ] **I1** Extract `interface.jipi` from a checked module: `pub` items
+- [x] **I1** Extract `interface.jipi` from a checked module: `pub` items
       only, printed with `TypeExprString`/`EffectSetString`, sorted and
       canonical so the digest is stable.
-- [ ] **I2** Digest (sha256 of the canonical text) and the breaking-change
+- [x] **I2** Digest (sha256 of the canonical text) and the breaking-change
       classifier for spec 09 r1–r7, r9, r10; `pub(module)` digested only.
 - [ ] **I3** Round-trip test: write, re-read, re-check, same digest.
       `--accept-breaking` path.

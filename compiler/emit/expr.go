@@ -183,7 +183,7 @@ func (g *gen) fnBody(d *ast.FnDecl, ret checker.Type) {
 		return
 	}
 	for _, p := range d.Post {
-		walkExpr(p, func(x ast.Expr) {
+		ast.WalkExpr(p, func(x ast.Expr) {
 			if o, ok := x.(*ast.OldExpr); ok {
 				t := g.newTmp()
 				g.printf("%s := %s\n", t, g.expr(o.X))

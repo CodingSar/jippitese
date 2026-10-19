@@ -430,14 +430,14 @@ func scenarioCalls(prog *checker.Program, sc *ast.Scenario, fi *checker.FnInfo) 
 		}
 	}
 	for _, gv := range sc.Givens {
-		walkExpr(gv.Expr, visit)
-		walkExpr(gv.Rows, visit)
+		ast.WalkExpr(gv.Expr, visit)
+		ast.WalkExpr(gv.Rows, visit)
 	}
 	for _, w := range sc.Whens {
-		walkExpr(w.Expr, visit)
+		ast.WalkExpr(w.Expr, visit)
 	}
 	for _, th := range sc.Thens {
-		walkExpr(th, visit)
+		ast.WalkExpr(th, visit)
 	}
 	return found
 }
