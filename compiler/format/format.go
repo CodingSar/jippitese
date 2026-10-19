@@ -84,8 +84,14 @@ func (p printer) expr(e ast.Expr) string {
 	case nil:
 		return ""
 	case *ast.IntLit:
+		if e.Raw != "" {
+			return e.Raw
+		}
 		return strconv.FormatInt(e.V, 10)
 	case *ast.FloatLit:
+		if e.Raw != "" {
+			return e.Raw
+		}
 		s := strconv.FormatFloat(e.V, 'g', -1, 64)
 		if !strings.ContainsAny(s, ".eEn") {
 			s += ".0"
@@ -98,6 +104,9 @@ func (p printer) expr(e ast.Expr) string {
 	case *ast.BytesLit:
 		return "b" + strconv.Quote(string(e.V))
 	case *ast.DurationLit:
+		if e.Raw != "" {
+			return e.Raw
+		}
 		return Duration(e.Ns)
 	case *ast.StrLit:
 		var b strings.Builder
@@ -118,6 +127,9 @@ func (p printer) expr(e ast.Expr) string {
 	case *ast.FieldExpr:
 		return p.operand(e.X, precPost) + "." + e.Name
 	case *ast.CallExpr:
+		if e.Sugar != "" && len(e.Args) == 1 {
+			return e.Sugar + " " + p.expr(e.Args[0])
+		}
 		var b strings.Builder
 		b.WriteString(p.operand(e.Fn, precPost))
 		if len(e.TypeArgs) > 0 {
@@ -393,7 +405,8 @@ func isBind(pt ast.Pattern, name string) bool {
 	return ok && b.Name == name
 }
 
-// Duration prints a duration literal in the largest exact unit.
+// Duration prints a duration literal in the largest exact unit the
+// lexer accepts (`h` at most).
 func Duration(ns int64) string {
 	if ns == 0 {
 		return "0s"
@@ -401,7 +414,7 @@ func Duration(ns int64) string {
 	units := []struct {
 		n    int64
 		name string
-	}{{86400e9, "d"}, {3600e9, "h"}, {60e9, "m"}, {1e9, "s"}, {1e6, "ms"}, {1e3, "us"}, {1, "ns"}}
+	}{{3600e9, "h"}, {60e9, "m"}, {1e9, "s"}, {1e6, "ms"}, {1e3, "us"}, {1, "ns"}}
 	for _, u := range units {
 		if ns%u.n == 0 {
 			return strconv.FormatInt(ns/u.n, 10) + u.name

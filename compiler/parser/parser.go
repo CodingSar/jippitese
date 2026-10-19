@@ -385,7 +385,7 @@ func (p *parser) constExpr() ast.Expr {
 		p.next()
 		d := p.next()
 		fn := &ast.FieldExpr{Pos: t.Pos, X: &ast.Ident{Pos: t.Pos, Name: "Schedule"}, Name: "Every"}
-		return &ast.CallExpr{Pos: t.Pos, Fn: fn, Args: []ast.Expr{&ast.DurationLit{Pos: d.Pos, Ns: d.Num}}}
+		return &ast.CallExpr{Pos: t.Pos, Fn: fn, Args: []ast.Expr{&ast.DurationLit{Pos: d.Pos, Ns: d.Num, Raw: d.Text}}, Sugar: "every"}
 	}
 	if t.Kind == lexer.Ident && t.Text == "cron" && p.peekN(1).Kind == lexer.Str {
 		p.next()
@@ -396,7 +396,7 @@ func (p *parser) constExpr() ast.Expr {
 			panic(bailout{&Error{"E0001", le.Pos, le.Msg}})
 		}
 		fn := &ast.FieldExpr{Pos: t.Pos, X: &ast.Ident{Pos: t.Pos, Name: "Schedule"}, Name: "Cron"}
-		return &ast.CallExpr{Pos: t.Pos, Fn: fn, Args: []ast.Expr{&ast.StrLit{Pos: s.Pos, Parts: []ast.StrPart{{Lit: lit}}}}}
+		return &ast.CallExpr{Pos: t.Pos, Fn: fn, Args: []ast.Expr{&ast.StrLit{Pos: s.Pos, Parts: []ast.StrPart{{Lit: lit}}}}, Sugar: "cron"}
 	}
 	return p.expr()
 }
@@ -940,16 +940,16 @@ func (p *parser) primary(nr bool) ast.Expr {
 	switch t.Kind {
 	case lexer.Int:
 		p.next()
-		return &ast.IntLit{Pos: pos, V: t.Num}
+		return &ast.IntLit{Pos: pos, V: t.Num, Raw: t.Text}
 	case lexer.Float:
 		p.next()
-		return &ast.FloatLit{Pos: pos, V: t.F}
+		return &ast.FloatLit{Pos: pos, V: t.F, Raw: t.Text}
 	case lexer.Char:
 		p.next()
 		return &ast.CharLit{Pos: pos, V: rune(t.Num)}
 	case lexer.Duration:
 		p.next()
-		return &ast.DurationLit{Pos: pos, Ns: t.Num}
+		return &ast.DurationLit{Pos: pos, Ns: t.Num, Raw: t.Text}
 	case lexer.RawStr:
 		p.next()
 		return &ast.StrLit{Pos: pos, Parts: []ast.StrPart{{Lit: t.Text}}}

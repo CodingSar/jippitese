@@ -95,27 +95,31 @@ it is settled in `emit.go` and below.
       canonical so the digest is stable.
 - [x] **I2** Digest (sha256 of the canonical text) and the breaking-change
       classifier for spec 09 r1–r7, r9, r10; `pub(module)` digested only.
-- [ ] **I3** Round-trip test: write, re-read, re-check, same digest.
+- [x] **I3** Round-trip test: write, re-read, re-check, same digest.
       `--accept-breaking` path.
 
 ## 3. Command (`compiler/cmd/jip`)
 
-- [ ] **C1** `jip check` (`--write-interfaces`, `--accept-breaking`,
+- [x] **C1** `jip check` (`--write-interfaces`, `--accept-breaking`,
       `--effective --env`, `--json`); exit codes 0/1/2/3.
-- [ ] **C2** `jip build` (`--release`, `--target`, `--go-positions`):
+- [x] **C2** `jip build` (`--release`, `--target`, `--go-positions`):
       emit to `.jip/gen/`, copy `rt`, write `go.mod` with
       `toolchain go1.24.0`, run `go build -trimpath -mod=vendor` to
       `.jip/bin/<name>`; Go build failure → `error[E9999]`;
       `compiler/toolchain.go` pin; `JIP_GO` override.
-- [ ] **C3** `jip test` (`--filter`, `--runs`, `--seed`): build then
+- [x] **C3** `jip test` (`--filter`, `--runs`, `--seed`): build then
       `go test` of the gen tree with `JIP_SCENARIO_FILTER`/`JIP_SEED`/
       `JIP_RUNS`; map results back to scenario names and positions.
-- [ ] **C4** `jip context <module>` (`--short`, `--for`): print the
+- [x] **C4** `jip context <module>` (`--short`, `--for`): print the
       module's public surface and effects per spec 13.
-- [ ] **C5** `jip fmt` and `jip fetch` (fetch: vendored deps by URL,
+- [x] **C5** `jip fmt` and `jip fetch` (fetch: vendored deps by URL,
       commit and hash from `app.jip`).
-- [ ] **C6** Deterministic output check: two builds of the card produce
+- [x] **C6** Deterministic output check: two builds of the card produce
       identical `.jip/gen/`.
+
+- [ ] **C7** The jippitese build cache `.jip/cache/<module>` of spec 13
+      rule 12 (skip typecheck/emit per module on unchanged digests). Not
+      needed for correctness; `GOCACHE` already skips unchanged Go.
 
 ## 4. Standard library gaps (`compiler/stdlib/*.jip`, `rt`)
 
@@ -195,6 +199,11 @@ default fakes.
   `sync/atomic`, so `read_file` would need `{io, nondet, mut}`; the
   diagnostic example says the floor comes from the package itself
   ("floor table: package `os`"). The compiler uses the package itself.
+- **13 rule 11, embedded toolchain.** The compiler cannot embed a Go
+  toolchain binary; `jip` pins the version in `compiler/toolchain.go` and
+  uses `JIP_GO` or `go` on `PATH`, refusing anything older than the pin.
+  The rule should say "pins" rather than "embeds", or distribution must
+  bundle Go next to `jip`.
 - **11 rule 1, `rt` targets.** The card's vendored `http` dependency binds
   `go "rt".HttpPost`, which is neither a standard-library path nor a
   `gomod` dep. The compiler treats `rt` as the toolchain's own package and

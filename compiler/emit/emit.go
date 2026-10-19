@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/codingsar/jippitese/compiler"
 	"github.com/codingsar/jippitese/compiler/ast"
 	"github.com/codingsar/jippitese/compiler/checker"
 	"github.com/codingsar/jippitese/compiler/rt"
@@ -341,7 +342,7 @@ func (e *emitter) emitRuntime() {
 
 func (e *emitter) emitGoMod() {
 	var b strings.Builder
-	b.WriteString("module " + e.mainPkg + "\n\ngo 1.24\n")
+	b.WriteString("module " + e.mainPkg + "\n\ngo " + compiler.GoVersion + "\n\ntoolchain " + compiler.GoToolchain + "\n")
 	e.out.Files["go.mod"] = []byte(b.String())
 }
 

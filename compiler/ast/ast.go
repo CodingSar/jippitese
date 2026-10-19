@@ -239,10 +239,12 @@ type Expr interface{ ExprPos() Pos }
 type IntLit struct {
 	Pos Pos
 	V   int64
+	Raw string // source text, digit separators kept; "" when synthesised
 }
 type FloatLit struct {
 	Pos Pos
 	V   float64
+	Raw string
 }
 type BoolLit struct {
 	Pos Pos
@@ -259,6 +261,7 @@ type BytesLit struct {
 type DurationLit struct {
 	Pos Pos
 	Ns  int64
+	Raw string
 }
 type StrPart struct {
 	Lit  string
@@ -282,6 +285,7 @@ type CallExpr struct {
 	Fn       Expr
 	TypeArgs []TypeExpr
 	Args     []Expr
+	Sugar    string // "every" or "cron" when desugared from a schedule literal
 }
 type UnaryExpr struct {
 	Pos Pos
