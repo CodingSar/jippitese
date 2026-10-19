@@ -38,7 +38,7 @@ pub fn with_fee(p: Product, fee: Money) -> Product {
 
 /// Largest value under any ordering key.
 pub fn largest<T, K: Ord + Show>(xs: List<T>, key: fn(T) -> K) -> Result<T, CatalogError> {
-  match xs.fold(None, (best, x) => match best {
+  match xs.fold(None, fn(best, x) => match best {
     None => Some(x),
     Some(b) => if key(x) > key(b) { Some(x) } else { best },
   }) {
@@ -82,8 +82,11 @@ type Option<T> = { kind: "Some"; value: T } | { kind: "None" };
 
 ## Rules
 
-1. **Primitives.** `Int` (signed 64-bit, wraps on overflow like Go; checked
-   forms live in the stdlib), `Float` (binary64), `Bool`, `Str` (immutable
+1. **Primitives.** `Int` (signed 64-bit; `+ - *` and the compound forms
+   trap on overflow in every build, release included, as a `panic`
+   (`04-expressions-and-control.md` rule 13); `checked_add`, `checked_sub`,
+   `checked_mul` return `Option<Int>` and `wrapping_add`, `wrapping_sub`,
+   `wrapping_mul` wrap), `Float` (binary64), `Bool`, `Str` (immutable
    UTF-8), `Bytes` (immutable byte sequence), `Char` (one Unicode scalar),
    `Duration` (signed nanoseconds, from `5s`-style literals), and the unit
    type `()` with the single value `()`.
@@ -152,7 +155,9 @@ type Option<T> = { kind: "Some"; value: T } | { kind: "None" };
     and behaviours: `fn largest<T, K: Ord>(…)`, `type Pair<A, B> { a: A, b: B }`.
     A constraint is a behaviour; several are joined with `+`
     (`K: Ord + Show`). Unconstrained parameters admit only `==`, `Show` and
-    passing through. Behaviours declare associated types (`type Input`), an
+    passing through. An inherent `impl T { … }` (no `for`) adds methods and
+    constructors to a type declared in the same module
+    (`03-functions-and-effects.md` rule 4). Behaviours declare associated types (`type Input`), an
     `impl` fixes them (`type Input = Order`), and generic code names them as
     `T.Input` or `Self.Input`. No higher-kinded types: a parameter stands for
     a type, never for a type constructor like `List`.
@@ -192,7 +197,8 @@ type Option<T> = { kind: "Some"; value: T } | { kind: "None" };
     | `List Map Set` | stdlib RRB vector, HAMT map and set |
     | `MutList MutMap MutSet` | `[]T`, `map[K]V`, `map[T]struct{}` |
     | `Cell<T>` | runtime struct with a mutex |
-    | type parameter, behaviour | Go type parameter, Go interface |
+    | type parameter | Go type parameter on a free function, never on a method |
+    | behaviour `impl` | a dictionary: a struct of function values plus the witnesses of its associated types, built once at `init` (`06-behaviours.md` rule 15) |
 
 ## Diagnostics
 

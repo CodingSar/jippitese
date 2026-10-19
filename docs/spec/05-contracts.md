@@ -44,7 +44,7 @@ pub fn mean(xs: List<Int>) -> Int
 
 /// Shared stack; set/update re-check the payload inv under `all`.
 fn fill(c: Cell<Stack<Int>>, n: Int) -> () with {mut} {
-  c.update((s) => push(s, n))
+  c.update(fn(s) => push(s, n))
 }
 
 /// Counts ticks; the count never exceeds the configured limit.
@@ -61,7 +61,7 @@ impl Service for Counter {
     post match ret { Ok(k) => k <= self.limit, Err(_) => true }   // impls add post, never pre (06)
   {
     if req.n <= 0 || self.seen.get() + req.n > self.limit { return Err(CounterError.Full) }
-    Ok(self.seen.update((k) => k + req.n))
+    Ok(self.seen.update(fn(k) => k + req.n))
   }
   fn stop(self) {}
 }
@@ -90,7 +90,9 @@ func Push[T any](s Stack[T], x T) Stack[T] {
 2. **Purity.** A contract expression is typed with the empty effect set. It
    may call any function whose effect set is empty, including `pub fn`s of
    other modules. A call with any effect, including reading a `Cell`, is a
-   compile error (Diagnostics).
+   compile error (Diagnostics). The one exception is rule 8: inside an
+   `impl` `inv` a `Cell` field reads as its payload through a runtime
+   snapshot, which keeps the clause pure.
 3. **Scope.** `pre` sees the parameters. `post` sees the parameters, `ret`
    (the returned value, of the declared return type) and `old(e)`.
 4. **`old(e)`.** Allowed only in `post`. `e` is a pure expression whose free
@@ -120,9 +122,17 @@ func Push[T any](s Stack[T], x T) Stack[T] {
    10). `jip build` defaults to `pre`; `jip test` always runs under `all`.
    Under `pre`, `post` and `inv` are not evaluated and `old()` copies are not
    taken. Under `none` nothing is evaluated.
-10. **Violation.** A failed clause is a `panic` (not catchable, §8). The
-    message carries the clause text, the `file:line:col` of the clause and
-    the value of every free variable of the clause (`ret` included).
+10. **Violation.** A failed clause in a plain function is a `panic` (not
+    catchable, `04-expressions-and-control.md` rule 13). The message carries
+    the clause text, the `file:line:col` of the clause and the value of
+    every free variable of the clause (`ret` included). A failed clause
+    inside a behaviour method (`init`, `handle`, `run`, `tick`, an `impl`
+    `inv` after one of them) is not a panic: the method returns `Err` with
+    the runtime error `ContractViolation` carrying the same message, the
+    transport maps it (HTTP 500 for `Service`, a failed task for `Workflow`)
+    and the instance keeps running, so one bad request cannot start a
+    restart storm (`06-behaviours.md` rule 5). The violation is logged and
+    counted either way.
 11. **Not validation.** External input (requests, files, model output) is
     checked with `Result`, never with `pre`: a `pre` is a claim about the
     caller's code, a `Result` about the world.
@@ -133,7 +143,9 @@ func Push[T any](s Stack[T], x T) Stack[T] {
     interface entry and of context packs; `inv` is part of a `pub type`'s
     entry (cross-reference 09). A stronger `pre` or weaker `post` is a
     `breaking` change under `jip check`.
-14. **Derived property check (functions).** `jip test` derives one check for
+14. **Derived property check (functions).** *Status: deferred from v0
+    (revision-plan R9); rules 14, 16 and 17 describe the v1 design and
+    `jip test` v0 runs scenarios only.* `jip test` derives one check for
     every `pub fn` that (a) has an effect set that is empty, or is exactly
     `{mut}` while no parameter type mentions `Cell` (all cells it touches are
     created inside the function), and (b) has at least one `post`, or has a
@@ -142,23 +154,35 @@ func Push[T any](s Stack[T], x T) Stack[T] {
     `approve` get no derived check; scenarios with fakes cover them
     (cross-reference 12).
 15. **Generators.** One generator per parameter, derived structurally from
-    the type and depth-bounded (recursive types stop at depth 4 by taking the
-    smallest variant). `pre` narrows them: a comparison of a parameter, a
-    field path or a `.len()` against a constant or another parameter becomes
-    a bound on that generator, and a range membership becomes a range
-    generator. Any clause not of that shape is a filter. If more than 90% of
-    candidates are rejected by filters, the check fails loudly with
-    `pre rejects too many candidates` and the clause.
-16. **Runs, oracle, shrinking.** N = 200 runs by default. Oracle: every
-    `post`, every `inv` of the parameter and return types, and no `panic`. A
-    failure is shrunk by integrated shrinking of the random stream, so the
-    shrunk example still satisfies `pre`. The shrunk seed is written to
+    the type under a fixed size model: recursive types stop at depth 3 by
+    taking the smallest variant, collections at length 8, `Str` at 32
+    bytes. `pre` narrows them: a comparison of a parameter, a field path or
+    a `.len()` against a constant or another parameter becomes a bound on
+    that generator, and a range membership becomes a range generator. Any
+    clause not of that shape is a filter. If more than 90% of candidates
+    are rejected by filters, `jip test` prints warning `W0510` (`pre
+    rejects too many candidates`, with the clause) and continues; it is not
+    a failure. The owner names a generator explicitly with `via`: `given x
+    = any T via g` (scenarios, `12-testing.md` rule 4) where `g` is a `pub
+    fn g(g: Gen) -> T` of the module under test that draws every random
+    choice through `Gen` (`std.gen`: `g.int(lo, hi)`, `g.pick(xs)`,
+    `g.list(n, fn(g) => …)`), so shrinking and seed replay apply to it
+    unchanged. `inv` on the generated type is checked on every candidate.
+16. **Runs, oracle, shrinking.** N = 200 runs by default (`jip test --runs
+    N`). Oracle: every `post`, every `inv` of the parameter and return
+    types, and no `panic`. Every run executes under the fake clock and the
+    seeded generator that `jip test` installs (`12-testing.md` rule 10), so
+    a seed reproduces a run exactly even through `nondet` calls. A failure
+    is shrunk by integrated shrinking of the random stream, so the shrunk
+    example still satisfies `pre`. The shrunk seed is written to
     `.jip/seeds/<module dir>/<fn>.seed` (for `collections.stack`,
     `.jip/seeds/collections/stack/pop.seed`), committed, and replayed as run
     1 of every later `jip test`.
 17. **Derived stateful check (`impl`).** For an `impl` with `inv` whose
     `init` and at least one other lifecycle method have effect sets within
-    `{mut}`, `jip test` derives one check: generate a config, call `init`,
+    `{mut}`, `jip test` derives one check: generate a `Config` (the
+    `config {}` record of `app.jip` plus `secrets`, every field by its type
+    under rule 15, secrets as `Secrets.fake()`), call `init`,
     draw a sequence of up to 50 calls to the qualifying methods with
     generated arguments, skip a step whose `pre` fails, check `inv` after
     every step, call `stop` last. Runs, shrinking and seeds are as rule 16
@@ -211,7 +235,7 @@ Contract    ::= PreClause | PostClause
 PreClause   ::= "pre" Expr NEWLINE
 PostClause  ::= "post" Expr NEWLINE
 TypeDecl    ::= Doc? "pub"? "type" Ident Generics? TypeBody NEWLINE InvClause*
-ImplDecl    ::= Doc? "impl" Ident "for" Ident "{" AssocItem* InvClause* Method* "}"
+ImplDecl    ::= Doc? "impl" Ident ("for" Ident)? "{" AssocItem* InvClause* Method* "}"  /* no "for": inherent impl, 03 rule 4 */
 InvClause   ::= "inv" Expr NEWLINE
 Expr        ::= … | "ret" | "old" "(" Expr ")" | Quantifier
 Quantifier  ::= ("forall" | "exists") Ident "in" Expr ":" Expr

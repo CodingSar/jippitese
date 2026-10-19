@@ -13,7 +13,7 @@ use http
 
 /// Sum of line totals.
 pub fn total(lines: List<Line>) -> Money {              // pure: no `with`
-  Money(lines.map((l) => l.price.0 * l.qty).sum())
+  Money(lines.map(fn(l) => l.price.0 * l.qty).sum())
 }
 
 /// Runs f up to n times until it returns Ok; f's effects flow to the caller.
@@ -34,14 +34,14 @@ pub fn charge(o: Order, gw: Gateway) -> Result<Receipt, BillError> with {net, no
   pre o.total.0 > 0
 {
   let body = json.encode(ChargeReq { order: o.id, amount: o.total })
-  let resp = retry(3, () => http.post(gw.url, body))?  // closure has {net}; retry stays pure
-  let r = json.decode<Receipt>(resp.body)?
+  let resp = retry(3, fn() => http.post(gw.url, body))?  // closure has {net}; retry stays pure
+  let r = json.decode::<Receipt>(resp.body)?
   Ok(Receipt { ..r, at: time.now() })                  // nondet
 }
 
 /// Composes two closures; the result carries both effect sets.
 pub fn compose<A, B, C, e1, e2>(f: fn(A) -> B with e1, g: fn(B) -> C with e2) -> fn(A) -> C with e1 + e2 {
-  (a) => g(f(a))
+  fn(a) => g(f(a))
 }
 
 /// Sums f over xs in parallel; f must be pure.
@@ -61,14 +61,15 @@ impl Order {
 }
 ```
 
-Go equivalent (effects erased; one leading `ctx`):
+Go equivalent (effects erased; one leading `ctx *rt.Ctx`, the runtime
+record `Ctx { cancel, journal, effects, fakes }`):
 
 ```go
 func Total(lines List[Line]) Money { /* pure: no ctx */ }
 
 func Retry[T, E any](n int, f func() Result[T, E]) Result[T, E] { /* no ctx: retry is pure */ }
 
-func Charge(ctx context.Context, o Order, gw Gateway) Result[Receipt, BillError] {
+func Charge(ctx *rt.Ctx, o Order, gw Gateway) Result[Receipt, BillError] {
 	body := json.Encode(ChargeReq{Order: o.ID, Amount: o.Total})
 	resp := Retry(3, func() Result[http.Resp, http.Error] {
 		return http.Post(ctx, gw.URL, body) // closure captures ctx
@@ -105,9 +106,11 @@ export async function charge(o: Order, gw: Gateway): Promise<Result<Receipt, Bil
    a constraint is a behaviour, `K: Ord`; several are joined with `+`,
    `K: Ord + Hash`. Effect-set variables are `lowercase` in the same list
    (`e1`) and may only appear in function types (rule 12).
-4. **`impl Type { … }`** declares inherent methods. `impl Behaviour for
-   Type { … }` implements a behaviour (section 06); its methods' effect sets
-   must be subsets of the behaviour's budget.
+4. **`impl Type { … }`** declares inherent methods and associated functions
+   on a type of the same module; the stdlib uses it for `Cell.new`,
+   `MutList.new` and `List.builder` (`docs/decisions.md` §3, R3). `impl
+   Behaviour for Type { … }` implements a behaviour (section 06); its
+   methods' effect sets must be subsets of the behaviour's budget.
 5. **`self` and `Self`.** A method's first parameter is the bare word `self`,
    typed as the implementing type; `Self` names that type anywhere in the
    `impl`. A function inside an `impl` without `self` is an associated
@@ -140,24 +143,33 @@ export async function charge(o: Order, gw: Gateway): Promise<Result<Receipt, Bil
     variables with union only (`e1 + e2`); there is no intersection,
     subtraction or complement. Calling such a closure contributes its written
     set to the caller.
-13. **Closures.** `(x) => expr` or `(x) => { … }`. Parameter types are
-    inferred from the expected function type, annotations allowed. A
-    closure's effect set is inferred from its body and never written on it.
+13. **Closures** start with `fn`: `fn(x) => expr`, `fn(x, y) => { … }`,
+    `fn(x: Int) => x + 1`, `fn() => f()`. Parameter types are inferred from
+    the expected function type, annotations allowed. A closure's effect set
+    is inferred from its body and never written on it. A parenthesised list
+    without `fn` is a tuple (section 04), never a parameter list.
 14. **`spawn`.** The effects inside a `spawn { … }` block must be a subset of
     the enclosing declared set (section 08).
-15. **`nondet`.** Exactly three stdlib primitives carry `nondet`:
-    `time.now()`, `random.*` and `time.sleep(d)`. Inside `Workflow.run` the
+15. **`nondet`** is defined extensionally. Exactly four stdlib primitives
+    carry it: `time.now()`, `random()` (the seeded generator; every
+    `random.*` helper is built on it), `time.sleep(d)` and `await_signal`
+    (section 07). Nothing else carries `nondet`. Inside `Workflow.run` the
     compiler lowers each to its journaled runtime form; the label and the
-    code are the same (section 07).
+    code are the same. Under `jip test` all four read the fake clock and the
+    seeded generator unless the scenario says `given real_time`
+    (`12-testing.md` rule 10).
 16. **Contracts.** `pre`, `post`, `inv` lines sit between the signature (after
     `with`) and the opening `{`; they are typed with the empty effect set
     (section 05).
 17. **Recursion** is allowed, direct and mutual, with no extra effect.
 18. **Erasure.** Effects leave no trace in Go types. Every function with a
-    non-empty set takes one hidden leading context parameter carrying
-    cancellation and the `app.jip` instrumentation policy; closures capture it
-    where they are created; pure functions take none. Effect sets are static
-    metadata in interface files (section 09).
+    non-empty set takes one hidden leading parameter, the runtime record
+    `Ctx { cancel, journal, effects, fakes }`: `cancel` is the cancellation
+    signal (section 08), `journal` the workflow journal or none (section
+    07), `effects` the `app.jip` instrumentation policy and `fakes` the
+    bound test fakes (section 12). Closures capture it where they are
+    created; pure functions take none; an `extern` receives none (section
+    11). Effect sets are static metadata in interface files (section 09).
 19. **`extern fn`** writes its effect set explicitly and the compiler checks
     it against the effect floor; it is never inferred (section 11).
 
@@ -169,8 +181,8 @@ Missing effect (rule 7):
 error[E0412]: missing effect `net`
   --> orders/billing/charge.jip:37:27
    |
-37 |   let resp = retry(3, () => http.post(gw.url, body))?
-   |                           ^^^^^^^^^ `http.post` has effect `net`
+37 |   let resp = retry(3, fn() => http.post(gw.url, body))?
+   |                              ^^^^^^^^^ `http.post` has effect `net`
    = note: `charge` declares `with {nondet}`
    = help: change the signature to `-> Result<Receipt, BillError> with {net, nondet}`
 ```
@@ -181,8 +193,8 @@ Effectful closure where a pure one is required (rule 11):
 error[E0411]: closure exceeds the effect bound of parameter `f`
   --> orders/report.jip:12:21
    |
-12 |   par_sum(ids, (i) => http.get(url(i)).len())
-   |                     ^^^^^^^^^^^^^^^^^^ closure has effects {net}
+12 |   par_sum(ids, fn(i) => http.get(url(i)).len())
+   |                        ^^^^^^^^^^^^^^^^^^ closure has effects {net}
    = note: `f: fn(Int) -> Int with {}` accepts only pure closures
    = help: fetch outside the closure and pass the data in, or declare `f: fn(Int) -> Int with {net}`
 ```
@@ -216,6 +228,6 @@ Effect        ::= "io" | "net" | "mut" | "llm" "<" Ident ">" | "decide" "<" Iden
 EffectVar     ::= Ident                      /* lowercase, declared in Generics */
 ImplDecl      ::= DocLine? "impl" TypeIdent Generics? ("for" Type)? "{" AssocItem* InvClause* FnDecl* "}"
 AssocItem     ::= "type" TypeIdent "=" Type | "const" Ident "=" Expr   /* behaviour impls only */
-Closure       ::= "(" (ClosureParam ("," ClosureParam)*)? ")" "=>" (Expr | Block)
+Closure       ::= "fn" "(" (ClosureParam ("," ClosureParam)*)? ")" "=>" (Expr | Block)
 ClosureParam  ::= Ident (":" Type)?
 ```

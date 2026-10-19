@@ -15,7 +15,7 @@ pub enum StockError { Parse(json.Error), Negative(Int) }
 
 /// Restocks from a JSON payload; totals every positive delta.
 pub fn restock(raw: Str, levels: Map<Sku, Int>) -> Result<Map<Sku, Int>, StockError> {
-  let deltas = json.decode<List<Delta>>(raw)?       // json.Error lifts into StockError.Parse
+  let deltas = json.decode::<List<Delta>>(raw)?     // json.Error lifts into StockError.Parse
   var out = levels                                  // `var`: the binding can be reassigned
   for d in deltas {
     if d.qty < 0 { return Err(Negative(d.qty)) }    // early exit
@@ -93,7 +93,8 @@ switch (level.kind) {                      // match on a discriminated union
 2. **`var`** binds a mutable name. `x = e` reassigns; `+= -= *= /=` are
    shorthand for `x = x op e` and are statements, not expressions. The type
    is fixed at the first binding. A `var` cannot be captured by a `spawn`
-   block or `task`; closures that are not spawned may read and assign it.
+   block or `task`; a closure may read it (it sees the value at the time
+   the closure is created, rule 17) but may not assign it.
 3. **Shadowing.** A name may be re-bound only in a nested block. Two bindings
    of the same name in one block, or a binding that shadows a parameter at
    the top level of the function body, are compile errors. Match-arm and
@@ -104,8 +105,12 @@ switch (level.kind) {                      // match on a discriminated union
    type `()`.
 5. **`if c { a } else { b }`** is an expression when both branches are
    present and have the same type; `else if` chains. The condition is a
-   `Bool` with no parentheses. An `if` without `else` has type `()` and may
-   not be used as a value. There is no ternary operator.
+   `Bool` with no surrounding parentheses. A record literal may not appear
+   unparenthesised anywhere in an `if` or `while` condition, a `for`
+   iterable or a `match` scrutinee, because its `{` would be read as the
+   block: `if x == Point { x: 1 } {` is a parse error (E0451) and is written
+   `if x == (Point { x: 1 }) {`. An `if` without `else` has type `()` and
+   may not be used as a value. There is no ternary operator.
 6. **`match e { pat => expr, … }`** evaluates arms top to bottom and takes
    the first that matches; there is no fallthrough. All arm results share one
    type. Arms are separated by commas with a trailing comma on multi-line
@@ -135,8 +140,10 @@ switch (level.kind) {                      // match on a discriminated union
     enum with exactly one variant whose single payload type is `E1`, in which
     case `?` wraps the error in that variant (`http.Error` into
     `BillError.Net`). Otherwise it is a compile error that names the mismatch
-    and suggests `.map_err((e) => …)`. The lift is decided per call site from
-    the static types; it never searches through nested enums.
+    and suggests `.map_err(fn(e) => …)`. The lift is decided per call site
+    from the static types; it never searches through nested enums and never
+    converts through `Show` or any other behaviour. The same rule, unchanged,
+    applies inside `Workflow.run` (`07-agents-and-workflows.md` rule 9).
 12. **`?` on `Option`.** In a function returning `Option<_>`, `o?` yields the
     payload or returns `None`. `?` on an `Option` in a `Result` function
     suggests `.ok_or(err)`; `?` on a `Result` in an `Option` function suggests
@@ -158,8 +165,11 @@ switch (level.kind) {                      // match on a discriminated union
     | or | `\|\|` | `Bool`, short-circuit |
     | range | `..` `..=` | `Int` |
 
-    `Int` arithmetic wraps on overflow; `/` and `%` on `Int` truncate toward
-    zero and panic on a zero divisor. There are no bitwise or shift operators
+    `Int` `+`, `-`, `*`, unary `-` and the compound forms trap on overflow
+    with a `panic` in every build (`02-types.md` rule 1; the emitted Go is
+    one compare per operation); `checked_*` and `wrapping_*` are the
+    explicit alternatives. `/` and `%` on `Int` truncate toward zero and
+    panic on a zero divisor. There are no bitwise or shift operators
     in v0; use `Int.and(a, b)`, `Int.shl(a, n)` and friends from the stdlib.
     Assignment is a statement. No operator overloading.
 14. **Interpolation.** `"text {expr}"` evaluates `expr`, which must have a
@@ -176,10 +186,14 @@ switch (level.kind) {                      // match on a discriminated union
     (`impl` methods and stdlib methods); `x.field`, `t.0` and `m.0` read a
     record field, tuple element and newtype payload. There is no uniform
     function-call syntax: `f(x)` never resolves to a method.
-17. **Closures.** `(x) => expr`, `(x, y) => { … }`, `() => expr`. Parameter
-    types come from context or from annotations `(x: Int) => …`; the result
-    type is inferred. Closures capture `let` bindings by value and `var`
-    bindings by reference. Their effects follow the rules in
+17. **Closures.** `fn(x) => expr`, `fn(x, y) => { … }`, `fn() => expr`.
+    Parameter types come from context or from annotations
+    `fn(x: Int) => …`; the result type is inferred. The leading `fn` is what
+    separates a closure from a parenthesised expression or tuple: `(a, b)`
+    is always a tuple. Closures capture `let` and `var` bindings by value at
+    the point of creation; assigning to a captured `var` inside the closure
+    is a compile error (rule 2), so a closure never observes a later
+    reassignment. Their effects follow the rules in
     `03-functions-and-effects.md`.
 18. **`panic("msg")`** aborts the program with a message and a `.jip`
     stack trace. It is for bugs and contract violations only, never for
@@ -195,11 +209,22 @@ switch (level.kind) {                      // match on a discriminated union
 error[E0430]: `?` cannot convert the error type
   --> shop/inventory/config.jip:7:38
    |
- 7 |   let cfg = json.decode<Config>(raw)?
-   |             ^^^^^^^^^^^^^^^^^^^^^^^^^ error type `json.Error`
+ 7 |   let cfg = json.decode::<Config>(raw)?
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^ error type `json.Error`
    = note: `load` returns `Result<Config, Str>`; `?` lifts `json.Error` only into `Str`
            or into an enum with exactly one variant holding `json.Error`
-   = help: map the error first: `json.decode<Config>(raw).map_err((e) => "bad config: {e}")?`
+   = help: map the error first: `json.decode::<Config>(raw).map_err(fn(e) => "bad config: {e}")?`
+```
+
+Record literal in a condition (rule 5):
+
+```text
+error[E0451]: record literal in a condition must be parenthesised
+  --> shop/inventory/origin.jip:5:11
+   |
+ 5 |   if p == Point { x: 0, y: 0 } {
+   |           ^^^^^^^^^^^^^^^^^^^^ `{` here would start the `if` block
+   = help: write `if p == (Point { x: 0, y: 0 }) {`
 ```
 
 Reassigning a `let`:
@@ -220,8 +245,8 @@ Block       ::= "{" (Stmt NEWLINE)* Expr? "}"
 Stmt        ::= "let" Pattern (":" Type)? "=" Expr
                 | "var" Ident (":" Type)? "=" Expr
                 | Ident ("=" | "+=" | "-=" | "*=" | "/=") Expr
-                | "while" Expr Block
-                | "for" Pattern "in" Expr Block
+                | "while" CondExpr Block
+                | "for" Pattern "in" CondExpr Block
                 | "break"
                 | "continue"
                 | "return" Expr?
@@ -234,10 +259,11 @@ CmpExpr     ::= AddExpr (("==" | "!=" | "<" | "<=" | ">" | ">=") AddExpr)?
 AddExpr     ::= MulExpr (("+" | "-") MulExpr)*
 MulExpr     ::= UnaryExpr (("*" | "/" | "%") UnaryExpr)*
 UnaryExpr   ::= ("!" | "-")? PostfixExpr
-PostfixExpr ::= Primary ("." Ident TypeArgs? Args? | "." IntLit | Args | "[" Expr "]" | "?")*
+PostfixExpr ::= Primary ("." Ident ("::" TypeArgs)? Args? | "." IntLit | Args | "[" Expr "]" | "?")*
 Args        ::= "(" (Expr ("," Expr)* ","?)? ")"
+CondExpr    ::= Expr /* same grammar; a RecordExpr inside it must be parenthesised (rule 5) */
 Primary     ::= Literal
-                | Ident TypeArgs?
+                | Ident ("::" TypeArgs)? /* turbofish; "::" TypeArgs must be followed by Args */
                 | "(" Expr ("," Expr)* ")"
                 | "(" ")"
                 | "[" (Expr ("," Expr)* ","?)? "]"
@@ -251,10 +277,10 @@ Primary     ::= Literal
                 | "panic" "(" Expr ")"
 RecordExpr  ::= TypePath "{" (".." Expr ",")? (FieldInit ("," FieldInit)* ","?)? "}"
 FieldInit   ::= Ident (":" Expr)?
-IfExpr      ::= "if" Expr Block ("else" (IfExpr | Block))?
-MatchExpr   ::= "match" Expr "{" Arm ("," Arm)* ","? "}"
+IfExpr      ::= "if" CondExpr Block ("else" (IfExpr | Block))?
+MatchExpr   ::= "match" CondExpr "{" Arm ("," Arm)* ","? "}"
 Arm         ::= Pattern ("if" Expr)? "=>" (Expr | Block)
-Closure     ::= "(" (Param ("," Param)*)? ")" "=>" (Expr | Block)
+Closure     ::= "fn" "(" (Param ("," Param)*)? ")" "=>" (Expr | Block)
 Param       ::= Ident (":" Type)?
 
 Pattern     ::= AltPattern ("|" AltPattern)*

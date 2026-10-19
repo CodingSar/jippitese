@@ -23,7 +23,7 @@ pub fn net(price: Int, discount: Int) -> Int
 
 /// One greeting per name, wrapped in literal braces.
 pub fn greet(names: List<Str>) -> Str {
-  let shown = names.map((n) => "hi {n}!").join(", ")
+  let shown = names.map(fn(n) => "hi {n}!").join(", ")
   "{{{shown}}}"                  // `{{` and `}}` are literal braces around {shown}
 }
 
@@ -84,8 +84,9 @@ func Greet(names []string) string {
 3. **Use lines.** `use path` lines follow the `module` line, before any item.
    Blank lines and comments may sit between them. The last path segment is
    the alias (`use std.json` brings `json.*` into scope; `use orders.customers`
-   brings `customers.*`). `jip fmt` keeps the order written; an unused `use`
-   is a `jip check` warning. Resolution is in `09-modules-and-context.md`.
+   brings `customers.*`). `jip fmt` sorts them (`std.*` first, then
+   dependency aliases, then app modules, each group alphabetically); an
+   unused `use` is a `jip check` warning. Resolution is in `09-modules-and-context.md`.
 4. **Identifiers.** `[A-Za-z_][A-Za-z0-9_]*`, ASCII only. A lone `_` is the
    discard pattern, never a name. Naming is enforced by the compiler, not
    just by convention: types, enums, variants, behaviours and type parameters
@@ -93,10 +94,10 @@ func Greet(names []string) string {
    and consts are `snake_case`. The checker uses this to tell a variant
    pattern (`None`) from a binding pattern (`n`).
 5. **Keywords** are reserved and cannot be identifiers: `module use pub fn
-   type enum impl behaviour for let var if else match while for in return
+   type enum impl behaviour for let var if else match while in return
    break continue spawn task with pre post inv ret old forall exists scenario
-   given when then any where extern go unsafe pure app env const self Self
-   true false`. `Self`, `self` and `ret` are keywords with a fixed meaning,
+   given when then any where via extern go unsafe pure app env const self
+   Self llm decide approve true false`. `Self`, `self` and `ret` are keywords with a fixed meaning,
    not identifiers. `opaque` is a contextual modifier, recognised only
    between `pub` or `pub(module)` and `type` or `enum`
    (`09-modules-and-context.md`); elsewhere it is an ordinary identifier.
@@ -130,24 +131,30 @@ func Greet(names []string) string {
     Two consecutive `///` lines are an error ("one line"). There are no block
     comments.
 14. **Operators and punctuation** are exactly: `+ - * / % == != < <= > >=
-    && || ! = += -= *= /= -> => ? . .. ..= , : | @ ( ) [ ] { } < >`. There
-    is no `::`, `;`, `#`, `&`, `^`, `~`, `<<` or `>>`. Enum variants are
-    qualified with `.` (`Status.Paid`).
-15. **Type-argument angle brackets.** A `<` written immediately after an
-    identifier with no whitespace opens a type-argument list (`List<Int>`,
-    `decode<Receipt>(s)`, `llm<smart>(…)`); a `<` preceded by whitespace is
-    less-than. `jip fmt` enforces spaces around comparison operators and no
-    space inside `<…>`, so `a<b` with no spaces is always a type argument and
-    is an error when `a` is not generic. Because there is no shift operator,
-    `>>` is always two closing brackets (`List<Option<Int>>`).
+    && || ! = += -= *= /= -> => ? . .. ..= :: , : | @ ( ) [ ] { }`. There
+    is no `;`, `#`, `&`, `^`, `~`, `<<` or `>>`. Enum variants are
+    qualified with `.` (`Status.Paid`). `::` appears in exactly one place:
+    the turbofish of rule 15.
+15. **Type arguments.** The lexer has no adjacency rule: `<` and `>` are
+    always the tokens `<` and `>`, and the parser decides what they mean
+    from position alone. In a type (`List<Int>`, `Result<T, E>`) `<` after a
+    type name opens a type-argument list. In an expression an explicit type
+    argument needs the turbofish `f::<T>(x)` (`json.decode::<Receipt>(s)`,
+    `List.builder::<Line>()`); a bare `<` in an expression is always
+    less-than, so `a<b` is a comparison whatever `a` is. `llm<smart>(…)` and
+    `decide<fast>(…)` are not generic calls: `llm` and `decide` are keywords
+    of `03-functions-and-effects.md` and the role in angle brackets is part
+    of the effect name. Because there is no shift operator, `>>` is always
+    two closing brackets (`List<Option<Int>>`).
 16. **Statement termination** follows Go's rule, stated exactly. The lexer
     inserts a terminator at a newline when the last token on the line is an
     identifier, a literal (Int, Float, Str, Bytes, Char, Duration, `true`,
-    `false`), a `)`, `]` or `}`, a `>` that closes a type-argument list, or
-    one of the keywords `break`, `continue`, `return`. A newline after `?`
-    also terminates. Any other line ending (an operator, `,`, `(`, `[`,
-    `{`, `=>`, `->`, `=`, `.`, a keyword such as `else` or `with`) continues
-    the statement. Comments and blank lines do not affect the rule.
+    `false`), a `)`, `]` or `}`, or one of the keywords `break`, `continue`,
+    `return`. A newline after `?` also terminates. Any other line ending (an
+    operator including `>`, `,`, `(`, `[`, `{`, `=>`, `->`, `=`, `.`, a
+    keyword such as `else` or `with`) continues the statement. `>` is never
+    a terminator: a signature whose return type ends in `>` keeps its `{`
+    or `with` on the same line, which rule 17 and `jip fmt` already require. Comments and blank lines do not affect the rule.
     Consequences: `} else {` stays on one line; a method chain breaks after
     the `.` or inside the `(…)`, never before the `.`; `return` alone on a
     line returns `()`. `;` is never written and is a syntax error.
