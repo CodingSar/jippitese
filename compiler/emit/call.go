@@ -101,6 +101,12 @@ func (g *gen) builtin(x *ast.CallExpr, info *checker.CallInfo) string {
 	case "run_workflow":
 		args := g.exprs(x.Args[1:])
 		return g.rt() + ".RunWorkflow(ctx, " + spec + ", " + args[0] + ")"
+	case "record_workflow":
+		args := g.exprs(x.Args[1:])
+		return g.rt() + ".RecordWorkflow(ctx, " + spec + ", " + args[0] + ")"
+	case "replay_workflow":
+		args := g.exprs(x.Args[1:])
+		return g.rt() + ".ReplayWorkflow(ctx, " + spec + ", " + args[0] + ", " + args[1] + ")"
 	case "tick":
 		return g.rt() + ".Tick(ctx, " + spec + ")"
 	case "send_signal":

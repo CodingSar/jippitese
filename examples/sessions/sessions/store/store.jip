@@ -1,0 +1,52 @@
+module sessions.store
+use std.time
+
+/// A logged-in session.
+pub type Session { id: Str, last_seen: time.Instant }
+
+/// Why a sweep failed.
+pub enum SweepError { Repo(RepoError) }
+
+/// Sessions kept in process.
+pub type Sessions { by_id: MutMap<Str, Session> }
+
+/// The session store.
+impl Repository<Session, Str> for Sessions {
+  fn init(cfg: Config) -> Result<Self, RepoError> with {io, mut} {
+    Ok(Sessions { by_id: MutMap.new() })
+  }
+  fn get(self, k: Str) -> Result<Option<Session>, RepoError> with {mut} { Ok(self.by_id.get(k)) }
+  fn put(self, k: Str, v: Session) -> Result<(), RepoError> with {mut} {
+    self.by_id.insert(k, v)
+    Ok(())
+  }
+  fn delete(self, k: Str) -> Result<(), RepoError> with {mut} {
+    self.by_id.remove(k)
+    Ok(())
+  }
+  fn query(self, q: Query<Session>) -> Result<List<Session>, RepoError> with {mut} {
+    Ok(self.by_id.freeze().values())
+  }
+}
+
+/// Removes sessions idle for more than an hour.
+pub type Sweeper {}
+
+/// Sweeps every five minutes.
+impl Cron for Sweeper {
+  type E = SweepError
+  const schedule = every 5m
+  fn init(cfg: Config) -> Result<Self, SweepError> with {io} { Ok(Sweeper {}) }
+  fn run(self) -> Result<(), SweepError> with {mut, nondet} {
+    let now = time.now()
+    for s in Sessions.query(Query.all())? {
+      if now.since(s.last_seen) > 1h { Sessions.delete(s.id)? }
+    }
+    Ok(())
+  }
+}
+
+/// Records activity on a session at the current time.
+pub fn touch(id: Str) -> Result<(), RepoError> with {mut, nondet} {
+  Sessions.put(id, Session { id, last_seen: time.now() })
+}

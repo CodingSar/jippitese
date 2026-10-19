@@ -818,6 +818,17 @@ func RunWorkflow[S, In, Out, Sig, E any](ctx *Ctx, spec *WorkflowSpec[S, In, Out
 	return runJournaled(ctx, spec, in, NewJournal(spec.Name, spec.Version, spec.Sites))
 }
 
+// RecordWorkflow implements the scenario builtin `record_workflow(Impl,
+// input)`: run_workflow that also hands back the journal it wrote.
+func RecordWorkflow[S, In, Out, Sig, E any](ctx *Ctx, spec *WorkflowSpec[S, In, Out, Sig, E], in In) T2[Result[Out, WorkflowError[E]], *Journal] {
+	j := NewJournal(spec.Name, spec.Version, spec.Sites)
+	r := runJournaled(ctx, spec, in, j)
+	return T2[Result[Out, WorkflowError[E]], *Journal]{F0: r, F1: j}
+}
+
+// JournalLen implements `Journal.len()`.
+func JournalLen(ctx *Ctx, j *Journal) int64 { return int64(len(j.Entries)) }
+
 // ReplayWorkflow runs the impl against a stored history.
 func ReplayWorkflow[S, In, Out, Sig, E any](ctx *Ctx, spec *WorkflowSpec[S, In, Out, Sig, E], in In, j *Journal) Result[Out, WorkflowError[E]] {
 	return runJournaled(ctx, spec, in, j)

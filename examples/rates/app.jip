@@ -1,0 +1,6 @@
+app {
+  name: "rates"
+  run Rates {
+    ttl: 5m
+  }
+}

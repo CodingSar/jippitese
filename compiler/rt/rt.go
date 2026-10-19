@@ -76,6 +76,9 @@ type RunId string
 // Query is a repository query; v0 carries no filter.
 type Query[T any] struct{}
 
+// QueryAll implements `Query.all()`.
+func QueryAll[T any](ctx *Ctx) Query[T] { return Query[T]{} }
+
 // Topic is a handle on a declared topic; the emitter builds one for
 // `topics.<name>`.
 type Topic[T any] struct{ Name string }

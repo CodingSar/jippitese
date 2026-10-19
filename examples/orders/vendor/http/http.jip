@@ -1,0 +1,16 @@
+module http
+
+/// Transport failures.
+pub enum Error { Timeout, Status(Int), Transport(Str) }
+
+/// A response.
+pub type Resp { status: Int, body: Bytes }
+
+/// A fetched body.
+pub type Body(Bytes)
+
+/// POSTs body to url.
+pub extern fn post(url: Url, body: Bytes) -> Result<Resp, Error> with {net} = go "rt".HttpPost
+
+/// GETs url.
+pub extern fn get(url: Url) -> Result<Body, Error> with {net} = go "rt".HttpGet

@@ -1,0 +1,46 @@
+module shop.orders
+
+/// An order was placed by a customer.
+pub type Placed { customer: Int, total: Int }
+
+/// Why indexing an order failed.
+pub enum IndexError { Repo(RepoError), Rejected(Str) }
+
+/// Running order totals per customer, kept in process.
+pub type Totals { by_customer: MutMap<Int, Int> }
+
+/// The totals store.
+impl Repository<Int, Int> for Totals {
+  fn init(cfg: Config) -> Result<Self, RepoError> with {io, mut} {
+    Ok(Totals { by_customer: MutMap.new() })
+  }
+  fn get(self, k: Int) -> Result<Option<Int>, RepoError> with {mut} { Ok(self.by_customer.get(k)) }
+  fn put(self, k: Int, v: Int) -> Result<(), RepoError> with {mut} {
+    self.by_customer.insert(k, v)
+    Ok(())
+  }
+  fn delete(self, k: Int) -> Result<(), RepoError> with {mut} {
+    self.by_customer.remove(k)
+    Ok(())
+  }
+  fn query(self, q: Query<Int>) -> Result<List<Int>, RepoError> with {mut} {
+    Ok(self.by_customer.freeze().values())
+  }
+}
+
+/// The indexer: no state of its own.
+pub type Indexer {}
+
+/// Adds every placed order to its customer's total.
+impl Worker for Indexer {
+  type Msg = Placed
+  type E = IndexError
+  const retry = Retry { max: 2, backoff: Backoff.Fixed(10ms) }
+  fn init(cfg: Config) -> Result<Self, IndexError> with {io} { Ok(Indexer {}) }
+  fn perform(self, m: Placed) -> Result<(), IndexError> with {mut} {
+    if m.total < 0 { return Err(IndexError.Rejected("negative total")) }
+    let current = Totals.get(m.customer)?.unwrap_or(0)
+    Totals.put(m.customer, current + m.total)?
+    Ok(())
+  }
+}

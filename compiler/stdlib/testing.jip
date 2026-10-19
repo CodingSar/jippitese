@@ -19,6 +19,15 @@ pub extern type MemRepo<T, K> = go "rt".MemRepo
 /// In-memory `Cache`.
 pub extern type MemCache<K, V> = go "rt".MemCache
 
+/// A recorded workflow history: what `record_workflow` returns and
+/// `replay_workflow` runs against.
+pub extern type Journal = go "rt".Journal
+
+impl Journal {
+  /// Number of recorded entries (steps and approvals).
+  pub extern fn len(self) -> Int = go "rt".JournalLen
+}
+
 impl FakeHttp {
   /// A fake with no replies.
   pub extern fn new() -> FakeHttp = go "rt".FakeHttpNew

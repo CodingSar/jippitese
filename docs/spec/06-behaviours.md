@@ -83,7 +83,7 @@ pub behaviour Service {
   type Req
   type Resp
   type E
-  fn init(cfg: Config) -> Result<Self, E> with {io, net}
+  fn init(cfg: Config) -> Result<Self, E> with {io, net, mut}
   fn handle(self, req: Req) -> Result<Resp, E> with {io, net, mut, llm, decide, nondet, spawn}
   fn stop(self) with {io, net} {}
   fn health(self) -> Health with {io, net} { Health.aggregate(self) }
@@ -93,7 +93,7 @@ pub behaviour Worker {
   type Msg
   type E
   const retry: Retry                       // Retry { max: Int, backoff: Backoff }; Backoff = Fixed(Duration) | Exp(Duration)
-  fn init(cfg: Config) -> Result<Self, E> with {io, net}
+  fn init(cfg: Config) -> Result<Self, E> with {io, net, mut}
   fn perform(self, m: Msg) -> Result<(), E> with {io, net, mut, llm, decide, nondet}
   fn stop(self) with {io, net} {}
   fn health(self) -> Health with {io, net} { Health.aggregate(self) }
@@ -102,7 +102,7 @@ pub behaviour Worker {
 pub behaviour Cron {
   type E
   const schedule: Schedule                 // `every 5m` or `cron "0 * * * *"`
-  fn init(cfg: Config) -> Result<Self, E> with {io, net}
+  fn init(cfg: Config) -> Result<Self, E> with {io, net, mut}
   fn run(self) -> Result<(), E> with {io, net, mut, llm, decide, nondet}
   fn stop(self) with {io, net} {}
   fn health(self) -> Health with {io, net} { Health.aggregate(self) }
@@ -114,13 +114,13 @@ pub behaviour Workflow {                   // semantics in section 07
   type Signal                              // closed sum
   type E                                   // closed sum: the application's own failures
   const version: Int
-  fn init(cfg: Config) -> Result<Self, E> with {io, net}
+  fn init(cfg: Config) -> Result<Self, E> with {io, net, mut}
   fn run(self, in: Input) -> Result<Output, WorkflowError<E>> with {io, net, llm, decide, nondet, spawn, approve}
   fn on_signal(self, s: Signal) {}
 }
 
 pub behaviour Repository<T, K> {
-  fn init(cfg: Config) -> Result<Self, RepoError> with {io, net}
+  fn init(cfg: Config) -> Result<Self, RepoError> with {io, net, mut}
   fn get(self, k: K) -> Result<Option<T>, RepoError> with {io, net}
   fn put(self, k: K, v: T) -> Result<(), RepoError> with {io, net}
   fn delete(self, k: K) -> Result<(), RepoError> with {io, net}
@@ -130,7 +130,7 @@ pub behaviour Repository<T, K> {
 }
 
 pub behaviour Cache<K, V> {
-  fn init(cfg: Config) -> Result<Self, CacheError> with {io, net}
+  fn init(cfg: Config) -> Result<Self, CacheError> with {io, net, mut}
   fn get(self, k: K) -> Result<Option<V>, CacheError> with {io, net, nondet}
   fn set(self, k: K, v: V, ttl: Option<Duration>) -> Result<(), CacheError> with {io, net, nondet}
   fn invalidate(self, k: K) -> Result<(), CacheError> with {io, net, nondet}
@@ -149,12 +149,17 @@ rule 9. Budgets, summarised:
 | `Worker` | `perform` | `io net mut nondet llm decide` |
 | `Cron` | `run` | as `Worker` |
 | `Workflow` | `run` | `io net nondet llm decide approve spawn`, every call journaled |
-| `Repository` | all | `io net` |
-| `Cache` | all | `io net nondet` |
-| all | `init`, `stop`, `health` | `io net` |
+| `Repository` | all but `init` | `io net mut` |
+| `Cache` | all but `init` | `io net mut nondet` |
+| all | `init` | `io net mut` |
+| all | `stop`, `health` | `io net` |
 
 `nondet` is added to the `Service`, `Worker` and `Cron` budgets relative to
-the research table because `time.now()` carries it. `approve` is in the
+the research table because `time.now()` carries it. `mut` is in every
+`init` budget because constructing a `Cell`, `MutList`, `MutMap` or
+`MutSet` is `mut`, and without it no impl could hold in-process state; it
+is in the `Repository` and `Cache` budgets so an in-process store can
+read and write its own maps. `approve` is in the
 `Workflow` budget only: an approval is a durable suspension, and only a
 journaled `run` can resume after one (section 07 rule 7).
 
@@ -172,7 +177,7 @@ pub behaviour Machine {
   type Event                               // closed sum
   type Action                              // closed sum
   type E
-  fn init(cfg: Config) -> Result<Self, E> with {io, net}
+  fn init(cfg: Config) -> Result<Self, E> with {io, net, mut}
   fn activate(self, key: Key) -> State
   fn on(self, s: State, e: Event) -> (State, List<Action>)
   fn act(self, key: Key, a: Action) -> Result<List<Event>, E> with {io, net, llm, decide, nondet}
@@ -187,7 +192,7 @@ pub behaviour Agent {                      // semantics in section 07
   const model: Role
   const tools: List<Tool>
   const budget: Budget                     // Budget { max_turns: Int, max_cost: Money }
-  fn init(cfg: Config) -> Result<Self, AgentError> with {io, net}
+  fn init(cfg: Config) -> Result<Self, AgentError> with {io, net, mut}
   fn begin(self, task: Str) -> State
   fn observe(self, st: State, ev: Event) -> State
   fn stop(self, st: State) -> Option<Answer>
@@ -225,7 +230,7 @@ the runtime's timeout; the state is reloaded on the next event.
 4. **Contract refinement.** An impl method may not add `pre`; it may add
    `post`, checked in addition to the behaviour's. A behaviour `inv` applies
    to `Self` and is checked when `init` returns.
-5. **Lifecycle.** `init(cfg: Config) -> Result<Self, E> with {io, net}` is
+5. **Lifecycle.** `init(cfg: Config) -> Result<Self, E> with {io, net, mut}` is
    static (no `self`). `Config` is a record with one field per entry of the
    `config {}` block of `app.jip` plus `secrets: Secrets`, one field per entry
    of `secrets {}` (section 10 rules 5 and 6); a scenario builds one with

@@ -1,0 +1,47 @@
+module refunds.flow
+use std.time
+
+/// A refund request for an order, in minor units.
+pub type RefundReq { order: Int, amount: Int }
+
+/// A paid-out refund.
+pub type Refunded { order: Int, amount: Int, at: time.Instant }
+
+/// Why a refund was not paid.
+pub enum RefundError { TooLarge(Int), Declined }
+
+/// What finance answers on a large refund.
+pub enum Decision { Approve, Deny }
+
+/// Cancels a pending refund.
+pub type Cancel { reason: Str }
+
+/// The refund workflow: no state of its own.
+pub type Refund {}
+
+/// Pays a refund out; stands in for a ledger call.
+pub fn pay(r: RefundReq) -> Result<Refunded, RefundError> with {nondet} {
+  Ok(Refunded { order: r.order, amount: r.amount, at: time.now() })
+}
+
+/// Refunds an order durably: large refunds wait for finance.
+impl Workflow for Refund {
+  type Input = RefundReq
+  type Output = Refunded
+  type Signal = Cancel
+  type E = RefundError
+  const version = 1
+  fn init(cfg: Config) -> Result<Self, RefundError> with {io} { Ok(Refund {}) }
+  fn run(self, r: RefundReq) -> Result<Refunded, WorkflowError<RefundError>> with {nondet, approve} {
+    if r.amount > 10_000 { return Err(WorkflowError.App(RefundError.TooLarge(r.amount))) }
+    if r.amount >= 500 {
+      let review = Review { title: "Refund for order {r.order}", body: "Amount {r.amount}", timeout: Some(24h), data: None }
+      match approve::<Decision>(review)? {
+        Approve => {},
+        Deny => return Err(WorkflowError.App(RefundError.Declined)),
+      }
+    }
+    let paid = pay(r)?
+    Ok(paid)
+  }
+}

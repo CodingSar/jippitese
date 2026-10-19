@@ -1,0 +1,27 @@
+app {
+  name: "orders"
+  config {
+    gateway_url: Url
+  }
+  deps {
+    http = git("https://github.com/acme/jip-http", commit: "8f1c2a7", hash: "sha256-/yoeMNs8BbySIOMUVkhIpyQHRfNiIVJHx2DXZFiz7lI=")
+  }
+  models {
+    smart = openai("gpt-5")
+    fast = jev("jev-1-small")
+  }
+  secrets {
+    gateway_key: secret<Str>
+  }
+  externs {
+    allow: [orders.billing]
+    max: 1
+  }
+  contracts: pre
+  run BillingApi {
+    restart: permanent
+    max_restarts: 3
+    period: 60s
+  }
+  run Billing
+}

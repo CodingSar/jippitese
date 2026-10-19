@@ -82,7 +82,7 @@ func (c *Checker) checkScenario(s *ScenarioInfo) {
 func (c *Checker) scenarioBuiltin(name string, e *ast.CallExpr, info *CallInfo) *TFn {
 	var impl *ImplInfo
 	var target Type = c.newVar()
-	bname := map[string]string{"run_workflow": "Workflow", "tick": "Cron", "send_signal": "Workflow"}[name]
+	bname := map[string]string{"run_workflow": "Workflow", "record_workflow": "Workflow", "replay_workflow": "Workflow", "tick": "Cron", "send_signal": "Workflow"}[name]
 	if len(e.Args) > 0 {
 		if id, ok := e.Args[0].(*ast.Ident); ok {
 			ti := c.lookupTypeInfo(c.fn.module, id.Name)
@@ -113,9 +113,26 @@ func (c *Checker) scenarioBuiltin(name string, e *ast.CallExpr, info *CallInfo) 
 	case "run_workflow":
 		ret := con(c.preludeType("Result"), assoc("Output"), con(c.preludeType("WorkflowError"), assoc("E")))
 		return &TFn{Params: []Type{target, assoc("Input")}, Ret: ret}
+	case "record_workflow":
+		ret := con(c.preludeType("Result"), assoc("Output"), con(c.preludeType("WorkflowError"), assoc("E")))
+		return &TFn{Params: []Type{target, assoc("Input")}, Ret: &TTuple{Elems: []Type{ret, c.journalType()}}}
+	case "replay_workflow":
+		ret := con(c.preludeType("Result"), assoc("Output"), con(c.preludeType("WorkflowError"), assoc("E")))
+		return &TFn{Params: []Type{target, assoc("Input"), c.journalType()}, Ret: ret}
 	case "tick":
 		return &TFn{Params: []Type{target}, Ret: con(c.preludeType("Result"), unit, assoc("E"))}
 	default:
 		return &TFn{Params: []Type{target, assoc("Signal")}, Ret: unit}
 	}
+}
+
+// journalType is `std.testing.Journal`, the history record_workflow
+// returns.
+func (c *Checker) journalType() Type {
+	if c.prog.Testing != nil {
+		if ti := c.prog.Testing.Types["Journal"]; ti != nil {
+			return con(ti)
+		}
+	}
+	return c.newVar()
 }

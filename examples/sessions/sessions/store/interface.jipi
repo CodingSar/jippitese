@@ -1,0 +1,31 @@
+interface sessions.store digest sha256:01c18d49fdabee4f96ad1d7b9b1118c15fcadb5284887722728aaad2c42444c2
+
+/// A logged-in session.
+pub type Session { id: Str, last_seen: time.Instant }
+
+/// Sessions kept in process.
+pub type Sessions { by_id: MutMap<Str, Session> }
+
+/// Removes sessions idle for more than an hour.
+pub type Sweeper {}
+
+/// Why a sweep failed.
+pub enum SweepError { Repo(RepoError) }
+
+/// Records activity on a session at the current time.
+pub fn touch(id: Str) -> Result<(), RepoError> with {mut, nondet}
+
+/// Sweeps every five minutes.
+impl Cron for Sweeper
+  type E = SweepError
+  const schedule = every 5m
+  fn init(cfg: Config) -> Result<Self, SweepError> with {io}
+  fn run(self) -> Result<(), SweepError> with {mut, nondet}
+
+/// The session store.
+impl Repository<Session, Str> for Sessions
+  fn init(cfg: Config) -> Result<Self, RepoError> with {io, mut}
+  fn get(self, k: Str) -> Result<Option<Session>, RepoError> with {mut}
+  fn put(self, k: Str, v: Session) -> Result<(), RepoError> with {mut}
+  fn delete(self, k: Str) -> Result<(), RepoError> with {mut}
+  fn query(self, q: Query<Session>) -> Result<List<Session>, RepoError> with {mut}

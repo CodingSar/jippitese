@@ -1,0 +1,10 @@
+app {
+  name: "shop"
+  topics {
+    placed: Topic<Placed>
+  }
+  run Indexer {
+    topic: placed
+  }
+  run Totals
+}

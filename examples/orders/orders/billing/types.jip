@@ -1,0 +1,41 @@
+module orders.billing
+use std.time
+
+/// Account identity.
+pub type AccountId(Int)
+
+/// A customer account.
+pub type Account { id: AccountId, balance: Money }
+
+/// Order identity.
+pub type OrderId(Int)
+
+/// One order line.
+pub type Line { price: Money, qty: Int }
+
+/// Where to charge.
+pub type Gateway { url: Url }
+
+/// What the gateway returns.
+pub type Receipt { id: Str, amount: Int, at: time.Instant }
+
+/// Wire request.
+pub type ChargeReq { order: OrderId, amount: Money }
+
+/// Service request.
+pub type BillReq { order: Order }
+
+/// Risk tier.
+pub enum Tier { Low, Medium, High }
+
+/// Reviewer summary.
+pub type Summary { headline: Str, risk: Tier }
+
+/// Workflow state.
+pub type Billing { gw: Gateway }
+
+/// Service state.
+pub type BillingApi { gw: Gateway }
+
+/// Cancel signal.
+pub type Cancel { reason: Str }

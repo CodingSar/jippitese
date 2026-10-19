@@ -1,0 +1,27 @@
+module rates.cache.scenarios
+use rates.cache
+
+scenario "an entry is served until its ttl passes" {
+  given clock = FakeClock.new()
+  given _ = Rates.set("EUR", 11000, Some(5m))
+  given _ = clock.advance(4m)
+  when  before = Rates.get("EUR")
+  then  before == Ok(Some(11000))
+}
+
+scenario "an entry expires under the fake clock" {
+  given clock = FakeClock.new()
+  given _ = Rates.set("EUR", 11000, Some(5m))
+  given _ = clock.advance(6m)
+  when  after = Rates.get("EUR")
+  then  after == Ok(None)
+}
+
+scenario "rate refills an expired entry from the quote" {
+  given clock = FakeClock.new()
+  given _ = Rates.set("GBP", 1, None)
+  given _ = clock.advance(10m)
+  when  r = rate("GBP")
+  then  r == Ok(12700)
+  then  Rates.get("GBP") == Ok(Some(12700))
+}

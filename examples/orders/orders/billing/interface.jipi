@@ -1,0 +1,103 @@
+interface orders.billing digest sha256:d375a607e9f176c5a0b57fd0b95e0fffbdab29c0bcd0f5e70ddb4e4d6e4b4e51
+
+/// A customer account.
+pub type Account { id: AccountId, balance: Money }
+
+/// Account identity.
+pub type AccountId(Int)
+
+/// Service request.
+pub type BillReq { order: Order }
+
+/// Workflow state.
+pub type Billing { gw: Gateway }
+
+/// Service state.
+pub type BillingApi { gw: Gateway }
+
+/// Cancel signal.
+pub type Cancel { reason: Str }
+
+/// Wire request.
+pub type ChargeReq { order: OrderId, amount: Money }
+
+/// Where to charge.
+pub type Gateway { url: Url }
+
+/// One order line.
+pub type Line { price: Money, qty: Int }
+
+/// Money in minor units.
+pub type Money(Int)
+
+/// A customer order.
+pub type Order { id: OrderId, lines: List<Line>, total: Money }
+  inv  total.0 >= 0
+
+/// Order identity.
+pub type OrderId(Int)
+
+/// What the gateway returns.
+pub type Receipt { id: Str, amount: Int, at: time.Instant }
+
+/// Reviewer summary.
+pub type Summary { headline: Str, risk: Tier }
+
+/// Why an order could not be billed.
+pub enum BillError { NoFunds(Money), Net(http.Error), Declined(Str) }
+
+/// What finance answers on a high-risk order.
+pub enum Decision { Proceed, Decline }
+
+/// Charge status.
+pub enum Status { Pending, Paid, Failed }
+
+/// Risk tier.
+pub enum Tier { Low, Medium, High }
+
+/// Charges the order through the payment gateway.
+pub fn charge(o: Order, gw: Gateway) -> Result<Receipt, BillError> with {net, nondet}
+
+/// Generic over any T that implements Ord.
+pub fn max_by<T, K: Ord>(xs: List<T>, key: fn(T) -> K) -> Option<T>
+
+/// Generator for `any Money via positive_money`: draws through `g` so failures shrink.
+pub fn positive_money(g: Gen) -> Money
+
+/// Picks the risk tier with a System One model.
+pub fn risk(o: Order) -> Tier with {decide<fast>}
+
+/// Summarises the order for a human reviewer.
+pub fn summary(o: Order) -> Result<Summary, LlmError> with {llm<smart>}
+
+/// Sum of line totals.
+pub fn total(lines: List<Line>) -> Money
+
+/// Withdraws amt; Err if funds are insufficient.
+pub fn withdraw(acc: Account, amt: Money) -> Result<Account, BillError>
+  pre  amt.0 > 0
+  post match ret { Ok(a) => a.balance.0 == acc.balance.0 - amt.0, Err(_) => true }
+
+/// Inherent methods: no behaviour, same module as the type.
+impl Order
+  /// Number of lines on the order.
+  pub fn size(self) -> Int
+
+/// Handles billing requests over HTTP.
+impl Service for BillingApi
+  type Req = BillReq
+  type Resp = Receipt
+  type E = BillError
+  fn init(cfg: Config) -> Result<Self, BillError> with {io}
+  fn handle(self, req: BillReq) -> Result<Receipt, BillError> with {net, nondet}
+  fn stop(self)
+
+/// Bills an order durably: charge, then ask finance when the risk is high.
+impl Workflow for Billing
+  type Input = Order
+  type Output = Receipt
+  type Signal = Cancel
+  type E = BillError
+  const version = 2
+  fn init(cfg: Config) -> Result<Self, BillError> with {io}
+  fn run(self, o: Order) -> Result<Receipt, WorkflowError<BillError>> with {net, decide<fast>, nondet, approve}

@@ -1,0 +1,32 @@
+interface refunds.flow digest sha256:9716811237affa9d5c110ec5240d3d5733126ee4c89ccca3e24944bcb80af2a0
+
+/// Cancels a pending refund.
+pub type Cancel { reason: Str }
+
+/// The refund workflow: no state of its own.
+pub type Refund {}
+
+/// A refund request for an order, in minor units.
+pub type RefundReq { order: Int, amount: Int }
+
+/// A paid-out refund.
+pub type Refunded { order: Int, amount: Int, at: time.Instant }
+
+/// What finance answers on a large refund.
+pub enum Decision { Approve, Deny }
+
+/// Why a refund was not paid.
+pub enum RefundError { TooLarge(Int), Declined }
+
+/// Pays a refund out; stands in for a ledger call.
+pub fn pay(r: RefundReq) -> Result<Refunded, RefundError> with {nondet}
+
+/// Refunds an order durably: large refunds wait for finance.
+impl Workflow for Refund
+  type Input = RefundReq
+  type Output = Refunded
+  type Signal = Cancel
+  type E = RefundError
+  const version = 1
+  fn init(cfg: Config) -> Result<Self, RefundError> with {io}
+  fn run(self, r: RefundReq) -> Result<Refunded, WorkflowError<RefundError>> with {nondet, approve}

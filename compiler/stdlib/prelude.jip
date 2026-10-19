@@ -94,7 +94,7 @@ pub behaviour Service {
   type Req
   type Resp
   type E
-  fn init(cfg: Config) -> Result<Self, E> with {io, net}
+  fn init(cfg: Config) -> Result<Self, E> with {io, net, mut}
   fn handle(self, req: Req) -> Result<Resp, E> with {io, net, mut, llm, decide, nondet, spawn}
   fn stop(self) with {io, net} {}
   fn health(self) -> Health with {io, net} { Health.aggregate(self) }
@@ -105,7 +105,7 @@ pub behaviour Worker {
   type Msg
   type E
   const retry: Retry
-  fn init(cfg: Config) -> Result<Self, E> with {io, net}
+  fn init(cfg: Config) -> Result<Self, E> with {io, net, mut}
   fn perform(self, m: Msg) -> Result<(), E> with {io, net, mut, llm, decide, nondet}
   fn stop(self) with {io, net} {}
   fn health(self) -> Health with {io, net} { Health.aggregate(self) }
@@ -115,7 +115,7 @@ pub behaviour Worker {
 pub behaviour Cron {
   type E
   const schedule: Schedule
-  fn init(cfg: Config) -> Result<Self, E> with {io, net}
+  fn init(cfg: Config) -> Result<Self, E> with {io, net, mut}
   fn run(self) -> Result<(), E> with {io, net, mut, llm, decide, nondet}
   fn stop(self) with {io, net} {}
   fn health(self) -> Health with {io, net} { Health.aggregate(self) }
@@ -128,14 +128,14 @@ pub behaviour Workflow {
   type Signal
   type E
   const version: Int
-  fn init(cfg: Config) -> Result<Self, E> with {io, net}
+  fn init(cfg: Config) -> Result<Self, E> with {io, net, mut}
   fn run(self, input: Input) -> Result<Output, WorkflowError<E>> with {io, net, llm, decide, nondet, spawn, approve}
   fn on_signal(self, s: Signal) {}
 }
 
 /// Keyed storage.
 pub behaviour Repository<T, K> {
-  fn init(cfg: Config) -> Result<Self, RepoError> with {io, net}
+  fn init(cfg: Config) -> Result<Self, RepoError> with {io, net, mut}
   fn get(self, k: K) -> Result<Option<T>, RepoError> with {io, net, mut}
   fn put(self, k: K, v: T) -> Result<(), RepoError> with {io, net, mut}
   fn delete(self, k: K) -> Result<(), RepoError> with {io, net, mut}
@@ -146,7 +146,7 @@ pub behaviour Repository<T, K> {
 
 /// Keyed storage that may forget.
 pub behaviour Cache<K, V> {
-  fn init(cfg: Config) -> Result<Self, CacheError> with {io, net}
+  fn init(cfg: Config) -> Result<Self, CacheError> with {io, net, mut}
   fn get(self, k: K) -> Result<Option<V>, CacheError> with {io, net, mut, nondet}
   fn set(self, k: K, v: V, ttl: Option<Duration>) -> Result<(), CacheError> with {io, net, mut, nondet}
   fn invalidate(self, k: K) -> Result<(), CacheError> with {io, net, mut, nondet}
@@ -370,6 +370,11 @@ impl Cell<T> {
 impl Task<T> {
   /// Wait for the task.
   pub extern fn join(self) -> T = go "rt".TaskJoin
+}
+
+impl Query<T> {
+  /// Every entity of the repository; v0 queries carry no filter.
+  pub extern fn all() -> Query<T> = go "rt".QueryAll
 }
 
 impl Topic<T> {

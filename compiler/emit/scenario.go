@@ -50,6 +50,10 @@ func (e *emitter) emitScenarios(p *pkg, sm *checker.Module) {
 				}
 				g.printf("scn.Given(%q, %q)\n", gv.Pos.String(), gv.Name+" = "+checker.ExprString(x))
 				v := g.expr(x)
+				if gv.Name == "_" {
+					g.printf("scn.Install(%s)\n", v)
+					break
+				}
 				n := g.localGo(l, gv.Name)
 				g.printf("%s := %s\n_ = %s\nscn.Bind(%q, %s)\nscn.Install(%s)\n", n, v, n, gv.Name, n, n)
 			case ast.GivenTable:

@@ -1,0 +1,38 @@
+module orders.billing.scenarios
+use orders.billing
+
+scenario "withdraw never overdraws" {
+  given acc = any Account                   // contract generator: respects `inv`
+  given amt = any Money via positive_money  // named generator, satisfies `pre amt.0 > 0`
+  when  r = withdraw(acc, amt)
+  then  match r {
+    Ok(a) => a.balance.0 >= 0,
+    Err(_) => true,
+  }
+}
+
+scenario "charge sends the order total" {
+  given http = FakeHttp.new().reply(200, b"{\"id\":\"r1\",\"amount\":500}")  // binds `net`
+  given o = Order { id: OrderId(1), lines: [], total: Money(500) }
+  when  r = charge(o, Gateway { url: Url("https://pay.test/charge") })
+  then  r.is_ok()
+  then  http.requests().len() == 1
+}
+
+scenario "withdraw table" {
+  given rows = [(Money(500), Money(200), true), (Money(100), Money(200), false)]
+  given (bal, amt, ok) in rows  // the block runs once per row
+  when  r = withdraw(Account { id: AccountId(1), balance: bal }, amt)
+  then  r.is_ok() == ok
+}
+
+@extern
+scenario "read_file returns the bytes written" {
+  // every extern has one
+  given p = tmp_path("hello.txt")
+  when  r = {
+    write_file(p, b"hi")?
+    read_file(p)
+  }
+  then  r == Ok(b"hi")
+}

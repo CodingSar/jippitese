@@ -1,0 +1,56 @@
+module rates.cache
+use std.time
+
+/// A cached value and the instant it stops being valid.
+pub type Entry { value: Int, expires: time.Instant }
+
+/// Exchange rates in basis points, cached in process.
+pub type Rates { entries: MutMap<Str, Entry> }
+
+/// How long an entry lives when `set` names no ttl.
+pub const default_ttl: Duration = 5m
+
+/// The rate cache.
+impl Cache<Str, Int> for Rates {
+  fn init(cfg: Config) -> Result<Self, CacheError> with {io, mut} {
+    Ok(Rates { entries: MutMap.new() })
+  }
+  fn get(self, k: Str) -> Result<Option<Int>, CacheError> with {mut, nondet} {
+    match self.entries.get(k) {
+      Some(e) => if time.now().since(e.expires) < 0s { Ok(Some(e.value)) } else {
+        self.entries.remove(k)
+        Ok(None)
+      },
+      None => Ok(None),
+    }
+  }
+  fn set(self, k: Str, v: Int, ttl: Option<Duration>) -> Result<(), CacheError> with {mut, nondet} {
+    self.entries.insert(k, Entry { value: v, expires: time.now().add(ttl.unwrap_or(default_ttl)) })
+    Ok(())
+  }
+  fn invalidate(self, k: Str) -> Result<(), CacheError> with {mut} {
+    self.entries.remove(k)
+    Ok(())
+  }
+}
+
+/// The rate of a currency: the cached value, or the quoted one cached anew.
+pub fn rate(code: Str) -> Result<Int, CacheError> with {mut, nondet} {
+  match Rates.get(code)? {
+    Some(r) => Ok(r),
+    None => {
+      let r = quote(code)
+      Rates.set(code, r, None)?
+      Ok(r)
+    },
+  }
+}
+
+/// A fixed quote standing in for a market data call.
+pub fn quote(code: Str) -> Int {
+  match code {
+    "EUR" => 10850,
+    "GBP" => 12700,
+    _ => 10000,
+  }
+}

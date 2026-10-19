@@ -109,6 +109,16 @@ func (f *file) emitSpec(impl *checker.ImplInfo) {
 		}
 	}
 	f.printf("}\n")
+	if b == "Worker" && e.prog.App != nil {
+		if r := e.prog.App.RunFor(impl.Name); r != nil {
+			if en := r.Fields["topic"]; en != nil {
+				topic := appValueString(en.Value)
+				f.printf("\n// %s consumes topic %q (app.jip `run %s { topic: %s }`).\n", base, topic, impl.Name, topic)
+				f.printf("func init() {\n\t%s.Subscribe(%q, func(ctx *%s.Ctx, m any) %s.Result[%s.Unit, %s.QueueError] {\n\t\treturn %s.Enqueue(ctx, %s, m.(%s))\n\t})\n}\n",
+					rtp, topic, rtp, rtp, rtp, rtp, rtp, name, targs[1])
+			}
+		}
+	}
 }
 
 // constValue is a const's value outside any function: consts lower to

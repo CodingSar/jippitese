@@ -77,6 +77,10 @@ func (f *file) conType(t *checker.TCon) string {
 			return "*" + f.rt() + "." + ti.GoIdent + f.typeArgs(t.Args)
 		}
 	}
+	if ti.Kind == checker.Extern && ti.Mod == "std.testing" {
+		// Fakes, in-memory stores and journals are rt pointers.
+		return "*" + f.typeRef(ti) + f.typeArgs(t.Args)
+	}
 	return f.typeRef(ti) + f.typeArgs(t.Args)
 }
 

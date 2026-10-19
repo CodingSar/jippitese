@@ -1,0 +1,23 @@
+interface rates.cache digest sha256:b5d8de10dc72273d691c3ecc93ce60c2187276addfd7d3fc75fa9bda40ef0506
+
+/// A cached value and the instant it stops being valid.
+pub type Entry { value: Int, expires: time.Instant }
+
+/// Exchange rates in basis points, cached in process.
+pub type Rates { entries: MutMap<Str, Entry> }
+
+/// How long an entry lives when `set` names no ttl.
+pub const default_ttl: Duration = 5m
+
+/// A fixed quote standing in for a market data call.
+pub fn quote(code: Str) -> Int
+
+/// The rate of a currency: the cached value, or the quoted one cached anew.
+pub fn rate(code: Str) -> Result<Int, CacheError> with {mut, nondet}
+
+/// The rate cache.
+impl Cache<Str, Int> for Rates
+  fn init(cfg: Config) -> Result<Self, CacheError> with {io, mut}
+  fn get(self, k: Str) -> Result<Option<Int>, CacheError> with {mut, nondet}
+  fn set(self, k: Str, v: Int, ttl: Option<Duration>) -> Result<(), CacheError> with {mut, nondet}
+  fn invalidate(self, k: Str) -> Result<(), CacheError> with {mut}

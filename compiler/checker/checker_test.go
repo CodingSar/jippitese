@@ -298,9 +298,9 @@ impl Workflow for Counter {
   type Signal = Cancel
   type E = BillError
   const version = 1
-  fn init(cfg: Config) -> Result<Self, BillError> with {io} { Ok(Counter { c: Cell.new(0) }) }
+  fn init(cfg: Config) -> Result<Self, BillError> with {io, mut} { Ok(Counter { c: Cell.new(0) }) }
   fn run(self, input: Int) -> Result<Int, WorkflowError<BillError>> with {mut} { Ok(bump(self.c)) }
 }
 `, "")
-	expectDiag(t, out, []string{"E0702", "E0703"}, "effect `mut` is not allowed inside `Workflow.run`")
+	expectDiag(t, out, []string{"E0703"}, "effect `mut` is not allowed inside `Workflow.run`")
 }

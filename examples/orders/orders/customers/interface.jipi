@@ -1,0 +1,10 @@
+interface orders.customers digest sha256:607c568277ede1567c723b85825dd0dda2647480d7c25728c711f059f772b557
+
+/// A customer.
+pub type Customer { id: CustomerId, name: Str }
+
+/// Customer identity.
+pub type CustomerId(Int)
+
+/// Display name.
+pub fn display(c: Customer) -> Str

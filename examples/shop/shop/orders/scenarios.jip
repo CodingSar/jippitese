@@ -1,0 +1,21 @@
+module shop.orders.scenarios
+use shop.orders
+
+scenario "placed orders are totalled per customer" {
+  when  r = {
+    topics.placed.publish(Placed { customer: 7, total: 30 })?
+    topics.placed.publish(Placed { customer: 7, total: 12 })?
+    topics.placed.publish(Placed { customer: 8, total: 5 })?
+    Totals.get(7)
+  }
+  then  r == Ok(Some(42))
+  then  Totals.get(8) == Ok(Some(5))
+}
+
+scenario "a rejected order is dead-lettered and counts nothing" {
+  when  r = {
+    topics.placed.publish(Placed { customer: 9, total: -1 })?
+    Totals.get(9)
+  }
+  then  r == Ok(None)
+}

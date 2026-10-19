@@ -123,13 +123,13 @@ it is settled in `emit.go` and below.
 
 ## 4. Standard library gaps (`compiler/stdlib/*.jip`, `rt`)
 
-- [ ] **S1** `std.testing` journal API for scenarios: a way to run a
+- [x] **S1** `std.testing` journal API for scenarios: a way to run a
       Workflow, capture its journal, and replay it (needed by the Workflow
       example). `rt` has `NewJournal/LoadJournal/RunWorkflow/
       ReplayWorkflow`; expose them as externs.
-- [ ] **S2** `rt.Neg` (or settle on `Sub(ctx, 0, x)` and note it).
+- [x] **S2** Unary minus on `Int` lowers to `rt.Sub(ctx, 0, x)`, so it traps on overflow like every other `Int` operation; no `rt.Neg`.
 - [x] **S3** Export or map `rt.ioError` for `IoError` (`rt.IoErrorOf`, `NetErrorOf`, `GoErrorOf`).
-- [ ] **S4** Replace placeholder `stdlib/README.md` with the module list
+- [x] **S4** Replace placeholder `stdlib/README.md` with the module list
       and the rule that every std fn is an `rt` extern.
 
 ## 5. Examples (`examples/`)
@@ -137,15 +137,15 @@ it is settled in `emit.go` and below.
 Each is a full app (`app.jip` + modules + scenarios) that passes under the
 default fakes.
 
-- [ ] **X1** Orders card app (move the checker fixture up as the first
+- [x] **X1** Orders card app (move the checker fixture up as the first
       example; keep the fixture in `testdata` for the checker test).
-- [ ] **X2** Worker consuming a topic (`run … { topic }`, `enqueue`,
+- [x] **X2** Worker consuming a topic (`run … { topic }`, `enqueue`,
       dead letters, retry).
-- [ ] **X3** Cron fired by an injected `tick` under the fake clock.
-- [ ] **X4** Cache whose entry expires under the fake clock (`ttl`).
-- [ ] **X5** Workflow replaying a journal with one `approve` step
+- [x] **X3** Cron fired by an injected `tick` under the fake clock.
+- [x] **X4** Cache whose entry expires under the fake clock (`ttl`).
+- [x] **X5** Workflow replaying a journal with one `approve` step
       (`FakeApproveScript`, journal round-trip from S1).
-- [ ] **X6** Replace placeholder `examples/README.md` with the corpus
+- [x] **X6** Replace placeholder `examples/README.md` with the corpus
       description and how to run `jip test` on each.
 
 ## 6. Acceptance run (gate, all or nothing)
@@ -162,8 +162,10 @@ default fakes.
 
 ## 7. Spec and docs edits found during implementation
 
-- [ ] **D1** Spec 06: state the `mut` effect budget for behaviour methods
-      as the checker enforces it.
+- [x] **D1** Spec 06: `mut` is now in every `init` budget and in the
+      `Repository` and `Cache` budgets, matching the prelude; without it no
+      impl could construct in-process state (found while writing the
+      Worker example).
 - [ ] **D2** Spec 11: add the extern adapter example matching the
       implemented mapping table.
 - [ ] **D3** Language card: `both` → `http.Body` in the `BillingApi`

@@ -1,0 +1,38 @@
+module refunds.flow.scenarios
+use refunds.flow
+
+scenario "a small refund pays without asking" {
+  given approvals = FakeApprove.script::<Decision>([])
+  when  r = run_workflow(Refund, RefundReq { order: 1, amount: 120 })
+  then  r.map(fn(p) => p.amount) == Ok(120)
+  then  approvals.asked().len() == 0
+}
+
+scenario "a large refund waits for finance and replays from its journal" {
+  given clock = FakeClock.new()
+  given approvals = FakeApprove.script([Ok(Decision.Approve)])
+  given rec = record_workflow(Refund, RefundReq { order: 2, amount: 900 })
+  given _ = clock.advance(1h)
+  when  again = replay_workflow(Refund, RefundReq { order: 2, amount: 900 }, rec.1)
+  then  rec.0.map(fn(p) => p.amount) == Ok(900)
+  then  rec.1.len() == 2
+  then  again == rec.0
+  then  approvals.asked().len() == 1
+}
+
+scenario "finance can decline" {
+  given approvals = FakeApprove.script([Ok(Decision.Deny)])
+  when  r = run_workflow(Refund, RefundReq { order: 3, amount: 5_000 })
+  then  r == Err(WorkflowError.App(RefundError.Declined))
+}
+
+scenario "a history that does not match the run is a replay error, never a silent re-run" {
+  given approvals = FakeApprove.script([Ok(Decision.Approve)])
+  given small = record_workflow(Refund, RefundReq { order: 4, amount: 100 })
+  when  r = replay_workflow(Refund, RefundReq { order: 4, amount: 900 }, small.1)
+  then  match r {
+    Err(WorkflowError.Replay(_)) => true,
+    _ => false,
+  }
+  then  approvals.asked().len() == 0
+}

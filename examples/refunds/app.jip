@@ -1,0 +1,7 @@
+app {
+  name: "refunds"
+  workflow {
+    mode: embedded
+  }
+  run Refund
+}

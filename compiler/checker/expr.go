@@ -1782,7 +1782,7 @@ func (c *Checker) resolveIdentCallee(id *ast.Ident, e *ast.CallExpr, info *CallI
 		}
 	}
 	switch id.Name {
-	case "run_workflow", "tick", "send_signal":
+	case "run_workflow", "record_workflow", "replay_workflow", "tick", "send_signal":
 		if c.fn.module.IsScenarios || c.fn.ret == nil {
 			c.prog.Refs[id] = &Ref{Kind: RefBuiltin, Builtin: id.Name}
 			info.Kind = CallBuiltin

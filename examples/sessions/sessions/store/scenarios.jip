@@ -1,0 +1,21 @@
+module sessions.store.scenarios
+use sessions.store
+
+scenario "a tick removes only sessions idle for more than an hour" {
+  given clock = FakeClock.new()
+  given _ = touch("old")
+  given _ = clock.advance(50m)
+  given _ = touch("fresh")
+  given _ = clock.advance(20m)
+  when  r = tick(Sweeper)
+  then  r == Ok(())
+  then  Sessions.get("old") == Ok(None)
+  then  Sessions.get("fresh").map(fn(s) => s.is_some()) == Ok(true)
+}
+
+scenario "advancing the clock alone never fires a tick" {
+  given clock = FakeClock.new()
+  given _ = touch("old")
+  when  _ = clock.advance(2h)
+  then  Sessions.get("old").map(fn(s) => s.is_some()) == Ok(true)
+}
