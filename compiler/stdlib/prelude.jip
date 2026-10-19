@@ -281,7 +281,7 @@ impl List<Str> {
 
 impl Map<K, V> {
   /// Empty map.
-  pub extern fn new<K, V>() -> Map<K, V> = go "rt".MapNew
+  pub extern fn new() -> Map<K, V> = go "rt".MapNew
   /// Value at `k`.
   pub extern fn get(self, k: K) -> Option<V> = go "rt".MapGet
   /// With `k` set to `v`.
@@ -304,7 +304,7 @@ impl Map<K, V> {
 
 impl Set<T> {
   /// Empty set.
-  pub extern fn new<T>() -> Set<T> = go "rt".SetNew
+  pub extern fn new() -> Set<T> = go "rt".SetNew
   /// With `x`.
   pub extern fn insert(self, x: T) -> Set<T> = go "rt".SetInsert
   /// Without `x`.
@@ -321,7 +321,7 @@ impl Set<T> {
 
 impl MutList<T> {
   /// Empty mutable list.
-  pub extern fn new<T>() -> MutList<T> with {mut} = go "rt".MutListNew
+  pub extern fn new() -> MutList<T> with {mut} = go "rt".MutListNew
   /// Append.
   pub extern fn push(self, x: T) with {mut} = go "rt".MutListPush
   /// Number of elements.
@@ -334,7 +334,7 @@ impl MutList<T> {
 
 impl MutMap<K, V> {
   /// Empty mutable map.
-  pub extern fn new<K, V>() -> MutMap<K, V> with {mut} = go "rt".MutMapNew
+  pub extern fn new() -> MutMap<K, V> with {mut} = go "rt".MutMapNew
   /// Set `k` to `v`.
   pub extern fn insert(self, k: K, v: V) with {mut} = go "rt".MutMapInsert
   /// Value at `k`.
@@ -347,7 +347,7 @@ impl MutMap<K, V> {
 
 impl MutSet<T> {
   /// Empty mutable set.
-  pub extern fn new<T>() -> MutSet<T> with {mut} = go "rt".MutSetNew
+  pub extern fn new() -> MutSet<T> with {mut} = go "rt".MutSetNew
   /// Add `x`.
   pub extern fn insert(self, x: T) with {mut} = go "rt".MutSetInsert
   /// Membership.
@@ -358,7 +358,7 @@ impl MutSet<T> {
 
 impl Cell<T> {
   /// A new cell holding `v`.
-  pub extern fn new<T>(v: T) -> Cell<T> with {mut} = go "rt".CellNew
+  pub extern fn new(v: T) -> Cell<T> with {mut} = go "rt".CellNew
   /// Current value.
   pub extern fn get(self) -> T with {mut} = go "rt".CellGet
   /// Replace the value.

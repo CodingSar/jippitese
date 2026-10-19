@@ -63,7 +63,7 @@ impl FakeApprove {
 
 impl MemRepo<T, K> {
   /// An empty repository.
-  pub extern fn new<T, K>() -> MemRepo<T, K> = go "rt".MemRepoNew
+  pub extern fn new() -> MemRepo<T, K> = go "rt".MemRepoNew
   /// Value at `k`.
   pub extern fn get(self, k: K) -> Result<Option<T>, RepoError> with {mut} = go "rt".MemRepoGet
   /// Store `v` at `k`.
@@ -74,7 +74,7 @@ impl MemRepo<T, K> {
 
 impl MemCache<K, V> {
   /// An empty cache with the given default ttl.
-  pub extern fn new<K, V>(ttl: Duration) -> MemCache<K, V> = go "rt".MemCacheNew
+  pub extern fn new(ttl: Duration) -> MemCache<K, V> = go "rt".MemCacheNew
   /// Value at `k`, unless expired under the installed clock.
   pub extern fn get(self, k: K) -> Result<Option<V>, CacheError> with {mut, nondet} = go "rt".MemCacheGet
   /// Store `v` at `k`.

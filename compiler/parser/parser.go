@@ -520,6 +520,7 @@ func (p *parser) implDecl(pos ast.Pos, doc string) ast.Item {
 			p.fail("E0002", "expected a behaviour name before `for`")
 		}
 		d.Behaviour = tp.Path[0]
+		d.BehaviourArgs = tp.Args
 		d.Target = p.typeExpr()
 	} else {
 		d.Target = first

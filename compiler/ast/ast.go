@@ -146,14 +146,15 @@ type ConstDecl struct {
 func (d *ConstDecl) ItemPos() Pos { return d.Pos }
 
 type ImplDecl struct {
-	Pos       Pos
-	Doc       string
-	Behaviour string   // "" for inherent impl
-	Target    TypeExpr // the type (with params for builtin impls)
-	Assoc     []AssocType
-	Consts    []*ConstDecl
-	Methods   []*FnDecl
-	Inv       []Expr
+	Pos           Pos
+	Doc           string
+	Behaviour     string     // "" for inherent impl
+	BehaviourArgs []TypeExpr // `impl Repository<Order, OrderId> for Orders`
+	Target        TypeExpr   // the type (with params for builtin impls)
+	Assoc         []AssocType
+	Consts        []*ConstDecl
+	Methods       []*FnDecl
+	Inv           []Expr
 }
 
 func (d *ImplDecl) ItemPos() Pos { return d.Pos }
