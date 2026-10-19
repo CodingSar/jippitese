@@ -1,0 +1,190 @@
+# Backlog
+
+Remaining work to pass the Phase E gate (`docs/revision-plan.md` §5) and
+run Phase F (§6). Ordered by dependency; items inside a group are in the
+order they should be done. State as of commit `9ff4224`: lexer, parser,
+AST, diagnostics, app parser, module loader, checker, embedded stdlib and
+the `rt` runtime build and pass their tests. The `emit` package is a
+scaffold (`emit.go`, `names.go`) and does not build; `cmd/jip` is empty.
+
+Rule from the plan: every rule the compiler cannot check as written is a
+spec bug filed against the plan, not a compiler workaround. Log such cases
+under "Spec bugs found" at the bottom instead of patching around them.
+
+## 1. Go emitter (`compiler/emit`)
+
+Working method: write it in small slices that each compile, commit each
+slice, drive every slice from the orders card fixture
+(`compiler/checker/testdata/orders/`) only. Do not re-derive the design;
+it is settled in `emit.go` and below.
+
+- [ ] **E1 `types.go`** — `goType(checker.Type) string` with the spec 11
+      mapping (Int→int64, Float→float64, Bool→bool, Str→string,
+      Bytes→[]byte, Duration→time.Duration, ()→rt.Unit, tuples→rt.T2..T6,
+      records/enums by `typeRef`, prelude externs by `rtTypeName`,
+      `TParam` by name, `TFn` → `func(*rt.Ctx, …) R`). `Zonk` first, then
+      type-switch. Unit tests against the card's types.
+- [ ] **E2 `names.go` fix** — `fnRef` must resolve std externs to
+      `f.rt() + "." + fi.Extern.Ident`, not `f.std() + "." + name`.
+- [ ] **E3 `decls.go`** — record structs with json tags, newtypes, enums
+      (`{Tag uint8; <V>_<i>}` + `XTag_V` consts + `X_V(...)` constructors +
+      `JipVariants` + JSON methods, same shape as `rt/prelude_gen.go`),
+      free functions `func Name[T any](ctx *rt.Ctx, …) R`, consts as
+      functions, impl methods as `<Target>_<method>`.
+- [ ] **E4 `expr.go` / `walk.go`** — statement-hoisting lowering with `_tN`
+      temps; blocks, let/var/assign, if, while, for/range, return/break/
+      continue, closures, record/tuple/list literals, field access by
+      `FieldRef`, string interpolation via `rt.Str`, Int arithmetic via
+      `rt.Add/Sub/Mul/Div/Rem` (no `rt.Neg`: use `rt.Sub(ctx, 0, x)` or
+      add `Neg` to rt), `rt.Equal` for `==`, `?` via a return hook using
+      `TryInfo`, `spawn`/`task` via `rt.Spawn`/`rt.TaskJoin`.
+- [ ] **E5 call lowering** — every `CallInfo.Kind`: CallFn with type
+      args, CallMethod (type args absent: infer by matching receiver type
+      against impl target with a small binder), CallInstance via
+      `rt.Instance`, CallVariant/CallNewtype constructors, CallBuiltin
+      (`panic`, `random`, `run_workflow`, `tick`, `send_signal`, enqueue,
+      `fake`), CallClosure, CallRecordInv, topic publish via
+      `rt.TopicPublish`, workflow steps via `rt.Step(ctx, site, …)` when
+      `info.Step != ""`, `llm`/`decide`/`approve` via `rt.Llm/Decide/
+      Approve`.
+- [ ] **E6 `pattern.go`** — `match` → `_m :=` plus if/else chain for every
+      pattern kind (wild, bind, lit, variant positional/named, tuple,
+      record, or, at, guards). Use `PatInfo`/`PatBinds`/`AtBinds`.
+- [ ] **E7 contracts** — `pre`/`post`/`inv` lowered to checks that call
+      `rt.ContractFail(ctx, kind, expr, at)` with `old()` captured before
+      the body and `ret` bound after; `rt.SetContracts` from the app's
+      `contracts` level.
+- [ ] **E8 behaviour specs** — `var <Base>_spec = &rt.<B>Spec[...]{…}` for
+      Service, Worker, Cron, Workflow, Repository, Cache with Init wrapper,
+      defaults (`stop`, `health`, `on_signal`), `Sites` for Workflow, and
+      `rt.RunOpts` from the `run` line (restart, max_restarts, period,
+      shutdown_timeout, topic, port, ttl, overlaid via `RunStr/RunInt/
+      RunDuration`).
+- [ ] **E9 `appcfg.go`** — `Config`/`Secrets` structs, `SecretsFake`,
+      `Load()` driving `rt.ConfigLoader` with the env blocks and the
+      fixed/required/overridable mode per field, `TestConfig`, `Finish`
+      with the known key list.
+- [ ] **E10 `scenario.go`** — `scenarios_test.go` per module with
+      `rt.Scenario(t, rt.ScnOpts{…}, body)`; givens (expr, `any`, table,
+      real_time), whens, thens; fakes installed through `scn.Install`;
+      property scenarios with `rt.Gen`/`rt.Any`.
+- [ ] **E11 `std.go`** — `emitStd`: the std package is thin (std types are
+      rt types, std fns are rt externs); emit only what `names.go` still
+      allocates there, or drop the `std` package and route everything to
+      `rt`.
+- [ ] **E12 `main.go` and `go.mod`** — already scaffolded in `emit.go`
+      (`emitMain`, `emitGoMod`); wire `findRunImpl` to the specs from E8.
+- [ ] **E13 `emit_test.go`** — end-to-end: emit the orders card, write to
+      a temp dir, `go vet` clean, `go test` runs the card's two scenarios
+      green with `FakeHttp`. Golden-file check that output is byte-stable
+      across two runs.
+- [ ] **E14 `extern.go`** — `CheckExterns(prog, bag)`: E0501–E0508 per
+      spec 11 using `go list -json -export` and `importer.ForCompiler`
+      (type mapping table, effect floor by package, allow-list, `context`
+      import ban, signature mismatch, method refs, unmappable types,
+      `@extern` scenario requirement). `rt.ioError` must become exported
+      or mapped for `Result<T, IoError>`.
+- [ ] **E15 `//line` directives** — `--go-positions` off by default; one
+      `//line <file>:<line>:<col>` per statement, gofmt the result,
+      `fixLines` keeps them at column 0.
+
+## 2. Interface files (`compiler/iface`, new)
+
+- [ ] **I1** Extract `interface.jipi` from a checked module: `pub` items
+      only, printed with `TypeExprString`/`EffectSetString`, sorted and
+      canonical so the digest is stable.
+- [ ] **I2** Digest (sha256 of the canonical text) and the breaking-change
+      classifier for spec 09 r1–r7, r9, r10; `pub(module)` digested only.
+- [ ] **I3** Round-trip test: write, re-read, re-check, same digest.
+      `--accept-breaking` path.
+
+## 3. Command (`compiler/cmd/jip`)
+
+- [ ] **C1** `jip check` (`--write-interfaces`, `--accept-breaking`,
+      `--effective --env`, `--json`); exit codes 0/1/2/3.
+- [ ] **C2** `jip build` (`--release`, `--target`, `--go-positions`):
+      emit to `.jip/gen/`, copy `rt`, write `go.mod` with
+      `toolchain go1.24.0`, run `go build -trimpath -mod=vendor` to
+      `.jip/bin/<name>`; Go build failure → `error[E9999]`;
+      `compiler/toolchain.go` pin; `JIP_GO` override.
+- [ ] **C3** `jip test` (`--filter`, `--runs`, `--seed`): build then
+      `go test` of the gen tree with `JIP_SCENARIO_FILTER`/`JIP_SEED`/
+      `JIP_RUNS`; map results back to scenario names and positions.
+- [ ] **C4** `jip context <module>` (`--short`, `--for`): print the
+      module's public surface and effects per spec 13.
+- [ ] **C5** `jip fmt` and `jip fetch` (fetch: vendored deps by URL,
+      commit and hash from `app.jip`).
+- [ ] **C6** Deterministic output check: two builds of the card produce
+      identical `.jip/gen/`.
+
+## 4. Standard library gaps (`compiler/stdlib/*.jip`, `rt`)
+
+- [ ] **S1** `std.testing` journal API for scenarios: a way to run a
+      Workflow, capture its journal, and replay it (needed by the Workflow
+      example). `rt` has `NewJournal/LoadJournal/RunWorkflow/
+      ReplayWorkflow`; expose them as externs.
+- [ ] **S2** `rt.Neg` (or settle on `Sub(ctx, 0, x)` and note it).
+- [ ] **S3** Export or map `rt.ioError` for `IoError`.
+- [ ] **S4** Replace placeholder `stdlib/README.md` with the module list
+      and the rule that every std fn is an `rt` extern.
+
+## 5. Examples (`examples/`)
+
+Each is a full app (`app.jip` + modules + scenarios) that passes under the
+default fakes.
+
+- [ ] **X1** Orders card app (move the checker fixture up as the first
+      example; keep the fixture in `testdata` for the checker test).
+- [ ] **X2** Worker consuming a topic (`run … { topic }`, `enqueue`,
+      dead letters, retry).
+- [ ] **X3** Cron fired by an injected `tick` under the fake clock.
+- [ ] **X4** Cache whose entry expires under the fake clock (`ttl`).
+- [ ] **X5** Workflow replaying a journal with one `approve` step
+      (`FakeApproveScript`, journal round-trip from S1).
+- [ ] **X6** Replace placeholder `examples/README.md` with the corpus
+      description and how to run `jip test` on each.
+
+## 6. Acceptance run (gate, all or nothing)
+
+- [ ] **G1** Card's `charge`, `withdraw`, `total`, `max_by`, `BillingApi`
+      compile to Go; `go vet` clean.
+- [ ] **G2** Card's two scenarios pass with `FakeHttp`.
+- [ ] **G3** `interface.jipi` round-trips through `jip check` with a
+      stable digest.
+- [ ] **G4** `jip context orders.billing` prints.
+- [ ] **G5** X2–X5 each pass `jip test`.
+- [ ] **G6** Replace placeholder `compiler/README.md` with package map,
+      build/test commands and the gen layout.
+
+## 7. Spec and docs edits found during implementation
+
+- [ ] **D1** Spec 06: state the `mut` effect budget for behaviour methods
+      as the checker enforces it.
+- [ ] **D2** Spec 11: add the extern adapter example matching the
+      implemented mapping table.
+- [ ] **D3** Language card: `both` → `http.Body` in the `BillingApi`
+      example.
+- [ ] **D4** `grammar.md`: note on contextual keywords (`pre`, `post`,
+      `inv`, `old`, `ret` are contextual, lexed as identifiers).
+- [ ] **D5** `decisions.md`: record deviations between spec text and
+      what the checker/emitter implement (constructor type params dropped
+      on impls, behaviour type args kept on impls, appcfg synthesis).
+- [ ] **D6** Replace placeholder `evals/README.md` once Phase F defines
+      the task set.
+
+## 8. Phase F: evaluation and numbers
+
+- [ ] **F1** Pick the tokenizer by name and version; record it in
+      decisions §13.
+- [ ] **F2** Freeze a task set of at least ten changes over the
+      `examples/` corpus (each: description, jippitese diff, Go diff of
+      the emitted code or a hand-written Go equivalent).
+- [ ] **F3** Measure the spec 13 metric on jippitese and Go for every
+      task; script it under `evals/`.
+- [ ] **F4** Write the numbers into spec 09 r10 and decisions §13; only
+      then claim any figure in the docs.
+
+## Spec bugs found
+
+(None filed yet. Add one line per rule the compiler could not check as
+written, with the section and rule number.)
