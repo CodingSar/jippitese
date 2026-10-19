@@ -249,7 +249,6 @@ func (f *file) emitFn(fi *checker.FnInfo) {
 // emitExternBody forwards to the Go function through rt.Extern, which
 // converts arguments and the `(T, error)` result (spec 11).
 func (f *file) emitExternBody(fi *checker.FnInfo) {
-	ret := f.goType(fi.Type.Ret)
 	var args []string
 	for i := range fi.Decl.Params {
 		args = append(args, paramGoName(f.p.e.prog, &fi.Decl.Params[i]))
@@ -268,11 +267,7 @@ func (f *file) emitExternBody(fi *checker.FnInfo) {
 		f.printf(")\n")
 		return
 	}
-	f.printf("\treturn %s.Extern[%s](ctx, %s", f.rt(), ret, target)
-	for _, a := range args {
-		f.printf(", %s", a)
-	}
-	f.printf(")\n")
+	f.emitExternCall(fi)
 }
 
 func (f *file) emitConst(ci *checker.ConstInfo) {

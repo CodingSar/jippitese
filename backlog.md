@@ -18,27 +18,27 @@ slice, drive every slice from the orders card fixture
 (`compiler/checker/testdata/orders/`) only. Do not re-derive the design;
 it is settled in `emit.go` and below.
 
-- [ ] **E1 `types.go`** — `goType(checker.Type) string` with the spec 11
+- [x] **E1 `types.go`** — `goType(checker.Type) string` with the spec 11
       mapping (Int→int64, Float→float64, Bool→bool, Str→string,
       Bytes→[]byte, Duration→time.Duration, ()→rt.Unit, tuples→rt.T2..T6,
       records/enums by `typeRef`, prelude externs by `rtTypeName`,
       `TParam` by name, `TFn` → `func(*rt.Ctx, …) R`). `Zonk` first, then
       type-switch. Unit tests against the card's types.
-- [ ] **E2 `names.go` fix** — `fnRef` must resolve std externs to
+- [x] **E2 `names.go` fix** — `fnRef` must resolve std externs to
       `f.rt() + "." + fi.Extern.Ident`, not `f.std() + "." + name`.
-- [ ] **E3 `decls.go`** — record structs with json tags, newtypes, enums
+- [x] **E3 `decls.go`** — record structs with json tags, newtypes, enums
       (`{Tag uint8; <V>_<i>}` + `XTag_V` consts + `X_V(...)` constructors +
       `JipVariants` + JSON methods, same shape as `rt/prelude_gen.go`),
       free functions `func Name[T any](ctx *rt.Ctx, …) R`, consts as
       functions, impl methods as `<Target>_<method>`.
-- [ ] **E4 `expr.go` / `walk.go`** — statement-hoisting lowering with `_tN`
+- [x] **E4 `expr.go` / `walk.go`** — statement-hoisting lowering with `_tN`
       temps; blocks, let/var/assign, if, while, for/range, return/break/
       continue, closures, record/tuple/list literals, field access by
       `FieldRef`, string interpolation via `rt.Str`, Int arithmetic via
       `rt.Add/Sub/Mul/Div/Rem` (no `rt.Neg`: use `rt.Sub(ctx, 0, x)` or
       add `Neg` to rt), `rt.Equal` for `==`, `?` via a return hook using
       `TryInfo`, `spawn`/`task` via `rt.Spawn`/`rt.TaskJoin`.
-- [ ] **E5 call lowering** — every `CallInfo.Kind`: CallFn with type
+- [x] **E5 call lowering** — every `CallInfo.Kind`: CallFn with type
       args, CallMethod (type args absent: infer by matching receiver type
       against impl target with a small binder), CallInstance via
       `rt.Instance`, CallVariant/CallNewtype constructors, CallBuiltin
@@ -47,44 +47,44 @@ it is settled in `emit.go` and below.
       `rt.TopicPublish`, workflow steps via `rt.Step(ctx, site, …)` when
       `info.Step != ""`, `llm`/`decide`/`approve` via `rt.Llm/Decide/
       Approve`.
-- [ ] **E6 `pattern.go`** — `match` → `_m :=` plus if/else chain for every
+- [x] **E6 `pattern.go`** — `match` → `_m :=` plus if/else chain for every
       pattern kind (wild, bind, lit, variant positional/named, tuple,
       record, or, at, guards). Use `PatInfo`/`PatBinds`/`AtBinds`.
-- [ ] **E7 contracts** — `pre`/`post`/`inv` lowered to checks that call
+- [x] **E7 contracts** — `pre`/`post`/`inv` lowered to checks that call
       `rt.ContractFail(ctx, kind, expr, at)` with `old()` captured before
       the body and `ret` bound after; `rt.SetContracts` from the app's
       `contracts` level.
-- [ ] **E8 behaviour specs** — `var <Base>_spec = &rt.<B>Spec[...]{…}` for
+- [x] **E8 behaviour specs** — `var <Base>_spec = &rt.<B>Spec[...]{…}` for
       Service, Worker, Cron, Workflow, Repository, Cache with Init wrapper,
       defaults (`stop`, `health`, `on_signal`), `Sites` for Workflow, and
       `rt.RunOpts` from the `run` line (restart, max_restarts, period,
       shutdown_timeout, topic, port, ttl, overlaid via `RunStr/RunInt/
       RunDuration`).
-- [ ] **E9 `appcfg.go`** — `Config`/`Secrets` structs, `SecretsFake`,
+- [x] **E9 `appcfg.go`** — `Config`/`Secrets` structs, `SecretsFake`,
       `Load()` driving `rt.ConfigLoader` with the env blocks and the
       fixed/required/overridable mode per field, `TestConfig`, `Finish`
       with the known key list.
-- [ ] **E10 `scenario.go`** — `scenarios_test.go` per module with
+- [x] **E10 `scenario.go`** — `scenarios_test.go` per module with
       `rt.Scenario(t, rt.ScnOpts{…}, body)`; givens (expr, `any`, table,
       real_time), whens, thens; fakes installed through `scn.Install`;
       property scenarios with `rt.Gen`/`rt.Any`.
-- [ ] **E11 `std.go`** — `emitStd`: the std package is thin (std types are
+- [x] **E11 `std.go`** — `emitStd`: the std package is thin (std types are
       rt types, std fns are rt externs); emit only what `names.go` still
       allocates there, or drop the `std` package and route everything to
       `rt`.
-- [ ] **E12 `main.go` and `go.mod`** — already scaffolded in `emit.go`
+- [x] **E12 `main.go` and `go.mod`** — already scaffolded in `emit.go`
       (`emitMain`, `emitGoMod`); wire `findRunImpl` to the specs from E8.
-- [ ] **E13 `emit_test.go`** — end-to-end: emit the orders card, write to
+- [x] **E13 `emit_test.go`** — end-to-end: emit the orders card, write to
       a temp dir, `go vet` clean, `go test` runs the card's two scenarios
       green with `FakeHttp`. Golden-file check that output is byte-stable
       across two runs.
-- [ ] **E14 `extern.go`** — `CheckExterns(prog, bag)`: E0501–E0508 per
+- [x] **E14 `extern.go`** — `CheckExterns(prog, bag)`: E0501–E0508 per
       spec 11 using `go list -json -export` and `importer.ForCompiler`
       (type mapping table, effect floor by package, allow-list, `context`
       import ban, signature mismatch, method refs, unmappable types,
       `@extern` scenario requirement). `rt.ioError` must become exported
       or mapped for `Result<T, IoError>`.
-- [ ] **E15 `//line` directives** — `--go-positions` off by default; one
+- [x] **E15 `//line` directives** — `--go-positions` off by default; one
       `//line <file>:<line>:<col>` per statement, gofmt the result,
       `fixLines` keeps them at column 0.
 
@@ -124,7 +124,7 @@ it is settled in `emit.go` and below.
       example). `rt` has `NewJournal/LoadJournal/RunWorkflow/
       ReplayWorkflow`; expose them as externs.
 - [ ] **S2** `rt.Neg` (or settle on `Sub(ctx, 0, x)` and note it).
-- [ ] **S3** Export or map `rt.ioError` for `IoError`.
+- [x] **S3** Export or map `rt.ioError` for `IoError` (`rt.IoErrorOf`, `NetErrorOf`, `GoErrorOf`).
 - [ ] **S4** Replace placeholder `stdlib/README.md` with the module list
       and the rule that every std fn is an `rt` extern.
 
@@ -186,5 +186,17 @@ default fakes.
 
 ## Spec bugs found
 
-(None filed yet. Add one line per rule the compiler could not check as
-written, with the section and rule number.)
+- **11 rule 3 vs the card.** Rule 3 says app and vendored externs return
+  `GoError` and only stdlib may use `IoError`/`NetError`, but the card's
+  app-module `read_file` returns `IoError` and the rule cites it. The
+  compiler accepts all three everywhere. Fix the rule or the card.
+- **11 rule 5, floor source.** The rule takes the floor as the union over
+  the target package's direct imports, but `os` imports `time`, `sync` and
+  `sync/atomic`, so `read_file` would need `{io, nondet, mut}`; the
+  diagnostic example says the floor comes from the package itself
+  ("floor table: package `os`"). The compiler uses the package itself.
+- **11 rule 1, `rt` targets.** The card's vendored `http` dependency binds
+  `go "rt".HttpPost`, which is neither a standard-library path nor a
+  `gomod` dep. The compiler treats `rt` as the toolchain's own package and
+  exempts it from rules 1–7; a `Result<R, E>` result instantiates rt's
+  generic `R, E`. The spec should say so or the fixture should change.

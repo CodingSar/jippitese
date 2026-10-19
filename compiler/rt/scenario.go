@@ -35,7 +35,12 @@ type Scn struct {
 	seed    int64
 	gen     *Gen
 	tmp     string
+	// failed collects false `then` lines: each is evaluated and reported,
+	// the first failure does not stop the others (spec 12 rule 6).
+	failed []thenFailure
 }
+
+type thenFailure struct{ pos, msg string }
 
 type bind struct {
 	name string
@@ -161,6 +166,7 @@ func Scenario(t *testing.T, o ScnOpts, body func(*Scn)) {
 
 // attempt runs the body once and converts any panic into a failure.
 func (s *Scn) attempt(body func(*Scn)) (f *scnFailure) {
+	s.failed = nil
 	defer func() {
 		r := recover()
 		if r == nil {
@@ -182,6 +188,16 @@ func (s *Scn) attempt(body func(*Scn)) (f *scnFailure) {
 		}
 	}()
 	body(s)
+	if len(s.failed) > 0 {
+		msgs := make([]string, len(s.failed))
+		for i, tf := range s.failed {
+			msgs[i] = tf.msg
+			if i > 0 {
+				msgs[i] += " (at " + tf.pos + ")"
+			}
+		}
+		return &scnFailure{pos: s.failed[0].pos, step: "then", binds: s.binds, seed: s.seed, msg: strings.Join(msgs, "; ")}
+	}
 	return nil
 }
 
@@ -263,7 +279,7 @@ func (s *Scn) When(pos, text string) { s.step, s.stepPos = "when "+text, pos }
 func (s *Scn) Then(pos, text string, ok bool) {
 	s.step, s.stepPos = "then "+text, pos
 	if !ok {
-		panic(&ScenarioError{Pos: pos, Msg: "then " + text + " is false"})
+		s.failed = append(s.failed, thenFailure{pos: pos, msg: "then " + text + " is false"})
 	}
 }
 

@@ -488,7 +488,13 @@ func (p *parser) fnDecl(pos ast.Pos, doc string, vis ast.Visibility, top bool) *
 		p.expectKw("go")
 		pkg := p.expect(lexer.Str, "").Text
 		p.expectOp(".")
-		d.Extern = &ast.ExternRef{Pkg: pkg, Ident: p.ident()}
+		ident := p.ident()
+		// `go "pkg".Type.Method` parses so the checker can reject it with
+		// E0503 instead of a syntax error.
+		for p.acceptOp(".") {
+			ident += "." + p.ident()
+		}
+		d.Extern = &ast.ExternRef{Pkg: pkg, Ident: ident}
 		p.term()
 		return d
 	}

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"sync"
 	"time"
 )
@@ -657,4 +658,45 @@ func externError(err error, et reflect.Type) any {
 		}
 	}
 	panic(fmt.Sprintf("rt.Extern: cannot build %v from error %v", et, err))
+}
+
+// ---- extern boundary helpers (spec 11 rule 9) ----------------------------
+
+// IoErrorOf maps a Go error to the prelude IoError.
+func IoErrorOf(err error) IoError { return ioError(err) }
+
+// NetErrorOf maps a Go error to the prelude NetError.
+func NetErrorOf(err error) NetError {
+	if isTimeout(err) {
+		return NetError_Timeout()
+	}
+	return NetError_Other(err.Error())
+}
+
+// GoErrorOf maps a Go error to the prelude GoError.
+func GoErrorOf(err error) GoError { return GoError(err.Error()) }
+
+// MapToGo converts a Map to a Go map for an extern argument.
+func MapToGo[K comparable, V any](m Map[K, V]) map[K]V {
+	out := make(map[K]V, len(m.keys))
+	for i, k := range m.keys {
+		out[k] = m.vals[i]
+	}
+	return out
+}
+
+// MapFromGo converts an extern's Go map result to a Map, ordering entries
+// by their printed key so the result is deterministic.
+func MapFromGo[K comparable, V any](g map[K]V) Map[K, V] {
+	keys := make([]K, 0, len(g))
+	for k := range g {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return Show(keys[i]) < Show(keys[j]) })
+	m := Map[K, V]{}
+	for _, k := range keys {
+		m.keys = append(m.keys, k)
+		m.vals = append(m.vals, g[k])
+	}
+	return m
 }
