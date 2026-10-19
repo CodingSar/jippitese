@@ -1,0 +1,18 @@
+module std.time
+
+/// A point in time.
+pub extern type Instant = go "rt".Instant
+
+/// The current time.
+pub extern fn now() -> Instant with {nondet} = go "rt".TimeNow
+/// Pause for `d`.
+pub extern fn sleep(d: Duration) with {nondet} = go "rt".TimeSleep
+
+impl Instant {
+  /// Nanoseconds since the Unix epoch.
+  pub extern fn unix_nanos(self) -> Int = go "rt".InstantUnixNanos
+  /// `self` plus `d`.
+  pub extern fn add(self, d: Duration) -> Instant = go "rt".InstantAdd
+  /// `self` minus `o`.
+  pub extern fn since(self, o: Instant) -> Duration = go "rt".InstantSince
+}

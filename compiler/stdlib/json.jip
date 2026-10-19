@@ -1,0 +1,9 @@
+module std.json
+
+/// JSON failures.
+pub enum Error { Syntax(Int), Shape(Str) }
+
+/// Encode a schema-derivable value.
+pub extern fn encode<T>(v: T) -> Bytes = go "rt".JsonEncode
+/// Decode a schema-derivable value.
+pub extern fn decode<T>(b: Bytes) -> Result<T, Error> = go "rt".JsonDecode

@@ -1,0 +1,429 @@
+module prelude
+
+/// Immutable sequence.
+pub extern type List<T> = go "rt".List
+/// Immutable map.
+pub extern type Map<K, V> = go "rt".Map
+/// Immutable set.
+pub extern type Set<T> = go "rt".Set
+/// Mutable sequence; every operation is `mut`.
+pub extern type MutList<T> = go "rt".MutList
+/// Mutable map; every operation is `mut`.
+pub extern type MutMap<K, V> = go "rt".MutMap
+/// Mutable set; every operation is `mut`.
+pub extern type MutSet<T> = go "rt".MutSet
+/// Shared mutable slot; reading or writing is `mut`.
+pub extern type Cell<T> = go "rt".Cell
+/// Handle of a task started with `task` inside `spawn`.
+pub extern type Task<T> = go "rt".Task
+/// A topic declared in `app.jip`.
+pub extern type Topic<T> = go "rt".Topic
+/// Source of random choices for `via` generators.
+pub extern type Gen = go "rt".Gen
+/// File-system path.
+pub extern type Path = go "rt".Path
+/// Schema-less JSON value.
+pub extern type Json = go "rt".Json
+/// Identifier of a workflow run.
+pub extern type RunId = go "rt".RunId
+/// Repository query.
+pub extern type Query<T> = go "rt".Query
+
+/// A URL.
+pub type Url(Str)
+/// The text of a Go `error`.
+pub type GoError(Str)
+/// Calibrated confidence in [0, 1].
+pub type Score(Float)
+/// A value with the confidence the model assigned to it.
+pub type Calibrated<T> { value: T, confidence: Float }
+/// A contract that fired inside a behaviour method.
+pub type ContractViolation { kind: Str, expr: Str, at: Str }
+/// Retry policy of a `Worker`.
+pub type Retry { max: Int, backoff: Backoff }
+/// What a human reviewer sees for an `approve`.
+pub type Review { title: Str, body: Str, timeout: Option<Duration>, data: Option<Json> }
+/// Why an approval did not return a value.
+pub type Rejected { reason: Option<Str>, timed_out: Bool }
+/// A journal that does not match the code replaying it.
+pub type ReplayError { expected: Int, found: Int }
+/// Liveness and readiness of a running impl.
+pub type Health { live: Bool, ready: Bool, detail: Option<Str> }
+
+/// An optional value.
+pub enum Option<T> { None, Some(T) }
+/// Success or failure.
+pub enum Result<T, E> { Ok(T), Err(E) }
+/// When a `Cron` fires.
+pub enum Schedule { Every(Duration), Cron(Str) }
+/// Delay between retries.
+pub enum Backoff { Fixed(Duration), Exp(Duration) }
+/// `Repository` failures.
+pub enum RepoError { NotFound, Conflict, Unavailable(Str), Invalid(Str) }
+/// `Cache` failures.
+pub enum CacheError { Unavailable(Str) }
+/// Topic failures.
+pub enum TopicError { Unavailable(Str) }
+/// Queue failures.
+pub enum QueueError { Full, Unavailable(Str) }
+/// `llm` failures.
+pub enum LlmError { Schema(Str), Refused(Str), Transport(Str), Budget }
+/// What a workflow run can fail with.
+pub enum WorkflowError<E> { Replay(ReplayError), Approval(Rejected), Cancelled, App(E) }
+/// File-system failures.
+pub enum IoError { NotFound(Str), Permission(Str), Other(Str) }
+/// Network failures.
+pub enum NetError { Timeout, Refused(Str), Other(Str) }
+
+impl Health {
+  /// Live and ready.
+  pub extern fn up() -> Health = go "rt".HealthUp
+  /// Health of an impl from its references; v0 reports up.
+  pub extern fn aggregate<T>(x: T) -> Health = go "rt".HealthAggregate
+}
+
+/// A float in [0, 1).
+pub extern fn random() -> Float with {nondet} = go "rt".Random
+/// Waits for the next signal of a running workflow.
+pub extern fn await_signal<S>(timeout: Duration) -> Option<S> with {nondet} = go "rt".AwaitSignal
+/// Panics with `msg`; the type unifies with anything.
+pub extern fn panic<T>(msg: Str) -> T = go "rt".Panic
+
+/// Serves requests.
+pub behaviour Service {
+  type Req
+  type Resp
+  type E
+  fn init(cfg: Config) -> Result<Self, E> with {io, net}
+  fn handle(self, req: Req) -> Result<Resp, E> with {io, net, mut, nondet, llm, decide, spawn}
+  fn stop(self) with {io, net} {}
+  fn health(self) -> Health with {io, net} { Health.aggregate(self) }
+}
+
+/// Consumes messages.
+pub behaviour Worker {
+  type Msg
+  type E
+  const retry: Retry
+  fn init(cfg: Config) -> Result<Self, E> with {io, net}
+  fn perform(self, m: Msg) -> Result<(), E> with {io, net, mut, nondet, llm, decide}
+  fn stop(self) with {io, net} {}
+  fn health(self) -> Health with {io, net} { Health.aggregate(self) }
+}
+
+/// Runs on a schedule.
+pub behaviour Cron {
+  type E
+  const schedule: Schedule
+  fn init(cfg: Config) -> Result<Self, E> with {io, net}
+  fn run(self) -> Result<(), E> with {io, net, mut, nondet, llm, decide}
+  fn stop(self) with {io, net} {}
+  fn health(self) -> Health with {io, net} { Health.aggregate(self) }
+}
+
+/// A durable, replayable run.
+pub behaviour Workflow {
+  type Input
+  type Output
+  type Signal
+  type E
+  const version: Int
+  fn init(cfg: Config) -> Result<Self, E> with {io, net}
+  fn run(self, input: Input) -> Result<Output, WorkflowError<E>> with {io, net, nondet, llm, decide, approve, spawn}
+  fn on_signal(self, s: Signal) {}
+}
+
+/// Keyed storage.
+pub behaviour Repository<T, K> {
+  fn init(cfg: Config) -> Result<Self, RepoError> with {io, net}
+  fn get(self, k: K) -> Result<Option<T>, RepoError> with {io, net, mut}
+  fn put(self, k: K, v: T) -> Result<(), RepoError> with {io, net, mut}
+  fn delete(self, k: K) -> Result<(), RepoError> with {io, net, mut}
+  fn query(self, q: Query<T>) -> Result<List<T>, RepoError> with {io, net, mut}
+  fn stop(self) with {io, net} {}
+  fn health(self) -> Health with {io, net} { Health.up() }
+}
+
+/// Keyed storage that may forget.
+pub behaviour Cache<K, V> {
+  fn init(cfg: Config) -> Result<Self, CacheError> with {io, net}
+  fn get(self, k: K) -> Result<Option<V>, CacheError> with {io, net, mut, nondet}
+  fn set(self, k: K, v: V, ttl: Option<Duration>) -> Result<(), CacheError> with {io, net, mut, nondet}
+  fn invalidate(self, k: K) -> Result<(), CacheError> with {io, net, mut, nondet}
+  fn stop(self) with {io, net} {}
+  fn health(self) -> Health with {io, net} { Health.up() }
+}
+
+impl Str {
+  /// Number of bytes.
+  pub extern fn len(self) -> Int = go "rt".StrLen
+  /// True when empty.
+  pub extern fn is_empty(self) -> Bool = go "rt".StrIsEmpty
+  /// Substring test.
+  pub extern fn contains(self, s: Str) -> Bool = go "rt".StrContains
+  /// Prefix test.
+  pub extern fn starts_with(self, s: Str) -> Bool = go "rt".StrStartsWith
+  /// Suffix test.
+  pub extern fn ends_with(self, s: Str) -> Bool = go "rt".StrEndsWith
+  /// Upper case.
+  pub extern fn to_upper(self) -> Str = go "rt".StrToUpper
+  /// Lower case.
+  pub extern fn to_lower(self) -> Str = go "rt".StrToLower
+  /// Without surrounding whitespace.
+  pub extern fn trim(self) -> Str = go "rt".StrTrim
+  /// Split on a separator.
+  pub extern fn split(self, sep: Str) -> List<Str> = go "rt".StrSplit
+  /// UTF-8 bytes.
+  pub extern fn bytes(self) -> Bytes = go "rt".StrBytes
+  /// Parse a decimal integer.
+  pub extern fn parse_int(self) -> Option<Int> = go "rt".StrParseInt
+  /// Characters.
+  pub extern fn chars(self) -> List<Char> = go "rt".StrChars
+}
+
+impl Int {
+  /// Decimal text.
+  pub extern fn to_str(self) -> Str = go "rt".IntToStr
+  /// Absolute value.
+  pub extern fn abs(self) -> Int = go "rt".IntAbs
+  /// As a float.
+  pub extern fn to_float(self) -> Float = go "rt".IntToFloat
+  /// Smaller of two.
+  pub extern fn min(self, o: Int) -> Int = go "rt".IntMin
+  /// Larger of two.
+  pub extern fn max(self, o: Int) -> Int = go "rt".IntMax
+}
+
+impl Float {
+  /// Shortest text that round-trips.
+  pub extern fn to_str(self) -> Str = go "rt".FloatToStr
+  /// Largest integer not above.
+  pub extern fn floor(self) -> Int = go "rt".FloatFloor
+  /// Nearest integer.
+  pub extern fn round(self) -> Int = go "rt".FloatRound
+  /// Absolute value.
+  pub extern fn abs(self) -> Float = go "rt".FloatAbs
+}
+
+impl Bytes {
+  /// Number of bytes.
+  pub extern fn len(self) -> Int = go "rt".BytesLen
+  /// As text; invalid UTF-8 is replaced.
+  pub extern fn to_str(self) -> Str = go "rt".BytesToStr
+  /// Concatenation.
+  pub extern fn concat(self, o: Bytes) -> Bytes = go "rt".BytesConcat
+}
+
+impl Duration {
+  /// Whole seconds.
+  pub extern fn seconds(self) -> Int = go "rt".DurationSeconds
+  /// Whole milliseconds.
+  pub extern fn millis(self) -> Int = go "rt".DurationMillis
+}
+
+impl List<T> {
+  /// Number of elements.
+  pub extern fn len(self) -> Int = go "rt".ListLen
+  /// True when empty.
+  pub extern fn is_empty(self) -> Bool = go "rt".ListIsEmpty
+  /// Element at `i`.
+  pub extern fn get(self, i: Int) -> Option<T> = go "rt".ListGet
+  /// First element.
+  pub extern fn first(self) -> Option<T> = go "rt".ListFirst
+  /// Last element.
+  pub extern fn last(self) -> Option<T> = go "rt".ListLast
+  /// Apply `f` to every element.
+  pub extern fn map<U>(self, f: fn(T) -> U) -> List<U> = go "rt".ListMap
+  /// Keep the elements `f` accepts.
+  pub extern fn filter(self, f: fn(T) -> Bool) -> List<T> = go "rt".ListFilter
+  /// Left fold.
+  pub extern fn fold<A>(self, init: A, f: fn(A, T) -> A) -> A = go "rt".ListFold
+  /// Run `f` on every element.
+  pub extern fn each(self, f: fn(T)) = go "rt".ListEach
+  /// First element `f` accepts.
+  pub extern fn find(self, f: fn(T) -> Bool) -> Option<T> = go "rt".ListFind
+  /// True when `f` accepts any element.
+  pub extern fn some(self, f: fn(T) -> Bool) -> Bool = go "rt".ListSome
+  /// True when `f` accepts every element.
+  pub extern fn all(self, f: fn(T) -> Bool) -> Bool = go "rt".ListAll
+  /// Membership.
+  pub extern fn contains(self, x: T) -> Bool = go "rt".ListContains
+  /// With `x` appended.
+  pub extern fn push(self, x: T) -> List<T> = go "rt".ListPush
+  /// Both lists.
+  pub extern fn concat(self, o: List<T>) -> List<T> = go "rt".ListConcat
+  /// Reversed.
+  pub extern fn reverse(self) -> List<T> = go "rt".ListReverse
+  /// First `n`.
+  pub extern fn take(self, n: Int) -> List<T> = go "rt".ListTake
+  /// Without the first `n`.
+  pub extern fn drop(self, n: Int) -> List<T> = go "rt".ListDrop
+  /// Sorted by key.
+  pub extern fn sort_by<K: Ord>(self, key: fn(T) -> K) -> List<T> = go "rt".ListSortBy
+  /// Mutable copy.
+  pub extern fn thaw(self) -> MutList<T> with {mut} = go "rt".ListThaw
+}
+
+impl List<Int> {
+  /// Sum; traps on overflow.
+  pub extern fn sum(self) -> Int = go "rt".ListSumInt
+}
+
+impl List<Float> {
+  /// Sum.
+  pub extern fn sum(self) -> Float = go "rt".ListSumFloat
+}
+
+impl List<Str> {
+  /// Joined with `sep`.
+  pub extern fn join(self, sep: Str) -> Str = go "rt".ListJoin
+}
+
+impl Map<K, V> {
+  /// Empty map.
+  pub extern fn new<K, V>() -> Map<K, V> = go "rt".MapNew
+  /// Value at `k`.
+  pub extern fn get(self, k: K) -> Option<V> = go "rt".MapGet
+  /// With `k` set to `v`.
+  pub extern fn insert(self, k: K, v: V) -> Map<K, V> = go "rt".MapInsert
+  /// Without `k`.
+  pub extern fn remove(self, k: K) -> Map<K, V> = go "rt".MapRemove
+  /// Key test.
+  pub extern fn contains_key(self, k: K) -> Bool = go "rt".MapContainsKey
+  /// Number of entries.
+  pub extern fn len(self) -> Int = go "rt".MapLen
+  /// Keys in insertion order.
+  pub extern fn keys(self) -> List<K> = go "rt".MapKeys
+  /// Values in insertion order.
+  pub extern fn values(self) -> List<V> = go "rt".MapValues
+  /// Entries in insertion order.
+  pub extern fn entries(self) -> List<(K, V)> = go "rt".MapEntries
+  /// Mutable copy.
+  pub extern fn thaw(self) -> MutMap<K, V> with {mut} = go "rt".MapThaw
+}
+
+impl Set<T> {
+  /// Empty set.
+  pub extern fn new<T>() -> Set<T> = go "rt".SetNew
+  /// With `x`.
+  pub extern fn insert(self, x: T) -> Set<T> = go "rt".SetInsert
+  /// Without `x`.
+  pub extern fn remove(self, x: T) -> Set<T> = go "rt".SetRemove
+  /// Membership.
+  pub extern fn contains(self, x: T) -> Bool = go "rt".SetContains
+  /// Number of elements.
+  pub extern fn len(self) -> Int = go "rt".SetLen
+  /// Elements in insertion order.
+  pub extern fn items(self) -> List<T> = go "rt".SetItems
+  /// Mutable copy.
+  pub extern fn thaw(self) -> MutSet<T> with {mut} = go "rt".SetThaw
+}
+
+impl MutList<T> {
+  /// Empty mutable list.
+  pub extern fn new<T>() -> MutList<T> with {mut} = go "rt".MutListNew
+  /// Append.
+  pub extern fn push(self, x: T) with {mut} = go "rt".MutListPush
+  /// Number of elements.
+  pub extern fn len(self) -> Int with {mut} = go "rt".MutListLen
+  /// Element at `i`.
+  pub extern fn get(self, i: Int) -> Option<T> with {mut} = go "rt".MutListGet
+  /// Immutable copy.
+  pub extern fn freeze(self) -> List<T> with {mut} = go "rt".MutListFreeze
+}
+
+impl MutMap<K, V> {
+  /// Empty mutable map.
+  pub extern fn new<K, V>() -> MutMap<K, V> with {mut} = go "rt".MutMapNew
+  /// Set `k` to `v`.
+  pub extern fn insert(self, k: K, v: V) with {mut} = go "rt".MutMapInsert
+  /// Value at `k`.
+  pub extern fn get(self, k: K) -> Option<V> with {mut} = go "rt".MutMapGet
+  /// Remove `k`.
+  pub extern fn remove(self, k: K) with {mut} = go "rt".MutMapRemove
+  /// Immutable copy.
+  pub extern fn freeze(self) -> Map<K, V> with {mut} = go "rt".MutMapFreeze
+}
+
+impl MutSet<T> {
+  /// Empty mutable set.
+  pub extern fn new<T>() -> MutSet<T> with {mut} = go "rt".MutSetNew
+  /// Add `x`.
+  pub extern fn insert(self, x: T) with {mut} = go "rt".MutSetInsert
+  /// Membership.
+  pub extern fn contains(self, x: T) -> Bool with {mut} = go "rt".MutSetContains
+  /// Immutable copy.
+  pub extern fn freeze(self) -> Set<T> with {mut} = go "rt".MutSetFreeze
+}
+
+impl Cell<T> {
+  /// A new cell holding `v`.
+  pub extern fn new<T>(v: T) -> Cell<T> with {mut} = go "rt".CellNew
+  /// Current value.
+  pub extern fn get(self) -> T with {mut} = go "rt".CellGet
+  /// Replace the value.
+  pub extern fn set(self, v: T) with {mut} = go "rt".CellSet
+  /// Replace the value with `f` of it; returns the new value.
+  pub extern fn update(self, f: fn(T) -> T) -> T with {mut} = go "rt".CellUpdate
+}
+
+impl Task<T> {
+  /// Wait for the task.
+  pub extern fn join(self) -> T = go "rt".TaskJoin
+}
+
+impl Topic<T> {
+  /// Publish to every worker on the topic.
+  pub extern fn publish(self, m: T) -> Result<(), TopicError> with {io} = go "rt".TopicPublish
+}
+
+impl Option<T> {
+  /// True for `Some`.
+  pub extern fn is_some(self) -> Bool = go "rt".OptionIsSome
+  /// True for `None`.
+  pub extern fn is_none(self) -> Bool = go "rt".OptionIsNone
+  /// The value, or `d`.
+  pub extern fn unwrap_or(self, d: T) -> T = go "rt".OptionUnwrapOr
+  /// The value; panics on `None`.
+  pub extern fn unwrap(self) -> T = go "rt".OptionUnwrap
+  /// Apply `f` to the value.
+  pub extern fn map<U>(self, f: fn(T) -> U) -> Option<U> = go "rt".OptionMap
+  /// Chain.
+  pub extern fn and_then<U>(self, f: fn(T) -> Option<U>) -> Option<U> = go "rt".OptionAndThen
+  /// `Ok` of the value, or `Err(e)`.
+  pub extern fn ok_or<E>(self, e: E) -> Result<T, E> = go "rt".OptionOkOr
+}
+
+impl Result<T, E> {
+  /// True for `Ok`.
+  pub extern fn is_ok(self) -> Bool = go "rt".ResultIsOk
+  /// True for `Err`.
+  pub extern fn is_err(self) -> Bool = go "rt".ResultIsErr
+  /// The value, or `d`.
+  pub extern fn unwrap_or(self, d: T) -> T = go "rt".ResultUnwrapOr
+  /// The value; panics on `Err`.
+  pub extern fn unwrap(self) -> T = go "rt".ResultUnwrap
+  /// Apply `f` to the value.
+  pub extern fn map<U>(self, f: fn(T) -> U) -> Result<U, E> = go "rt".ResultMap
+  /// Apply `f` to the error.
+  pub extern fn map_err<F>(self, f: fn(E) -> F) -> Result<T, F> = go "rt".ResultMapErr
+  /// Chain.
+  pub extern fn and_then<U>(self, f: fn(T) -> Result<U, E>) -> Result<U, E> = go "rt".ResultAndThen
+  /// `Some` of the value.
+  pub extern fn ok(self) -> Option<T> = go "rt".ResultOk
+  /// `Some` of the error.
+  pub extern fn err(self) -> Option<E> = go "rt".ResultErr
+}
+
+impl Gen {
+  /// Integer in [lo, hi].
+  pub extern fn int(self, lo: Int, hi: Int) -> Int = go "rt".GenInt
+  /// Float in [lo, hi).
+  pub extern fn float(self, lo: Float, hi: Float) -> Float = go "rt".GenFloat
+  /// Coin flip.
+  pub extern fn bool(self) -> Bool = go "rt".GenBool
+  /// Text of at most `max_len` characters.
+  pub extern fn str(self, max_len: Int) -> Str = go "rt".GenStr
+  /// One of `xs`.
+  pub extern fn pick<T>(self, xs: List<T>) -> T = go "rt".GenPick
+}

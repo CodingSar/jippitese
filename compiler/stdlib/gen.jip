@@ -1,0 +1,4 @@
+module std.gen
+
+/// A list of `n` draws from `f`.
+pub extern fn list<T>(g: Gen, n: Int, f: fn(Gen) -> T) -> List<T> = go "rt".GenList
