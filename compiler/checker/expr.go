@@ -673,7 +673,7 @@ func (c *Checker) inferInner(e ast.Expr, want Type) Type {
 		c.expect(e.Lo, lt, con(tInt), "range bounds are `Int`")
 		ht := c.infer(e.Hi, con(tInt))
 		c.expect(e.Hi, ht, con(tInt), "range bounds are `Int`")
-		return con(tRange, con(tInt))
+		return con(c.preludeType("Range"), con(tInt))
 	case *ast.ReturnExpr:
 		if c.fn.ret == nil && len(c.fn.closureRets) == 0 {
 			c.errorf("E0402", e.Pos, "`return` outside a function")

@@ -2,6 +2,8 @@ module prelude
 
 /// Immutable sequence.
 pub extern type List<T> = go "rt".List
+/// `a..b` (exclusive) or `a..=b` (inclusive) over `Int`.
+pub extern type Range<T> = go "rt".Range
 /// Immutable map.
 pub extern type Map<K, V> = go "rt".Map
 /// Immutable set.
@@ -219,6 +221,11 @@ impl Duration {
   pub extern fn seconds(self) -> Int = go "rt".DurationSeconds
   /// Whole milliseconds.
   pub extern fn millis(self) -> Int = go "rt".DurationMillis
+}
+
+impl Range<T> {
+  /// Membership; `(lo..hi).contains(x)` lowers to `lo <= x && x < hi`.
+  pub extern fn contains(self, x: T) -> Bool = go "rt".ListContains
 }
 
 impl List<T> {

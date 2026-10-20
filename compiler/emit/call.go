@@ -41,6 +41,11 @@ func (g *gen) callValue(x *ast.CallExpr, info *checker.CallInfo) string {
 		}
 		return callee + "(" + ctxArgs(args) + ")"
 	case checker.CallMethod:
+		if r, ok := info.Receiver.(*ast.RangeExpr); ok && info.Fn.Name == "contains" && info.Fn.Module != nil && info.Fn.Module.IsStd {
+			// A literal range is never materialised for membership.
+			vals := g.exprs([]ast.Expr{r.Lo, r.Hi, x.Args[0]})
+			return g.rt() + ".InRange(" + strings.Join(vals, ", ") + ", " + strconv.FormatBool(r.Incl) + ")"
+		}
 		vals := g.exprs(append([]ast.Expr{info.Receiver}, x.Args...))
 		return g.f.fnRef(info.Fn) + "(" + ctxArgs(vals) + ")"
 	case checker.CallInstance:

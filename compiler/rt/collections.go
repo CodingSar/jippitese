@@ -144,6 +144,12 @@ func ListAll[T any](ctx *Ctx, xs []T, f func(*Ctx, T) bool) bool {
 	}
 	return true
 }
+
+// InRange is `(lo..hi).contains(x)`, `..=` when incl.
+func InRange(lo, hi, x int64, incl bool) bool {
+	return lo <= x && (x < hi || incl && x == hi)
+}
+
 func ListContains[T any](ctx *Ctx, xs []T, x T) bool {
 	for _, y := range xs {
 		if Equal(y, x) {
@@ -499,9 +505,10 @@ func GenFloat(ctx *Ctx, g *Gen, lo, hi float64) float64 {
 	}
 	return lo + g.R.Float64()*(hi-lo)
 }
-func GenBool(ctx *Ctx, g *Gen) bool { return g.R.Int63n(2) == 1 }
-func GenStr(ctx *Ctx, g *Gen, maxLen int64) string {
-	n := GenInt(ctx, g, 0, maxLen)
+func GenBool(ctx *Ctx, g *Gen) bool                { return g.R.Int63n(2) == 1 }
+func GenStr(ctx *Ctx, g *Gen, maxLen int64) string { return genStrN(g, GenInt(ctx, g, 0, maxLen)) }
+
+func genStrN(g *Gen, n int64) string {
 	const alpha = "abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
 	b := make([]byte, n)
 	for i := range b {
@@ -555,17 +562,67 @@ func GenAnyFloat(ctx *Ctx, g *Gen) float64 {
 // GenAnyBool draws a Bool for `any Bool`.
 func GenAnyBool(ctx *Ctx, g *Gen) bool { return GenBool(ctx, g) }
 
-// GenAnyStr draws a Str for `any Str`.
-func GenAnyStr(ctx *Ctx, g *Gen) string { return GenStr(ctx, g, int64(g.GenLen(16))) }
+// GenAnyStr draws a Str for `any Str`, at most 32 bytes (05 rule 15).
+func GenAnyStr(ctx *Ctx, g *Gen) string { return genStrN(g, int64(g.GenLen(32))) }
 
 // GenAnyBytes draws Bytes for `any Bytes`.
-func GenAnyBytes(ctx *Ctx, g *Gen) []byte {
-	b := make([]byte, g.GenLen(16))
+func GenAnyBytes(ctx *Ctx, g *Gen) []byte { return genBytesN(g, int64(g.GenLen(16))) }
+
+func genBytesN(g *Gen, n int64) []byte {
+	b := make([]byte, n)
 	for i := range b {
 		b[i] = byte(g.R.Int63n(256))
 	}
 	return b
 }
+
+// GenOpen is the open end of a `pre`-bounded generator (05 rule 15):
+// far enough out that Size, not the end, bounds what is drawn.
+const GenOpen = 1 << 61
+
+// GenIntIn draws an Int in [lo, hi] for a `pre`-bounded generator; Size
+// bounds the magnitude as in GenInt, and is at least 1.
+func GenIntIn(ctx *Ctx, g *Gen, lo, hi int64) int64 {
+	if g.Size < 1 {
+		g = &Gen{R: g.R, Size: 1}
+	}
+	return GenInt(ctx, g, lo, hi)
+}
+
+// GenFloatIn draws a Float in [lo, hi], bounded by Size like GenIntIn.
+func GenFloatIn(ctx *Ctx, g *Gen, lo, hi float64) float64 {
+	if hi < lo {
+		lo, hi = hi, lo
+	}
+	if n := float64(max(g.Size, 1)); n < hi-lo {
+		switch {
+		case lo <= 0 && hi >= 0:
+			lo, hi = max(lo, -n), min(hi, n)
+		case hi < 0:
+			lo = hi - n
+		default:
+			hi = lo + n
+		}
+	}
+	return GenFloat(ctx, g, lo, hi)
+}
+
+// GenLenIn draws a length in [lo, hi] for a `pre`-bounded collection: at
+// most 8 and Size above lo. An empty range yields lo for the filter.
+func GenLenIn(g *Gen, lo, hi int64) int64 {
+	lo = max(lo, 0)
+	hi = min(hi, lo+8, lo+int64(max(g.Size, 0)))
+	if hi <= lo {
+		return lo
+	}
+	return lo + g.R.Int63n(hi-lo+1)
+}
+
+// GenStrIn draws a Str whose length is in [lo, hi].
+func GenStrIn(ctx *Ctx, g *Gen, lo, hi int64) string { return genStrN(g, GenLenIn(g, lo, hi)) }
+
+// GenBytesIn draws Bytes whose length is in [lo, hi].
+func GenBytesIn(ctx *Ctx, g *Gen, lo, hi int64) []byte { return genBytesN(g, GenLenIn(g, lo, hi)) }
 
 // GenAnyChar draws a Char for `any Char`.
 func GenAnyChar(ctx *Ctx, g *Gen) rune { return rune(GenInt(ctx, g, 32, 126)) }

@@ -129,7 +129,8 @@ switch (level.kind) {                      // match on a discriminated union
 9. **`while c { … }`** and **`for x in xs { … }`** are statements of type
    `()`. `for` iterates `List`, `Set`, `Map` (as `(k, v)` tuples), their
    mutable variants, and ranges. `a..b` is exclusive, `a..=b` inclusive; both
-   are `Int` ranges and have type `Range`. `break` and `continue` apply to the
+   are `Int` ranges and have type `Range<Int>`; `r.contains(x)` is
+   membership, and on a literal range it compiles to two comparisons. `break` and `continue` apply to the
    innermost loop; there are no labels and no loop values.
 10. **`return e`** exits the function with `e`; bare `return` returns `()`.
     A tail `return x` compiles and `jip fmt` rewrites it to `x`. Inside a

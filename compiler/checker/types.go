@@ -74,7 +74,6 @@ var (
 	tBytes    = prim("Bytes")
 	tChar     = prim("Char")
 	tDuration = prim("Duration")
-	tRange    = &TypeInfo{Name: "Range", Mod: "prelude", Kind: Extern, Params: []*TParam{{Name: "T"}}}
 )
 
 func prim(name string) *TypeInfo {

@@ -223,11 +223,11 @@ fixes under "deferred from v0"; deviations go to `decisions.md`.
       `pub fn`s, structural generators, oracle (`post`, `inv`, no panic),
       N = 200, integrated shrinking, seeds under `.jip/seeds/`, replayed as
       run 1. `emit/derived.go`; `driver_test.go` `TestDerivedCheck`.
-- [ ] **L2b** `pre`-derived generator bounds (05 r15): a comparison of a
+- [x] **L2b** `pre`-derived generator bounds (05 r15): a comparison of a
       parameter, field path or `.len()` against a constant or another
       parameter bounds that generator; a range membership becomes a range
-      generator. Today every clause is a filter. Also `Str` at 32 bytes
-      (`GenAnyStr` draws 16).
+      generator; `Range.contains`; `any Str` at 32 bytes. `preBounds` in
+      `emit/derived.go`; `TestDerivedCheck` covers `pct`, `above`.
 - [ ] **L3** Derived stateful check for impls with `inv` (05 r17) and the
       stdlib behaviour contracts (05 r18, 06 r8, r10): `Worker` idempotency,
       `Repository` get-after-put, with `MemRepo`/`MemCache` substitution.

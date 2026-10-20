@@ -158,11 +158,13 @@ func Push[T any](s Stack[T], x T) Stack[T] {
 15. **Generators.** One generator per parameter, derived structurally from
     the type under a fixed size model: recursive types stop at depth 3 by
     taking the smallest variant, collections at length 8, `Str` at 32
-    bytes. *Status: v1 treats every `pre` clause as a filter; the bounds
-    below are a follow-up (backlog L2b).* `pre` narrows them: a comparison of a parameter, a field path or
-    a `.len()` against a constant or another parameter becomes a bound on
-    that generator, and a range membership becomes a range generator. Any
-    clause not of that shape is a filter. If more than 90% of candidates
+    bytes. `pre` narrows them: in each `&&` conjunct, a comparison (`<`,
+    `<=`, `>`, `>=`, `==`) of a parameter, a field path or a `.len()`
+    against a constant or a parameter declared earlier becomes a bound on
+    that generator, and a range membership `(lo..hi).contains(x)` becomes a
+    range generator. Any clause not of that shape is a filter. Every clause
+    is still evaluated on every candidate, so a bound only saves
+    rejections. If more than 90% of candidates
     are rejected by filters, `jip test` prints warning `W0510` (`pre
     rejects too many candidates`, with the clause) and continues; it is not
     a failure. The owner names a generator explicitly with `via`: `given x

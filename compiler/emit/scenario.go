@@ -146,7 +146,10 @@ func (g *gen) anyExpr(x *ast.AnyExpr) string {
 // genFor is the structural generator of t (05 rule 15) as a Go function
 // value `func(*rt.Ctx, *rt.Gen) T`. Candidates that break an `inv` are
 // redrawn.
-func (g *gen) genFor(t checker.Type) string {
+func (g *gen) genFor(t checker.Type) string { return g.genForB(t, nil) }
+
+// genForB is genFor narrowed by the `pre` bounds b (nil for none).
+func (g *gen) genForB(t checker.Type, b *bound) string {
 	rtp := g.rt()
 	gt := g.f.goType(t)
 	head := "func(ctx *" + rtp + ".Ctx, gn *" + rtp + ".Gen) " + gt + " {\n"
@@ -158,7 +161,7 @@ func (g *gen) genFor(t checker.Type) string {
 		}
 		parts := make([]string, len(x.Elems))
 		for i, el := range x.Elems {
-			parts[i] = "F" + strconv.Itoa(i) + ": (" + g.genFor(el) + ")(ctx, gn)"
+			parts[i] = "F" + strconv.Itoa(i) + ": (" + g.genForB(el, b.part(strconv.Itoa(i))) + ")(ctx, gn)"
 		}
 		return head + "return " + gt + "{" + strings.Join(parts, ", ") + "}\n}"
 	case *checker.TCon:
@@ -171,15 +174,24 @@ func (g *gen) genFor(t checker.Type) string {
 		}
 		switch ti.Kind {
 		case checker.Prim:
+			switch {
+			case b == nil:
+			case ti.Name == "Int" && len(b.lo)+len(b.hi) > 0:
+				return head + "return " + rtp + ".GenIntIn(ctx, gn, " + b.lower(rtp) + ", " + b.upper(rtp) + ")\n}"
+			case ti.Name == "Float" && len(b.lo)+len(b.hi) > 0:
+				return head + "return " + rtp + ".GenFloatIn(ctx, gn, " + b.lower(rtp) + ", " + b.upper(rtp) + ")\n}"
+			case (ti.Name == "Str" || ti.Name == "Bytes") && len(b.lenLo)+len(b.lenHi) > 0:
+				return head + "return " + rtp + ".Gen" + ti.Name + "In(ctx, gn, " + b.lenLower() + ", " + b.lenUpper(rtp) + ")\n}"
+			}
 			return rtp + ".GenAny" + ti.Name
 		case checker.Record:
 			var parts []string
 			for _, fl := range ti.Fields {
-				parts = append(parts, fieldName(fl.Name)+": ("+g.genFor(checker.Subst(fl.Type, m))+")(ctx, gn)")
+				parts = append(parts, fieldName(fl.Name)+": ("+g.genForB(checker.Subst(fl.Type, m), b.part(fl.Name))+")(ctx, gn)")
 			}
 			return head + g.retry(ti, gt, gt+"{"+strings.Join(parts, ", ")+"}") + "}"
 		case checker.Newtype:
-			return head + g.retry(ti, gt, gt+"(("+g.genFor(checker.Subst(ti.Inner, m))+")(ctx, gn))") + "}"
+			return head + g.retry(ti, gt, gt+"(("+g.genForB(checker.Subst(ti.Inner, m), b.part("0"))+")(ctx, gn))") + "}"
 		case checker.Enum:
 			var b strings.Builder
 			b.WriteString(head)
@@ -204,7 +216,11 @@ func (g *gen) genFor(t checker.Type) string {
 			return b.String()
 		case checker.Extern:
 			if ti.Mod == "prelude" && ti.Name == "List" {
-				return head + "return " + rtp + ".GenList(ctx, gn, int64(gn.GenLen(8)), " + g.genFor(x.Args[0]) + ")\n}"
+				n := "int64(gn.GenLen(8))"
+				if b != nil && len(b.lenLo)+len(b.lenHi) > 0 {
+					n = rtp + ".GenLenIn(gn, " + b.lenLower() + ", " + b.lenUpper(rtp) + ")"
+				}
+				return head + "return " + rtp + ".GenList(ctx, gn, " + n + ", " + g.genFor(x.Args[0]) + ")\n}"
 			}
 		}
 	}

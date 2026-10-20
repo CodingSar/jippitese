@@ -479,7 +479,8 @@ reverse any row; reversing one is a spec change.
 | `any T where` (v1) | The filter sees the candidate under the `given` name; rejected candidates are redrawn from the same generator; 1000 rejections in a row fail the scenario; W0510 is counted per `where` over all runs of the property. |
 | Structural `Int` generator | `Size` bounds the magnitude around zero when the range holds zero, else from the end nearest zero. v0 clamped from `lo`, so `any Int` never drew a positive value. |
 | `jip fmt` | Keeps every comment (trailing ones aligned), literal text (`1_000_000`, `60s`) and schedule sugar (`every 5m`); a body stays on one line only when written so. Refuses to write a result that would not reparse to the same program. Skips `vendor/`. |
-| Derived function checks (v1) | Module-level, non-generic `pub fn`s of app modules only; methods wait for the stateful check. Each emits `TestDerived_<fn>` in the module's `derived_test.go` and prints `derived <fn>`; the summary counts scenarios and derived checks apart. Every `pre` clause is a filter until `pre`-derived bounds land (backlog L2b). A check whose `pre` rejects every candidate of 3 runs is reported `skip` with W0510, never `ok`. A saved seed runs before the N fresh runs unless `--seed` pins the run. |
+| Derived function checks (v1) | Module-level, non-generic `pub fn`s of app modules only; methods wait for the stateful check. Each emits `TestDerived_<fn>` in the module's `derived_test.go` and prints `derived <fn>`; the summary counts scenarios and derived checks apart. A check whose `pre` rejects every candidate of 3 runs is reported `skip` with W0510, never `ok`. A saved seed runs before the N fresh runs unless `--seed` pins the run. |
+| `pre`-derived bounds | Only `&&` conjuncts are split; a bound side may mention parameters declared earlier, never later, and must lower without statements. An open end is ±2^61, so Size, not the end, bounds the draw; a length bound draws at most 8 above its minimum. Every clause still runs as a filter. `Range<T>` is a prelude extern type with `contains`; a literal range receiver lowers to `rt.InRange`. `any Str` draws up to 32 bytes (was 16). |
 | Not in v0 | `gomod(...)` Go dependencies for externs (any non-stdlib Go path is E0504); the per-module `.jip/cache` of 13 rule 12 (needs separate compilation in the checker; `GOCACHE` covers the Go side). |
 
 ## Resolved deferred decisions
@@ -527,5 +528,4 @@ reverse any row; reversing one is a spec change.
 | `temporal` and `restate` workflow runtimes | `embedded` passing the gate |
 | Providers beyond one per role, `custom` provider | ecosystem pressure |
 | Derived stateful checks (`impl`), stdlib behaviour contracts | backlog L3 |
-| `pre`-derived generator bounds | backlog L2b |
 | Persistent collections as a data structure | §13 collections benchmark |

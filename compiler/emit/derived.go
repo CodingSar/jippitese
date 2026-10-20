@@ -202,11 +202,14 @@ func (e *emitter) emitDerived(p *pkg) {
 		}
 		at := strconv.Quote(fi.Pos.String())
 		g.printf("scn.Given(%s, %q)\n", at, "any "+strings.Join(sig, ", "))
-		// The draw closure generates every parameter, then evaluates the
-		// `pre` clauses on them; a false clause redraws (rule 15).
+		// The draw closure generates every parameter, narrowed by the `pre`
+		// bounds, then evaluates every `pre` clause on them; a false clause
+		// redraws (rule 15). A clause that became a bound is still checked,
+		// so a bound only saves rejections.
 		s := g.sub(nil)
+		bs := preBounds(s, fi)
 		for i := range d.Params {
-			s.printf("%s = (%s)(ctx, gn)\n", names[i], g.genFor(fi.Type.Params[i]))
+			s.printf("%s = (%s)(ctx, gn)\n", names[i], g.genForB(fi.Type.Params[i], bs[i]))
 		}
 		var pres []string
 		for _, c := range d.Pre {
@@ -229,6 +232,258 @@ func (e *emitter) emitDerived(p *pkg) {
 		f.body.WriteString(g.w.String())
 		f.printf("})\n}\n")
 	}
+}
+
+// bound narrows one generator (05 rule 15). Int and Float leaves take
+// lo and hi, List, Str and Bytes a length range; records, newtypes and
+// tuples narrow their parts, keyed by field name or index. Every entry is
+// a Go expression; several on one end combine with max or min.
+type bound struct {
+	lo, hi       []string
+	lenLo, lenHi []string
+	parts        map[string]*bound
+}
+
+func (b *bound) at(keys []string) *bound {
+	for _, k := range keys {
+		if b.parts == nil {
+			b.parts = map[string]*bound{}
+		}
+		if b.parts[k] == nil {
+			b.parts[k] = &bound{}
+		}
+		b = b.parts[k]
+	}
+	return b
+}
+
+func (b *bound) part(k string) *bound {
+	if b == nil {
+		return nil
+	}
+	return b.parts[k]
+}
+
+// combine joins the Go expressions of one end, open when there are none.
+func combine(fn, open string, xs []string) string {
+	switch len(xs) {
+	case 0:
+		return open
+	case 1:
+		return xs[0]
+	}
+	return fn + "(" + strings.Join(xs, ", ") + ")"
+}
+
+func (b *bound) lower(rtp string) string { return combine("max", "-"+rtp+".GenOpen", b.lo) }
+func (b *bound) upper(rtp string) string { return combine("min", rtp+".GenOpen", b.hi) }
+func (b *bound) lenLower() string        { return combine("max", "0", b.lenLo) }
+func (b *bound) lenUpper(rtp string) string {
+	return combine("min", rtp+".GenOpen", b.lenHi)
+}
+
+// preBounds turns the `pre` conjuncts of d of the shapes of rule 15 into
+// generator bounds, one per parameter: `p op e` or `e op p` with `op` a
+// comparison, and `(lo..hi).contains(p)`, where `p` is a parameter, a
+// field path of one or such a path's `.len()`, and `e` mentions only
+// parameters drawn before `p`'s. Any other conjunct stays a filter only.
+func preBounds(s *gen, fi *checker.FnInfo) []*bound {
+	d := fi.Decl
+	out := make([]*bound, len(d.Params))
+	for i := range out {
+		out[i] = &bound{}
+	}
+	var conj []ast.Expr
+	var split func(e ast.Expr)
+	split = func(e ast.Expr) {
+		if b, ok := e.(*ast.BinaryExpr); ok && b.Op == "&&" {
+			split(b.L)
+			split(b.R)
+			return
+		}
+		conj = append(conj, e)
+	}
+	for _, c := range d.Pre {
+		split(c)
+	}
+	flip := map[string]string{"<": ">", "<=": ">=", ">": "<", ">=": "<=", "==": "=="}
+	for _, c := range conj {
+		switch x := c.(type) {
+		case *ast.BinaryExpr:
+			if _, ok := flip[x.Op]; !ok {
+				continue
+			}
+			if !boundOn(s, fi, out, x.L, x.Op, x.R) {
+				boundOn(s, fi, out, x.R, flip[x.Op], x.L)
+			}
+		case *ast.CallExpr:
+			fe, ok := x.Fn.(*ast.FieldExpr)
+			if !ok || fe.Name != "contains" || len(x.Args) != 1 {
+				continue
+			}
+			if r, ok := fe.X.(*ast.RangeExpr); ok {
+				hiOp := "<"
+				if r.Incl {
+					hiOp = "<="
+				}
+				if boundOn(s, fi, out, x.Args[0], ">=", r.Lo) {
+					boundOn(s, fi, out, x.Args[0], hiOp, r.Hi)
+				}
+			}
+		}
+	}
+	return out
+}
+
+// boundOn records `path op e` when path is a bounded parameter path and
+// e a Go-evaluable expression over parameters drawn before it.
+func boundOn(s *gen, fi *checker.FnInfo, out []*bound, path ast.Expr, op string, e ast.Expr) bool {
+	d := fi.Decl
+	i, keys, isLen, leaf := paramPath(s, fi, path)
+	if i < 0 {
+		return false
+	}
+	ok := true
+	ast.WalkExpr(e, func(x ast.Expr) {
+		if id, isID := x.(*ast.Ident); isID {
+			if j := paramIndex(s, d, id); j >= i {
+				ok = false
+			}
+		}
+	})
+	if !ok {
+		return false
+	}
+	stmts, v, dead := s.capture(func() string { return s.expr(e) })
+	if stmts != "" || dead {
+		return false
+	}
+	b := out[i].at(keys)
+	isInt := isLen
+	if !isLen {
+		c, isCon := leaf.(*checker.TCon)
+		switch {
+		case isCon && c.Info.Kind == checker.Prim && c.Info.Name == "Int":
+			isInt = true
+		case isCon && c.Info.Kind == checker.Prim && c.Info.Name == "Float":
+		default:
+			return false
+		}
+	}
+	lo, hi := &b.lo, &b.hi
+	if isLen {
+		lo, hi = &b.lenLo, &b.lenHi
+	}
+	// An Int bound is exact; a strict Float bound is left to the filter.
+	switch op {
+	case ">":
+		if isInt {
+			v = "(" + v + ") + 1"
+		}
+		*lo = append(*lo, v)
+	case ">=":
+		*lo = append(*lo, v)
+	case "<":
+		if isInt {
+			v = "(" + v + ") - 1"
+		}
+		*hi = append(*hi, v)
+	case "<=":
+		*hi = append(*hi, v)
+	case "==":
+		*lo = append(*lo, v)
+		*hi = append(*hi, v)
+	}
+	return true
+}
+
+// paramPath resolves e as a parameter, a field path of one, or such a
+// path's `.len()`: the parameter index (-1 when e is none of these), the
+// field keys, whether it ends in `.len()`, and the type at the path.
+func paramPath(s *gen, fi *checker.FnInfo, e ast.Expr) (int, []string, bool, checker.Type) {
+	isLen := false
+	if c, ok := e.(*ast.CallExpr); ok {
+		fe, ok := c.Fn.(*ast.FieldExpr)
+		if !ok || fe.Name != "len" || len(c.Args) != 0 {
+			return -1, nil, false, nil
+		}
+		e, isLen = fe.X, true
+	}
+	var keys []string
+	for {
+		fe, ok := e.(*ast.FieldExpr)
+		if !ok {
+			break
+		}
+		keys = append([]string{fe.Name}, keys...)
+		e = fe.X
+	}
+	id, ok := e.(*ast.Ident)
+	if !ok {
+		return -1, nil, false, nil
+	}
+	i := paramIndex(s, fi.Decl, id)
+	if i < 0 {
+		return -1, nil, false, nil
+	}
+	t := fi.Type.Params[i]
+	for _, k := range keys {
+		if t = partType(t, k); t == nil {
+			return -1, nil, false, nil
+		}
+	}
+	if isLen {
+		c, ok := checker.Zonk(t).(*checker.TCon)
+		if !ok || !(c.Info.Kind == checker.Prim && (c.Info.Name == "Str" || c.Info.Name == "Bytes") ||
+			c.Info.Kind == checker.Extern && c.Info.Mod == "prelude" && c.Info.Name == "List") {
+			return -1, nil, false, nil
+		}
+	}
+	return i, keys, isLen, checker.Zonk(t)
+}
+
+// partType is the type of field or index k of t, as genForB narrows it.
+func partType(t checker.Type, k string) checker.Type {
+	switch x := checker.Zonk(t).(type) {
+	case *checker.TTuple:
+		if n, err := strconv.Atoi(k); err == nil && n < len(x.Elems) {
+			return x.Elems[n]
+		}
+	case *checker.TCon:
+		m := map[*checker.TParam]checker.Type{}
+		for i, p := range x.Info.Params {
+			if i < len(x.Args) {
+				m[p] = x.Args[i]
+			}
+		}
+		switch x.Info.Kind {
+		case checker.Record:
+			for _, fl := range x.Info.Fields {
+				if fl.Name == k {
+					return checker.Subst(fl.Type, m)
+				}
+			}
+		case checker.Newtype:
+			if k == "0" {
+				return checker.Subst(x.Info.Inner, m)
+			}
+		}
+	}
+	return nil
+}
+
+// paramIndex is the index of the parameter id names, or -1.
+func paramIndex(s *gen, d *ast.FnDecl, id *ast.Ident) int {
+	r := s.prog.Refs[id]
+	if r == nil || r.Kind != checker.RefLocal {
+		return -1
+	}
+	for i := range d.Params {
+		if s.prog.Params[&d.Params[i]] == r.Local {
+			return i
+		}
+	}
+	return -1
 }
 
 func paramNames(d *ast.FnDecl) []string {

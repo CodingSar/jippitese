@@ -162,10 +162,34 @@ pub fn clamp(m: Money) -> Money
   if m.0 < -5 { Money(0) } else { m }
 }
 
-/// Only huge amounts.
+/// Only huge amounts: the bound draws them, nothing is rejected.
 pub fn huge(m: Money) -> Money
   pre  m.0 > 1_000_000
-  post ret.0 > 0
+  post ret.0 > 1_000_000
+{
+  m
+}
+
+/// A percentage, bounded by range membership.
+pub fn pct(p: Int, xs: List<Int>) -> Int
+  pre  (0..=100).contains(p) && xs.len() >= 9
+  post ret <= 100 && ret >= 9
+{
+  if p > xs.len() { p } else { xs.len() }
+}
+
+/// b is bounded by the a drawn before it.
+pub fn above(a: Int, b: Int) -> Int
+  pre  a > 1000 && b > a
+  post ret > 1001
+{
+  b
+}
+
+/// No Int squares to 2: every candidate is rejected.
+pub fn never(m: Money) -> Money
+  pre  m.0 * m.0 == 2
+  post ret.0 == 0
 {
   m
 }
@@ -179,8 +203,12 @@ pub fn huge(m: Money) -> Money
 		!strings.Contains(s, "contract violated: post ret.0 >= 0") ||
 		!strings.Contains(s, "saved to .jip/seeds/orders/billing/clamp.seed") ||
 		!strings.Contains(s, "ok  orders.billing  derived withdraw") ||
-		!strings.Contains(s, "skip  orders.billing  derived huge  no candidate satisfies `pre`") ||
-		!strings.Contains(s, "warning W0510  orders.billing  derived huge") ||
+		!strings.Contains(s, "ok  orders.billing  derived huge") ||
+		!strings.Contains(s, "ok  orders.billing  derived pct") ||
+		!strings.Contains(s, "ok  orders.billing  derived above") ||
+		!strings.Contains(s, "skip  orders.billing  derived never  no candidate satisfies `pre`") ||
+		!strings.Contains(s, "warning W0510  orders.billing  derived never") ||
+		strings.Contains(s, "W0510  orders.billing  derived huge") ||
 		!strings.Contains(s, "derived checks:") {
 		t.Fatalf("exit %d seed %v\n%s%s", code, err, s, errb.String())
 	}
