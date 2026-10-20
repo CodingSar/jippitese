@@ -114,6 +114,7 @@ func Check(in *Input, bag *diag.Bag) *Program {
 		c.checkModule(m)
 	}
 	c.postChecks()
+	c.checkRuns()
 	curMod = nil
 	return p
 }

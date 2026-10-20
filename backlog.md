@@ -210,10 +210,10 @@ decisions".
       runtime writes one JSON-lines file per run; the spec follows the
       runtime.
 - [x] **V2** Ratify D1 (`mut` in `init` budgets) in `decisions.md`.
-- [ ] **V3** A `run` line in `app.jip` naming an unknown item, or one that
-      is not runnable (an `Agent`, a `Workflow`), is silently ignored;
+- [x] **V3** A `run` line in `app.jip` naming an unknown item, or one that
+      is not runnable (an `Agent`), is silently ignored;
       report it (spec 10, section on `run`).
-- [ ] **V4** A lexer error inside a string literal (`"{\"id\": 7}"`, an
+- [x] **V4** A lexer error inside a string literal (`"{\"id\": 7}"`, an
       unclosed interpolation) is reported at 1:1 instead of at the
       literal.
 

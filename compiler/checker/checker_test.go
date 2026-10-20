@@ -134,7 +134,17 @@ func checkSnippet(t *testing.T, body string, scenarios string) string {
 		must(os.MkdirAll(filepath.Dir(to), 0o755))
 		must(os.WriteFile(to, src, 0o644))
 	}
-	copyFile("testdata/orders/app.jip", filepath.Join(dir, "app.jip"))
+	// The snippet replaces billing.jip, so the fixture's `run` lines name
+	// nothing.
+	appSrc, err := os.ReadFile("testdata/orders/app.jip")
+	must(err)
+	var appLines []string
+	for _, l := range strings.Split(string(appSrc), "\n") {
+		if !strings.HasPrefix(l, "  run ") {
+			appLines = append(appLines, l)
+		}
+	}
+	must(os.WriteFile(filepath.Join(dir, "app.jip"), []byte(strings.Join(appLines, "\n")), 0o644))
 	copyFile("testdata/orders/vendor/http/http.jip", filepath.Join(dir, "vendor/http/http.jip"))
 	copyFile("testdata/orders/orders/billing/types.jip", filepath.Join(dir, "orders/billing/types.jip"))
 	copyFile("testdata/orders/orders/customers/customers.jip", filepath.Join(dir, "orders/customers/customers.jip"))
@@ -259,11 +269,21 @@ impl Worker for Indexer {
 // so the prelude `Money` of `Budget` is not shadowed by the billing one.
 func checkSupport(t *testing.T, src string) string {
 	t.Helper()
+	return checkSupportApp(t, src, "")
+}
+
+// checkSupportApp is checkSupport with extra entries at the end of app.jip.
+func checkSupportApp(t *testing.T, src, appExtra string) string {
+	t.Helper()
 	dir := t.TempDir()
 	for _, f := range []string{"app.jip", "vendor/http/http.jip", "orders/billing/types.jip", "orders/billing/billing.jip", "orders/customers/customers.jip"} {
 		b, err := os.ReadFile(filepath.Join("testdata/orders", f))
 		if err != nil {
 			t.Fatal(err)
+		}
+		if f == "app.jip" && appExtra != "" {
+			i := bytes.LastIndexByte(b, '}')
+			b = append(append(append([]byte{}, b[:i]...), appExtra...), b[i:]...)
 		}
 		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, f)), 0o755); err != nil {
 			t.Fatal(err)
@@ -425,4 +445,14 @@ func TestUndeclaredRole(t *testing.T) {
 	src = strings.ReplaceAll(src, "llm<smart>", "llm<slow>")
 	out := checkSupport(t, src)
 	expectErrors(t, out, []string{"E0307", "E0707"}, "model role `slow` is not declared", "no `slow` in app.jip `models {}`")
+}
+
+func TestRunLines(t *testing.T) {
+	src := agentSnippet("const budget = Budget { max_turns: 12, max_cost: Money(200) }")
+	out := checkSupportApp(t, src, "  run Nowhere\n  run Triage\n  run Billing { topic: orders, colour: red }\n")
+	expectErrors(t, out, []string{"E0308", "E0308", "E0308", "E0308", "E0707"},
+		"`run Nowhere` names no impl",
+		"`run Triage` names an `impl Agent`, which is not runnable",
+		"`topic` is a `Worker` field; `Billing` is a Workflow",
+		"unknown `run` field `colour`")
 }
