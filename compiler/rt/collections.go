@@ -217,104 +217,102 @@ func ListJoin(ctx *Ctx, xs []string, sep string) string { return strings.Join(xs
 
 // ---- Map<K, V> ------------------------------------------------------------
 //
-// Map and Set keep insertion order in slices and compare keys with Equal, so
-// any jippitese type (records included) is a key.
+// Map and Set are persistent hash tries (hamt.go) keyed by Hash and Equal,
+// so any jippitese type (records included) is a key. Entries keep their
+// insertion order. The zero-size leading fields carry K and V for schema.go.
 
 type Map[K, V any] struct {
-	keys []K
-	vals []V
-}
-
-func (m Map[K, V]) index(k K) int {
-	for i, x := range m.keys {
-		if Equal(x, k) {
-			return i
-		}
-	}
-	return -1
+	_    [0]K
+	_    [0]V
+	root *hnode[K, V]
+	n    int
+	next uint64
 }
 
 // Entries returns the entries in insertion order.
 func (m Map[K, V]) Entries() []T2[K, V] {
-	out := make([]T2[K, V], len(m.keys))
-	for i := range m.keys {
-		out[i] = T2[K, V]{m.keys[i], m.vals[i]}
+	es := m.root.ordered(m.n, m.next)
+	out := make([]T2[K, V], len(es))
+	for i, e := range es {
+		out[i] = T2[K, V]{e.k, e.v}
+	}
+	return out
+}
+
+func (m Map[K, V]) insert(k K, v V) Map[K, V] {
+	root, added := m.root.put(hashOf(k), 0, hent[K, V]{k: k, v: v, seq: m.next})
+	out := Map[K, V]{root: root, n: m.n, next: m.next}
+	if added {
+		out.n++
+		out.next++
 	}
 	return out
 }
 
 func MapNew[K, V any](ctx *Ctx) Map[K, V] { return Map[K, V]{} }
 func MapGet[K, V any](ctx *Ctx, m Map[K, V], k K) Option[V] {
-	if i := m.index(k); i >= 0 {
-		return Option_Some(m.vals[i])
+	if e := m.root.find(hashOf(k), k); e != nil {
+		return Option_Some(e.v)
 	}
 	return Option_None[V]()
 }
-func MapInsert[K, V any](ctx *Ctx, m Map[K, V], k K, v V) Map[K, V] {
-	out := Map[K, V]{keys: slices.Clone(m.keys), vals: slices.Clone(m.vals)}
-	if i := out.index(k); i >= 0 {
-		out.vals[i] = v
-		return out
-	}
-	out.keys = append(out.keys, k)
-	out.vals = append(out.vals, v)
-	return out
-}
+func MapInsert[K, V any](ctx *Ctx, m Map[K, V], k K, v V) Map[K, V] { return m.insert(k, v) }
 func MapRemove[K, V any](ctx *Ctx, m Map[K, V], k K) Map[K, V] {
-	i := m.index(k)
-	if i < 0 {
+	root, ok := m.root.del(hashOf(k), 0, k)
+	if !ok {
 		return m
 	}
-	out := Map[K, V]{keys: slices.Clone(m.keys), vals: slices.Clone(m.vals)}
-	out.keys = slices.Delete(out.keys, i, i+1)
-	out.vals = slices.Delete(out.vals, i, i+1)
+	return Map[K, V]{root: root, n: m.n - 1, next: m.next}
+}
+func MapContainsKey[K, V any](ctx *Ctx, m Map[K, V], k K) bool {
+	return m.root.find(hashOf(k), k) != nil
+}
+func MapLen[K, V any](ctx *Ctx, m Map[K, V]) int64 { return int64(m.n) }
+func MapKeys[K, V any](ctx *Ctx, m Map[K, V]) []K {
+	es := m.root.ordered(m.n, m.next)
+	out := make([]K, len(es))
+	for i, e := range es {
+		out[i] = e.k
+	}
 	return out
 }
-func MapContainsKey[K, V any](ctx *Ctx, m Map[K, V], k K) bool { return m.index(k) >= 0 }
-func MapLen[K, V any](ctx *Ctx, m Map[K, V]) int64             { return int64(len(m.keys)) }
-func MapKeys[K, V any](ctx *Ctx, m Map[K, V]) []K              { return slices.Clone(m.keys) }
-func MapValues[K, V any](ctx *Ctx, m Map[K, V]) []V            { return slices.Clone(m.vals) }
-func MapEntries[K, V any](ctx *Ctx, m Map[K, V]) []T2[K, V]    { return m.Entries() }
-func MapThaw[K, V any](ctx *Ctx, m Map[K, V]) *MutMap[K, V] {
-	return &MutMap[K, V]{m: Map[K, V]{keys: slices.Clone(m.keys), vals: slices.Clone(m.vals)}}
+func MapValues[K, V any](ctx *Ctx, m Map[K, V]) []V {
+	es := m.root.ordered(m.n, m.next)
+	out := make([]V, len(es))
+	for i, e := range es {
+		out[i] = e.v
+	}
+	return out
 }
+func MapEntries[K, V any](ctx *Ctx, m Map[K, V]) []T2[K, V] { return m.Entries() }
+func MapThaw[K, V any](ctx *Ctx, m Map[K, V]) *MutMap[K, V] { return &MutMap[K, V]{m: m} }
 
 // ---- Set<T> ---------------------------------------------------------------
 
-type Set[T any] struct{ items []T }
-
-func (s Set[T]) index(x T) int {
-	for i, y := range s.items {
-		if Equal(y, x) {
-			return i
-		}
-	}
-	return -1
+type Set[T any] struct {
+	_ [0]T
+	m Map[T, Unit]
 }
 
 // Items returns the members in insertion order.
-func (s Set[T]) Items() []T { return slices.Clone(s.items) }
+func (s Set[T]) Items() []T { return MapKeys(nil, s.m) }
+
+func (s Set[T]) has(x T) bool { return s.m.root.find(hashOf(x), x) != nil }
 
 func SetNew[T any](ctx *Ctx) Set[T] { return Set[T]{} }
 func SetInsert[T any](ctx *Ctx, s Set[T], x T) Set[T] {
-	if s.index(x) >= 0 {
+	if s.has(x) {
 		return s
 	}
-	return Set[T]{items: append(slices.Clone(s.items), x)}
+	return Set[T]{m: s.m.insert(x, U)}
 }
 func SetRemove[T any](ctx *Ctx, s Set[T], x T) Set[T] {
-	i := s.index(x)
-	if i < 0 {
-		return s
-	}
-	return Set[T]{items: slices.Delete(slices.Clone(s.items), i, i+1)}
+	return Set[T]{m: MapRemove(ctx, s.m, x)}
 }
-func SetContains[T any](ctx *Ctx, s Set[T], x T) bool { return s.index(x) >= 0 }
-func SetLen[T any](ctx *Ctx, s Set[T]) int64          { return int64(len(s.items)) }
+func SetContains[T any](ctx *Ctx, s Set[T], x T) bool { return s.has(x) }
+func SetLen[T any](ctx *Ctx, s Set[T]) int64          { return int64(s.m.n) }
 func SetItems[T any](ctx *Ctx, s Set[T]) []T          { return s.Items() }
-func SetThaw[T any](ctx *Ctx, s Set[T]) *MutSet[T] {
-	return &MutSet[T]{s: Set[T]{items: slices.Clone(s.items)}}
-}
+func SetThaw[T any](ctx *Ctx, s Set[T]) *MutSet[T]    { return &MutSet[T]{s: s} }
 
 // ---- MutList / MutMap / MutSet / Cell ----------------------------------------
 
@@ -355,12 +353,7 @@ func MutMapNew[K, V any](ctx *Ctx) *MutMap[K, V] { return &MutMap[K, V]{} }
 func MutMapInsert[K, V any](ctx *Ctx, m *MutMap[K, V], k K, v V) Unit {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if i := m.m.index(k); i >= 0 {
-		m.m.vals[i] = v
-	} else {
-		m.m.keys = append(m.m.keys, k)
-		m.m.vals = append(m.m.vals, v)
-	}
+	m.m = m.m.insert(k, v)
 	return U
 }
 func MutMapGet[K, V any](ctx *Ctx, m *MutMap[K, V], k K) Option[V] {
@@ -377,7 +370,7 @@ func MutMapRemove[K, V any](ctx *Ctx, m *MutMap[K, V], k K) Unit {
 func MutMapFreeze[K, V any](ctx *Ctx, m *MutMap[K, V]) Map[K, V] {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return Map[K, V]{keys: slices.Clone(m.m.keys), vals: slices.Clone(m.m.vals)}
+	return m.m
 }
 
 type MutSet[T any] struct {
@@ -395,12 +388,12 @@ func MutSetInsert[T any](ctx *Ctx, s *MutSet[T], x T) Unit {
 func MutSetContains[T any](ctx *Ctx, s *MutSet[T], x T) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.s.index(x) >= 0
+	return s.s.has(x)
 }
 func MutSetFreeze[T any](ctx *Ctx, s *MutSet[T]) Set[T] {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return Set[T]{items: slices.Clone(s.s.items)}
+	return s.s
 }
 
 // Cell is a mutable box shared between tasks.

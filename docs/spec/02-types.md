@@ -127,13 +127,15 @@ type Option<T> = { kind: "Some"; value: T } | { kind: "None" };
    unit type and value.
 9. **Persistent collections.** `List<T>` (`[1, 2]`), `Map<K, V>`
    (`Map.of((k, v), …)`) and `Set<T>` (`Set.of(1, 2)`) are immutable: every
-   operation returns a new collection sharing structure with the old one.
+   operation returns a new collection, sharing structure with the old one
+   for `Map` and `Set` (`List` copies for now, section 08 rule 15).
    `Map` keys and `Set` elements must implement `Hash` (which implies `Eq`).
    `xs[i]` on a `List` panics when out of range; `xs.get(i)` returns
    `Option<T>`. `Map` has no `[]`; use `m.get(k)`.
 10. **Mutable collections.** `MutList<T>`, `MutMap<K, V>`, `MutSet<T>` lower
-    to native Go slices and maps and mutate in place (`push`, `set`,
-    `remove`). Convert with `xs.thaw()` and `m.freeze()`, both O(n) copies.
+    to a native Go slice and to the `Map`/`Set` trie behind a lock, and
+    mutate in place (`push`, `set`, `remove`). Convert with `xs.thaw()` and
+    `m.freeze()`: O(1) for `Map` and `Set`, an O(n) copy for `List`.
     Mutating one that the current function created or received as an
     argument needs no effect, because nothing else can observe it: a mutable
     collection or a `var` binding cannot be captured by a `spawn` block or
@@ -194,8 +196,8 @@ type Option<T> = { kind: "Some"; value: T } | { kind: "None" };
     | enum, small and non-recursive | one struct with `tag uint8` and all variant fields |
     | enum, large or recursive | sealed interface, one struct per variant |
     | `Option<T>` / `Result<T, E>` | `struct{v T; ok bool}` / `struct{ok bool; v T; e E}`, no allocation |
-    | `List Map Set` | stdlib RRB vector, HAMT map and set |
-    | `MutList MutMap MutSet` | `[]T`, `map[K]V`, `map[T]struct{}` |
+    | `List Map Set` | `[]T` (copying), HAMT map and set |
+    | `MutList MutMap MutSet` | `[]T`, HAMT map and set behind a mutex |
     | `Cell<T>` | runtime struct with a mutex |
     | type parameter | Go type parameter on a free function, never on a method |
     | behaviour `impl` | a dictionary: a struct of function values plus the witnesses of its associated types, built once at `init` (`06-behaviours.md` rule 15) |

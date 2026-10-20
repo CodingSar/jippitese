@@ -134,27 +134,31 @@ except that a rejected promise does not cancel its sibling.
     re-check it under `contracts: all`; a violation panics (section 05).
 15. **Persistent collections are the default.** `List`, `Map`, `Set` are
     immutable: `push`, `set`, `remove` return a new value and leave the old
-    one usable. Equality is structural. *Status: deferred from v0
-    (revision-plan R1, decisions §13):* the structurally shared O(log n)
-    implementation. The v0 implementation copies: `List` is a Go slice,
-    `Map` and `Set` are Go maps, and every `push`, `set` and `remove` is
-    O(n). The API and the semantics are the same either way.
+    one usable. Equality is structural. `Map` and `Set` are hash array
+    mapped tries (HAMT) keyed by structural hash and equality: `get`,
+    `insert` and `remove` are O(log n) and share structure with the old
+    value; iteration is in insertion order. *Status:* `List` is still a
+    copying Go slice, so `push` and `set` on it are O(n) (decisions §13).
+    The API and the semantics are the same either way.
 16. **Mutable collections.** `MutList`, `MutMap`, `MutSet` mutate in place
-    (`push`, `set`, `remove` return `()`), lower to Go slices and maps, and
+    (`push`, `set`, `remove` return `()`), lower to a Go slice and to the
+    persistent trie behind a lock (keys are structural, so a Go map cannot
+    hold them), and
     need no effect because they are locally owned working state. They may
     not cross a `spawn` boundary (rule 7), appear in a `pub` record field, or
     appear in the signature of a `pub fn`; a non-`pub` helper in the same
     module may take or return one.
 17. **Conversion.** `.freeze()` turns a mutable collection into its
-    persistent counterpart and `.thaw()` the reverse; both copy, cost O(n).
+    persistent counterpart and `.thaw()` the reverse. For `Map` and `Set`
+    both share the trie and cost O(1); for `List` both copy, O(n).
     `List.builder::<T>()` is an alias for `MutList.new::<T>()`, so the
     builder pattern is `MutList` plus one `.freeze()`.
-18. **Performance flag.** The persistent default stays until the
-    collections benchmark of decisions §13 runs; until then the copying
-    implementation of rule 15 makes a loop that builds a `List` with `push`
-    quadratic. Code that builds a collection in a loop should use a mutable
-    one and freeze it, and `jip check` warns (W0520) on `push` to a `let`
-    rebinding inside a loop.
+18. **Performance flag.** The persistent default stays (decisions §13
+    benchmark). The copying `List` of rule 15 makes a loop that builds a
+    `List` with `push` quadratic; such code should use a `MutList` and
+    freeze it, and `jip check` warns (W0520) on `push` to a `let`
+    rebinding inside a loop. Building a `Map` or `Set` in a loop is
+    O(n log n) either way.
 
 ## Diagnostics
 

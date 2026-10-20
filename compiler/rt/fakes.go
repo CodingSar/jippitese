@@ -728,10 +728,8 @@ func GoErrorOf(err error) GoError { return GoError(err.Error()) }
 
 // MapToGo converts a Map to a Go map for an extern argument.
 func MapToGo[K comparable, V any](m Map[K, V]) map[K]V {
-	out := make(map[K]V, len(m.keys))
-	for i, k := range m.keys {
-		out[k] = m.vals[i]
-	}
+	out := make(map[K]V, m.n)
+	m.root.walk(func(e *hent[K, V]) { out[e.k] = e.v })
 	return out
 }
 
@@ -745,8 +743,7 @@ func MapFromGo[K comparable, V any](g map[K]V) Map[K, V] {
 	sort.Slice(keys, func(i, j int) bool { return Show(keys[i]) < Show(keys[j]) })
 	m := Map[K, V]{}
 	for _, k := range keys {
-		m.keys = append(m.keys, k)
-		m.vals = append(m.vals, g[k])
+		m = m.insert(k, g[k])
 	}
 	return m
 }

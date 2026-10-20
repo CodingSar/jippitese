@@ -249,9 +249,11 @@ File extension: `.jip`. CLI: `jip`.
 - Immutable by default. `var` for local mutable bindings.
 - Shared mutation only through effect-tracked cells (`mut` effect).
 - Persistent (immutable) collections by default, with explicit mutable
-  variants that lower to native slices and maps. **Flag:** track (g) measured
-  roughly 2× insert cost for HAMT maps; the §13 collections benchmark must
-  run before v1 locks this default.
+  variants. **Flag:** track (g) measured roughly 2× insert cost for HAMT
+  maps; the §13 collections benchmark (L8, `rt/collections_bench_test.go`)
+  measured the v1 HAMT at about 17× a native Go map for 4096 inserts and
+  about 2× for lookups, against about 1500× and 10000× for the v0 copying
+  map. The default stays; `List` is still a copying slice.
 
 ## 8. Errors
 
@@ -530,10 +532,9 @@ reverse any row; reversing one is a spec change.
 |---|---|
 | Language server | post-v1 |
 | Solver-based verification | post-v1 |
-| Persistent-by-default collections (final) | §13 collections benchmark |
 | Minimal-version selection for deps | ecosystem pressure |
 | Approvals library (decision types, visualisations, routing, audit, channels) | v0 gate; design notes in `docs/revision-plan.md` §10 |
 | `temporal` and `restate` workflow runtimes | `embedded` passing the gate |
 | Providers beyond one per role | ecosystem pressure |
 | `anthropic` and `jev` protocols, `decide<role>` on a provider, provider cost into `max_cost` | L7d |
-| Persistent collections as a data structure | §13 collections benchmark |
+| Structurally shared `List` (RRB vector) | a program where `List.push` in a loop matters after W0520 |

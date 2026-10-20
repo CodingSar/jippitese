@@ -277,9 +277,19 @@ fixes under "deferred from v0"; deviations go to `decisions.md`.
       `anthropic` (and `jev` once its protocol is fixed), `decide<role>`
       on a provider, token usage priced into `AgentReply.Cost` so
       `max_cost` binds, `llm.timeout`/`llm.budget` from `effects {}`.
-- [ ] **L8** Persistent collections (08 r15): run the §13 collections
+- [x] **L8** Persistent collections (08 r15): run the §13 collections
       benchmark; if within budget, structurally shared `List`/`Map`/`Set`
       in `rt` behind the same API; record the numbers.
+      Done for `Map`/`Set`: `rt/hamt.go` (HAMT, insertion order by
+      sequence number), `rt/hash.go` (`Hash`, consistent with `Equal`);
+      `MutMap`/`MutSet` wrap it, so freeze/thaw are O(1). Benchmark
+      `go test ./rt -run '^$' -bench Collections -benchmem`, 4096 string
+      keys: insert-all 617 ms → 7.1 ms (Go map 0.42 ms), get-all
+      615 ms → 0.13 ms (Go map 0.07 ms), entries 39 µs → 0.19 ms.
+      Spec 08 r15–r18, spec 02 r9/r10 and the type table, decisions §7.
+- [ ] **L8b** Structurally shared `List` (RRB vector): `List` is `[]T`
+      across the emitter, externs and JSON, so it stays a copying slice;
+      do it only if a program needs `push` in a loop despite W0520.
 
 ## 11. v1 toolchain and stdlib
 

@@ -150,31 +150,33 @@ func equalValue(a, b reflect.Value) bool {
 // JipEqual compares maps as unordered key/value sets.
 func (m Map[K, V]) JipEqual(other any) bool {
 	o, ok := other.(Map[K, V])
-	if !ok || len(m.keys) != len(o.keys) {
+	if !ok || m.n != o.n {
 		return false
 	}
-	for i, k := range m.keys {
-		j := o.index(k)
-		if j < 0 || !Equal(m.vals[i], o.vals[j]) {
-			return false
+	eq := true
+	m.root.walk(func(e *hent[K, V]) {
+		if eq {
+			f := o.root.find(hashOf(e.k), e.k)
+			eq = f != nil && Equal(e.v, f.v)
 		}
-	}
-	return true
+	})
+	return eq
+}
+
+// JipHash is independent of insertion order, as JipEqual is.
+func (m Map[K, V]) JipHash() uint64 {
+	h := uint64(m.n)
+	m.root.walk(func(e *hent[K, V]) { h += combine(hashOf(e.k), Hash(e.v)) })
+	return h
 }
 
 // JipEqual compares sets as unordered.
 func (s Set[T]) JipEqual(other any) bool {
 	o, ok := other.(Set[T])
-	if !ok || len(s.items) != len(o.items) {
-		return false
-	}
-	for _, x := range s.items {
-		if o.index(x) < 0 {
-			return false
-		}
-	}
-	return true
+	return ok && s.m.JipEqual(o.m)
 }
+
+func (s Set[T]) JipHash() uint64 { return s.m.JipHash() }
 
 // ---- enums by reflection ----
 
@@ -574,13 +576,13 @@ type jipShower interface{ JipShow() string }
 func (m Map[K, V]) JipShow() string {
 	var sb strings.Builder
 	sb.WriteByte('{')
-	for i := range m.keys {
+	for i, e := range m.root.ordered(m.n, m.next) {
 		if i > 0 {
 			sb.WriteString(", ")
 		}
-		sb.WriteString(Show(m.keys[i]))
+		sb.WriteString(Show(e.k))
 		sb.WriteString(": ")
-		sb.WriteString(Show(m.vals[i]))
+		sb.WriteString(Show(e.v))
 	}
 	sb.WriteByte('}')
 	return sb.String()
@@ -590,7 +592,7 @@ func (m Map[K, V]) JipShow() string {
 func (s Set[T]) JipShow() string {
 	var sb strings.Builder
 	sb.WriteString("#{")
-	for i, x := range s.items {
+	for i, x := range s.Items() {
 		if i > 0 {
 			sb.WriteString(", ")
 		}
@@ -662,12 +664,12 @@ func (m Map[K, V]) MarshalJSON() ([]byte, error) {
 	if _, ok := any(zero).(string); ok || reflect.TypeOf(zero) != nil && reflect.TypeOf(zero).Kind() == reflect.String {
 		var buf bytes.Buffer
 		buf.WriteByte('{')
-		for i, k := range m.keys {
+		for i, e := range m.root.ordered(m.n, m.next) {
 			if i > 0 {
 				buf.WriteByte(',')
 			}
-			kb, _ := json.Marshal(reflect.ValueOf(k).String())
-			vb, err := json.Marshal(m.vals[i])
+			kb, _ := json.Marshal(reflect.ValueOf(e.k).String())
+			vb, err := json.Marshal(e.v)
 			if err != nil {
 				return nil, err
 			}
@@ -702,8 +704,7 @@ func (m *Map[K, V]) UnmarshalJSON(b []byte) error {
 			}
 			kk := reflect.ValueOf(&zero).Elem()
 			kk.SetString(k)
-			m.keys = append(m.keys, kk.Interface().(K))
-			m.vals = append(m.vals, v)
+			*m = m.insert(kk.Interface().(K), v)
 		}
 		return nil
 	}
@@ -713,8 +714,7 @@ func (m *Map[K, V]) UnmarshalJSON(b []byte) error {
 	}
 	*m = Map[K, V]{}
 	for _, p := range pairs {
-		m.keys = append(m.keys, p.F0)
-		m.vals = append(m.vals, p.F1)
+		*m = m.insert(p.F0, p.F1)
 	}
 	return nil
 }
@@ -728,6 +728,9 @@ func (s *Set[T]) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &xs); err != nil {
 		return err
 	}
-	*s = Set[T]{items: xs}
+	*s = Set[T]{}
+	for _, x := range xs {
+		*s = SetInsert(nil, *s, x)
+	}
 	return nil
 }
