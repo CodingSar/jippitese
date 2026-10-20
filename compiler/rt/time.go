@@ -89,10 +89,73 @@ func TimeSleep(ctx *Ctx, d time.Duration) Unit {
 // InstantUnixNanos implements `Instant.unix_nanos`.
 func InstantUnixNanos(ctx *Ctx, i Instant) int64 { return i.Nanos }
 
-// InstantAdd implements `Instant.add`.
+// InstantAdd implements `Instant.add`; overflow traps.
 func InstantAdd(ctx *Ctx, i Instant, d time.Duration) Instant {
-	return Instant{Nanos: i.Nanos + int64(d)}
+	return Instant{Nanos: Add(ctx, i.Nanos, int64(d))}
 }
 
-// InstantSince implements `Instant.since`.
-func InstantSince(ctx *Ctx, i, o Instant) time.Duration { return time.Duration(i.Nanos - o.Nanos) }
+// InstantSub implements `Instant.sub`; overflow traps.
+func InstantSub(ctx *Ctx, i Instant, d time.Duration) Instant {
+	return Instant{Nanos: Sub(ctx, i.Nanos, int64(d))}
+}
+
+// InstantSince implements `Instant.since`; overflow traps.
+func InstantSince(ctx *Ctx, i, o Instant) time.Duration {
+	return time.Duration(Sub(ctx, i.Nanos, o.Nanos))
+}
+
+func InstantBefore(ctx *Ctx, i, o Instant) bool { return i.Nanos < o.Nanos }
+func InstantAfter(ctx *Ctx, i, o Instant) bool  { return i.Nanos > o.Nanos }
+
+// InstantUnixMillis rounds toward the past, so the instant 1ns before the
+// epoch is -1.
+func InstantUnixMillis(ctx *Ctx, i Instant) int64 {
+	ms := i.Nanos / 1e6
+	if i.Nanos%1e6 < 0 {
+		ms--
+	}
+	return ms
+}
+
+// InstantToRfc3339 is UTC with as many fraction digits as needed.
+func InstantToRfc3339(ctx *Ctx, i Instant) string { return i.Time().Format(time.RFC3339Nano) }
+
+// The UTC calendar fields; weekday is 1 (Monday) to 7 (Sunday).
+func InstantYear(ctx *Ctx, i Instant) int64   { return int64(i.Time().Year()) }
+func InstantMonth(ctx *Ctx, i Instant) int64  { return int64(i.Time().Month()) }
+func InstantDay(ctx *Ctx, i Instant) int64    { return int64(i.Time().Day()) }
+func InstantHour(ctx *Ctx, i Instant) int64   { return int64(i.Time().Hour()) }
+func InstantMinute(ctx *Ctx, i Instant) int64 { return int64(i.Time().Minute()) }
+func InstantSecond(ctx *Ctx, i Instant) int64 { return int64(i.Time().Second()) }
+func InstantWeekday(ctx *Ctx, i Instant) int64 {
+	if w := i.Time().Weekday(); w != time.Sunday {
+		return int64(w)
+	}
+	return 7
+}
+
+// TimeFromUnixMillis implements `std.time.from_unix_millis`; an Instant
+// outside the Int nanosecond range traps.
+func TimeFromUnixMillis(ctx *Ctx, ms int64) Instant { return Instant{Nanos: Mul(ctx, ms, 1e6)} }
+
+// TimeParseRfc3339 accepts RFC 3339 with or without a fraction and any offset.
+func TimeParseRfc3339(ctx *Ctx, s string) Option[Instant] {
+	t, err := time.Parse(time.RFC3339Nano, s)
+	if err != nil || t.Year() < 1678 || t.Year() > 2261 {
+		return Option_None[Instant]()
+	}
+	return Option_Some(Instant{Nanos: t.UnixNano()})
+}
+
+// TimeUtc implements `std.time.utc`; a field out of range (month 13, the
+// 31st of April, hour 24) is None rather than normalised.
+func TimeUtc(ctx *Ctx, year, month, day, hour, minute, second int64) Option[Instant] {
+	if year < 1678 || year > 2261 {
+		return Option_None[Instant]()
+	}
+	t := time.Date(int(year), time.Month(month), int(day), int(hour), int(minute), int(second), 0, time.UTC)
+	if int64(t.Month()) != month || int64(t.Day()) != day || int64(t.Hour()) != hour || int64(t.Minute()) != minute || int64(t.Second()) != second {
+		return Option_None[Instant]()
+	}
+	return Option_Some(Instant{Nanos: t.UnixNano()})
+}

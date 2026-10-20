@@ -7,6 +7,13 @@ pub extern type Instant = go "rt".Instant
 pub extern fn now() -> Instant with {nondet} = go "rt".TimeNow
 /// Pause for `d`.
 pub extern fn sleep(d: Duration) with {nondet} = go "rt".TimeSleep
+/// The instant `ms` milliseconds after the Unix epoch.
+pub extern fn from_unix_millis(ms: Int) -> Instant = go "rt".TimeFromUnixMillis
+/// Parse RFC 3339 text such as `2026-10-20T09:30:00Z` or `…+02:00`.
+pub extern fn parse_rfc3339(s: Str) -> Option<Instant> = go "rt".TimeParseRfc3339
+/// The UTC instant with these calendar fields; `None` when one is out of
+/// range, such as month 13 or 31 April.
+pub extern fn utc(year: Int, month: Int, day: Int, hour: Int, minute: Int, second: Int) -> Option<Instant> = go "rt".TimeUtc
 
 impl Instant {
   /// Nanoseconds since the Unix epoch.
@@ -15,4 +22,28 @@ impl Instant {
   pub extern fn add(self, d: Duration) -> Instant = go "rt".InstantAdd
   /// `self` minus `o`.
   pub extern fn since(self, o: Instant) -> Duration = go "rt".InstantSince
+  /// `self` minus `d`.
+  pub extern fn sub(self, d: Duration) -> Instant = go "rt".InstantSub
+  /// Strictly earlier than `o`.
+  pub extern fn before(self, o: Instant) -> Bool = go "rt".InstantBefore
+  /// Strictly later than `o`.
+  pub extern fn after(self, o: Instant) -> Bool = go "rt".InstantAfter
+  /// Milliseconds since the Unix epoch, rounded toward the past.
+  pub extern fn unix_millis(self) -> Int = go "rt".InstantUnixMillis
+  /// RFC 3339 text in UTC, such as `2026-10-20T09:30:00.5Z`.
+  pub extern fn to_rfc3339(self) -> Str = go "rt".InstantToRfc3339
+  /// UTC year.
+  pub extern fn year(self) -> Int = go "rt".InstantYear
+  /// UTC month, 1 to 12.
+  pub extern fn month(self) -> Int = go "rt".InstantMonth
+  /// UTC day of the month, from 1.
+  pub extern fn day(self) -> Int = go "rt".InstantDay
+  /// UTC hour, 0 to 23.
+  pub extern fn hour(self) -> Int = go "rt".InstantHour
+  /// UTC minute, 0 to 59.
+  pub extern fn minute(self) -> Int = go "rt".InstantMinute
+  /// UTC second, 0 to 59.
+  pub extern fn second(self) -> Int = go "rt".InstantSecond
+  /// UTC day of the week, 1 (Monday) to 7 (Sunday).
+  pub extern fn weekday(self) -> Int = go "rt".InstantWeekday
 }

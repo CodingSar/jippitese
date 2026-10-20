@@ -11,6 +11,7 @@ var Modules = map[string]string{
 	"prelude":     "prelude.jip",
 	"std.json":    "json.jip",
 	"std.time":    "time.jip",
+	"std.math":    "math.jip",
 	"std.fs":      "fs.jip",
 	"std.http":    "http.jip",
 	"std.gen":     "gen.jip",

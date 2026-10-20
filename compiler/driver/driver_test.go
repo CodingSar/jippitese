@@ -557,7 +557,26 @@ func TestStdStrAndNumbers(t *testing.T) {
 	env, out, errb := card(t)
 	p := filepath.Join(env.Root, "orders/billing/scenarios.jip")
 	b, _ := os.ReadFile(p)
-	src := string(b) + `
+	src := strings.Replace(string(b), "use orders.billing\n", "use orders.billing\nuse std.math\nuse std.time\n", 1) + `
+scenario "time" {
+  given start = time.now()
+  when  later = start.add(Duration.of_seconds(90).times(2))
+  then  start.to_rfc3339() == "2000-01-01T00:00:00Z" && start.weekday() == 6
+  then  later.minute() == 3 && later.since(start).to_str() == "3m0s" && later.sub(3m) == start
+  then  start.before(later) && !start.after(later) && later.unix_millis() == start.unix_millis() + 180_000
+  then  time.parse_rfc3339("2000-01-01T02:03:00+02:00") == Some(later)
+  then  time.utc(2000, 1, 1, 0, 3, 0) == Some(later) && time.utc(2000, 2, 30, 0, 0, 0) == None
+  then  time.from_unix_millis(start.unix_millis()) == start
+}
+
+scenario "math" {
+  given x = 16.0
+  when  r = math.sqrt(x)
+  then  r == 4.0 && math.pow(2.0, 10.0) == 1024.0 && math.hypot(3.0, 4.0) == 5.0
+  then  (math.pi() * 100.0).floor() == 314 && math.ln(math.e()) == 1.0 && math.log2(8.0) == 3.0
+  then  math.sqrt(-1.0).is_nan() && math.atan2(1.0, 1.0) == math.pi() / 4.0
+}
+
 scenario "str and number methods" {
   given s = "  Total: 12.5\r\nnext\n"
   when  first = s.lines().first().unwrap().trim()
@@ -574,8 +593,10 @@ scenario "str and number methods" {
 `
 	os.WriteFile(p, []byte(src), 0o644)
 	code := env.Test(TestOptions{})
-	if !strings.Contains(out.String(), `ok  orders.billing  "str and number methods"`) {
-		code = -1
+	for _, name := range []string{"str and number methods", "math", "time"} {
+		if !strings.Contains(out.String(), `ok  orders.billing  "`+name+`"`) {
+			code = -1
+		}
 	}
 	if code != ExitOK {
 		t.Fatalf("exit %d\n%s\n%s", code, out.String(), errb.String())

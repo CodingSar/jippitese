@@ -213,6 +213,18 @@ func BytesConcat(ctx *Ctx, a, b []byte) []byte {
 }
 func DurationSeconds(ctx *Ctx, d time.Duration) int64 { return int64(d / time.Second) }
 func DurationMillis(ctx *Ctx, d time.Duration) int64  { return int64(d / time.Millisecond) }
+func DurationMinutes(ctx *Ctx, d time.Duration) int64 { return int64(d / time.Minute) }
+func DurationHours(ctx *Ctx, d time.Duration) int64   { return int64(d / time.Hour) }
+func DurationToStr(ctx *Ctx, d time.Duration) string  { return d.String() }
+func DurationOfMillis(ctx *Ctx, n int64) time.Duration {
+	return time.Duration(Mul(ctx, n, int64(time.Millisecond)))
+}
+func DurationOfSeconds(ctx *Ctx, n int64) time.Duration {
+	return time.Duration(Mul(ctx, n, int64(time.Second)))
+}
+func DurationTimes(ctx *Ctx, d time.Duration, n int64) time.Duration {
+	return time.Duration(Mul(ctx, int64(d), n))
+}
 
 // ---- List<T> ------------------------------------------------------------
 

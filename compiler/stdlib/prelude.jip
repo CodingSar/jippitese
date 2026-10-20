@@ -342,6 +342,18 @@ impl Duration {
   pub extern fn seconds(self) -> Int = go "rt".DurationSeconds
   /// Whole milliseconds.
   pub extern fn millis(self) -> Int = go "rt".DurationMillis
+  /// Whole minutes.
+  pub extern fn minutes(self) -> Int = go "rt".DurationMinutes
+  /// Whole hours.
+  pub extern fn hours(self) -> Int = go "rt".DurationHours
+  /// Text such as `1h2m3.5s`.
+  pub extern fn to_str(self) -> Str = go "rt".DurationToStr
+  /// `n` milliseconds; traps on overflow.
+  pub extern fn of_millis(n: Int) -> Duration = go "rt".DurationOfMillis
+  /// `n` seconds; traps on overflow.
+  pub extern fn of_seconds(n: Int) -> Duration = go "rt".DurationOfSeconds
+  /// `n` times `self`; traps on overflow.
+  pub extern fn times(self, n: Int) -> Duration = go "rt".DurationTimes
 }
 
 impl Range<T> {
