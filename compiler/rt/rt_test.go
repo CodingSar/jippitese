@@ -87,7 +87,9 @@ func TestWorkflowReplayWithApprove(t *testing.T) {
 	// Replay a stored journal: no step runs again, the answer is recorded.
 	dir := t.TempDir()
 	ctx2 := NewCtx()
-	ctx2.Store = dir
+	if err := ctx2.UseWorkflowRuntime("embedded", dir); err != nil {
+		t.Fatal(err)
+	}
 	ctx2.Approve = FakeApproveScript(ctx2, []Result[bool, Rejected]{Result_Ok[bool, Rejected](false)})
 	id := StartWorkflow(ctx2, spec, 5)
 	var out any

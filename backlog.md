@@ -351,7 +351,10 @@ fixes under "deferred from v0"; deviations go to `decisions.md`.
       (models configurable, default the current Claude models); records
       tokens and iterations per task per language. Running it needs
       `ANTHROPIC_API_KEY`; F3/F4 then use its output.
-- [ ] **W1** `workflow { mode: temporal | restate }` (07 r16): runtime
-      adapter interface in `rt`, embedded as the first adapter; the
-      Temporal and Restate adapters need their Go SDKs vendored and a
-      server to test against, so they come last.
+- [x] **W1** `workflow { mode: temporal | restate }` (07 r16): runtime
+      adapter interface in `rt` (`rt.WorkflowRuntime`, picked by mode from
+      `rt.WorkflowRuntimes`), embedded as the first adapter; `temporal`
+      and `restate` parse and fail with "no runtime adapter yet".
+- [ ] **W1b** Temporal and Restate adapters behind `rt.WorkflowRuntime`
+      (blocked: their Go SDKs vendored and a server to test against);
+      each adds its name to `app.WorkflowAdapters`.

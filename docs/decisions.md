@@ -217,7 +217,7 @@ File extension: `.jip`. CLI: `jip`.
   **Language owns the step rule and types; a library owns the journal.**
   Runtime selected by `workflow: embedded | temporal | restate` in `app.jip`;
   `embedded` (one JSON-lines journal file per run, single process) is the v0 default and the only
-  v0 runtime; `temporal` and `restate` are deferred.
+  adapter so far behind the runtime adapter interface (W1); `temporal` and `restate` adapters are deferred.
   `WorkflowError<E> = Replay(ReplayError) | Approval(Rejected) | Cancelled |
   App(E)` (R11); `?` inside `run` uses the ordinary conversion rule from the
   spec (04), with no `Show`-based lift of foreign errors.

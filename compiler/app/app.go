@@ -255,11 +255,11 @@ func Parse(f *ast.File) (*App, error) {
 				switch c.Key {
 				case "mode":
 					p, ok := c.Value.(*ast.AppPath)
-					if !ok || len(p.Path) != 1 {
-						return nil, errAt(c.Pos, "`workflow.mode` must be `embedded`")
+					if !ok || len(p.Path) != 1 || !slices.Contains(WorkflowModes, p.Path[0]) {
+						return nil, errAt(c.Pos, "`workflow.mode` must be `embedded`, `temporal` or `restate`")
 					}
-					if p.Path[0] != "embedded" {
-						return nil, errAt(c.Pos, "`workflow.mode: %s` is not available; only `embedded`", p.Path[0])
+					if !slices.Contains(WorkflowAdapters, p.Path[0]) {
+						return nil, errAt(c.Pos, "`workflow.mode: %s` has no runtime adapter yet; only `embedded`", p.Path[0])
 					}
 					a.Workflow.Mode = p.Path[0]
 				case "store":
@@ -502,6 +502,13 @@ func effectValueOk(kind string, v ast.AppValue) bool {
 	}
 	return false
 }
+
+// WorkflowModes are the values of `workflow { mode }` (07 r16).
+var WorkflowModes = []string{"embedded", "temporal", "restate"}
+
+// WorkflowAdapters are the modes with a runtime adapter in rt
+// (rt.WorkflowRuntimes); a test keeps the two in step.
+var WorkflowAdapters = []string{"embedded"}
 
 // DefaultWorkflowStore is the journal directory when `workflow { store }`
 // is absent: one JSON-lines file per run (spec 07 rule 16).

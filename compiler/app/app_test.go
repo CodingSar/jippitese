@@ -2,6 +2,7 @@ package app
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/codingsar/jippitese/compiler/parser"
@@ -47,8 +48,11 @@ func TestParseWorkflow(t *testing.T) {
 	if err != nil || a.Workflow.Store != "var/wf" {
 		t.Fatalf("store: %+v %v", a, err)
 	}
-	if _, err := parse("  workflow { mode: temporal }\n"); err == nil {
-		t.Fatal("temporal accepted")
+	if _, err := parse("  workflow { mode: temporal }\n"); err == nil || !strings.Contains(err.Error(), "no runtime adapter") {
+		t.Fatalf("temporal: %v", err)
+	}
+	if _, err := parse("  workflow { mode: cadence }\n"); err == nil || !strings.Contains(err.Error(), "must be") {
+		t.Fatalf("cadence: %v", err)
 	}
 }
 

@@ -884,56 +884,40 @@ func newRunId() RunId {
 
 // StartWorkflow starts a run in the background and returns its id.
 func StartWorkflow[S, In, Out, Sig, E any](ctx *Ctx, spec *WorkflowSpec[S, In, Out, Sig, E], in In) RunId {
-	id := newRunId()
-	j := NewJournal(spec.Name, spec.Version, spec.Sites)
-	if ctx.Store != "" {
-		_ = os.MkdirAll(ctx.Store, 0o755)
-		j.file = ctx.Store + string(os.PathSeparator) + spec.Name + "-" + string(id) + ".jsonl"
-	}
+	wf := ctx.workflows()
+	id, j := wf.Begin(spec.Name, spec.Version, spec.Sites)
 	go func() {
 		var res Result[Out, WorkflowError[E]]
 		err := protect(ctx, spec.Name, func() { res = runJournaled(ctx, spec, in, j) })
 		if err != nil {
 			res = Result_Err[Out](WorkflowError_Cancelled[E]())
 		}
-		ctx.sh.mu.Lock()
-		ctx.sh.results[id] = res
-		ctx.sh.mu.Unlock()
+		wf.Finish(id, res)
 	}()
 	return id
 }
 
 // WorkflowResult returns a finished run's result.
 func WorkflowResult(ctx *Ctx, id RunId) (any, bool) {
-	ctx.sh.mu.Lock()
-	defer ctx.sh.mu.Unlock()
-	v, ok := ctx.sh.results[id]
-	return v, ok
+	return ctx.workflows().Result(id)
 }
 
 // SendSignal implements the scenario builtin `send_signal(Impl, sig)` and
 // the signal route: the signal is buffered for `await_signal` and
 // `on_signal` runs at once.
 func SendSignal[S, In, Out, Sig, E any](ctx *Ctx, spec *WorkflowSpec[S, In, Out, Sig, E], sig Sig) Unit {
-	ctx.sh.mu.Lock()
-	ctx.sh.signals[spec.Name] = append(ctx.sh.signals[spec.Name], sig)
-	ctx.sh.mu.Unlock()
+	ctx.workflows().Signal(spec.Name, sig)
 	spec.OnSignal(ctx.child(), Instance(ctx, spec.Name, spec.Init), sig)
 	return U
 }
 
 func popSignal[S any](ctx *Ctx, name string) (S, bool) {
-	ctx.sh.mu.Lock()
-	defer ctx.sh.mu.Unlock()
-	buf := ctx.sh.signals[name]
-	for i, v := range buf {
-		if s, ok := v.(S); ok {
-			ctx.sh.signals[name] = append(buf[:i:i], buf[i+1:]...)
-			return s, true
-		}
+	v, ok := ctx.workflows().Take(name, func(v any) bool { _, ok := v.(S); return ok })
+	if !ok {
+		var zero S
+		return zero, false
 	}
-	var zero S
-	return zero, false
+	return v.(S), true
 }
 
 // AwaitSignal implements `await_signal<S>(timeout)`.

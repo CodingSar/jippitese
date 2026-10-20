@@ -100,10 +100,6 @@ type Ctx struct {
 	Secrets map[string]string
 	// Effects is the resolved `effects {}` of app.jip.
 	Effects Effects
-	// Store is the directory of production workflow journals; "" keeps
-	// them in memory.
-	Store string
-
 	// Journal is non-nil inside Workflow.run.
 	Journal *Journal
 
@@ -115,8 +111,7 @@ type Ctx struct {
 type shared struct {
 	mu          sync.Mutex
 	instances   map[string]any
-	signals     map[string][]any
-	results     map[RunId]any
+	wf          WorkflowRuntime
 	deadLetters []DeadLetter
 	log         Logger
 	serving     bool
@@ -156,8 +151,7 @@ func (stderrLogger) Logf(format string, args ...any) { fmt.Fprintf(os.Stderr, fo
 func newShared(log Logger) *shared {
 	return &shared{
 		instances: map[string]any{},
-		signals:   map[string][]any{},
-		results:   map[RunId]any{},
+		wf:        NewEmbedded(""),
 		queues:    map[string]chan any{},
 		machines:  map[string]any{},
 		log:       log,

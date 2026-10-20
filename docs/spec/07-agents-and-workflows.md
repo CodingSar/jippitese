@@ -194,8 +194,11 @@ func Escalation(ctx workflow.Context, id TicketID) (Summary, error) {
     passed in.
 16. **Runtime.** `workflow { mode: embedded, store: default
     ".jip/workflow" }` in `app.jip` selects the journal: one append-only
-    JSON-lines file per run, `<store>/<Impl>-<run id>.jsonl`, one process. *Status: deferred from v0 (revision-plan R1):*
-    `temporal` and `restate` modes. `Name.start(in: Input) -> RunId with
+    JSON-lines file per run, `<store>/<Impl>-<run id>.jsonl`, one process. The mode names a runtime adapter behind one interface
+    (journal, results, signals); `temporal` and `restate` are accepted
+    values, and a program naming one fails to build until its adapter
+    exists. *Status: deferred from v0 (revision-plan R1):* the
+    `temporal` and `restate` adapters. `Name.start(in: Input) -> RunId with
     {io}`, `Name.signal(run: RunId, s: Signal) with {io}` and
     `Name.result(run: RunId) -> Option<Result<Output, WorkflowError<E>>>
     with {io}` are generated for every impl; `None` means still running.
