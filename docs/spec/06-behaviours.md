@@ -270,10 +270,12 @@ the runtime's timeout; the state is reloaded on the next event.
    `std.testing`, which runs `run` once and returns its result; advancing the
    fake clock never fires a tick on its own.
 10. **`Repository`.** `K` and `T` must be schema-derivable (section 11).
-    *Status: deferred from v0 (revision-plan R9).* The derived round-trip
-    check (`put(k, v)` then `get(k)` is `Ok(Some(v))` for `any K`, `any T`)
-    is v1; in v0 the stdlib fake `std.testing.MemRepo` satisfies it and a
-    scenario states it for a real impl.
+    `jip test` derives a round-trip check `<Impl>.round_trip` for every
+    non-generic impl whose `K` and `T` have a structural generator: on a
+    fresh instance, `put(k, v)` is `Ok` and then `get(k)` is `Ok(Some(v))`,
+    for `any K`, `any T`. It runs as a property (05 rule 16), its seed in
+    `<module dir>/<Impl>.round_trip.seed`. `std.testing.MemRepo` satisfies
+    it by construction.
 11. **`Cache`.** `get` may return `None` after `set`; nothing is derived.
     `set(k, v, ttl)` with `None` uses the `ttl` of the `run` line (rule 13,
     default `5m`); `Some(d)` overrides it per entry. Under the fake clock of

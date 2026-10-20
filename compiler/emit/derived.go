@@ -161,7 +161,7 @@ func generable(t checker.Type, seen map[*checker.TypeInfo]bool) bool {
 			}
 			return true
 		case checker.Extern:
-			return ti.Mod == "prelude" && ti.Name == "List"
+			return ti.Mod == "prelude" && ti.Name == "List" || ti.Mod == "std.time" && ti.Name == "Instant"
 		}
 	}
 	return false
@@ -179,7 +179,8 @@ func (e *emitter) emitDerived(p *pkg) {
 			}
 		}
 	}
-	if len(fns) == 0 {
+	repos := roundTrips(m)
+	if len(fns) == 0 && len(repos) == 0 {
 		return
 	}
 	f := p.newFile("derived_test.go", true)
@@ -232,6 +233,56 @@ func (e *emitter) emitDerived(p *pkg) {
 		f.body.WriteString(g.w.String())
 		f.printf("})\n}\n")
 	}
+	for _, impl := range repos {
+		emitRoundTrip(f, impl)
+	}
+}
+
+// roundTrips are the module's `Repository` impls whose `K` and `T` can be
+// generated (spec 06 rule 10).
+func roundTrips(m *checker.Module) []*checker.ImplInfo {
+	var out []*checker.ImplInfo
+	for _, impl := range m.Impls {
+		if impl.Behaviour == nil || impl.Behaviour.Name != "Repository" || impl.Behaviour.Module == nil || !impl.Behaviour.Module.IsStd ||
+			len(impl.TypeParams) > 0 || len(impl.BehaviourArgs) != 2 {
+			continue
+		}
+		if generable(impl.BehaviourArgs[0], map[*checker.TypeInfo]bool{}) && generable(impl.BehaviourArgs[1], map[*checker.TypeInfo]bool{}) {
+			out = append(out, impl)
+		}
+	}
+	return out
+}
+
+// emitRoundTrip writes the derived round-trip of a `Repository` impl:
+// on a fresh instance, `put(k, v)` then `get(k)` is `Ok(Some(v))` for
+// `any K`, `any T` (spec 06 rule 10).
+func emitRoundTrip(f *file, impl *checker.ImplInfo) {
+	rtp := f.rt()
+	m, pos := impl.Module, impl.Decl.Pos
+	tt, kt := impl.BehaviourArgs[0], impl.BehaviourArgs[1]
+	name := impl.Name + ".round_trip"
+	f.printf("\nfunc TestDerived_%s_round_trip(t *%s.T) {\n", sanitize(impl.Name), f.use("testing", "testing"))
+	f.line(pos)
+	f.printf("%s.Scenario(t, %s.ScnOpts{Module: %q, Name: %q, Derived: true, Property: true, File: %q, Line: %d, Col: %d}, func(scn *%s.Scn) {\n",
+		rtp, rtp, m.Path, name, pos.File, pos.Line, pos.Col, rtp)
+	f.printf("ctx := scn.Ctx\nctx.Config = %s\n", f.cfgRef("TestConfig()"))
+	g := newGen(f, nil)
+	at := strconv.Quote(pos.String())
+	g.printf("var k %s\nvar v %s\n", f.goType(kt), f.goType(tt))
+	g.printf("scn.Given(%s, %q)\n", at, "any k: "+checker.TypeString(kt)+", v: "+checker.TypeString(tt))
+	g.printf("%s.Pre(scn, %s, \"\", func(ctx *%s.Ctx, gn *%s.Gen) bool {\nk = (%s)(ctx, gn)\nv = (%s)(ctx, gn)\nreturn true\n})\n",
+		rtp, at, rtp, rtp, g.genForB(kt, nil), g.genForB(tt, nil))
+	g.printf("scn.Bind(\"k\", k)\nscn.Bind(\"v\", v)\n")
+	inst := g.instance(impl)
+	g.printf("scn.When(%s, %q)\n", at, impl.Name+".put(k, v)")
+	g.printf("put := %s(ctx, %s, k, v)\nscn.Bind(\"put\", put)\n", f.fnRef(impl.Methods["put"]), inst)
+	g.printf("scn.Then(%s, %q, put.Tag == %s.ResultTag_Ok)\n", at, "put(k, v) is Ok", rtp)
+	g.printf("got := %s(ctx, %s, k)\nscn.Bind(\"got\", got)\n", f.fnRef(impl.Methods["get"]), inst)
+	g.printf("scn.Then(%s, %q, %s.Equal(got, %s.Result_Ok[%s.Option[%s], %s.RepoError](%s.Option_Some[%s](v))))\n",
+		at, "get(k) == Ok(Some(v))", rtp, rtp, rtp, f.goType(tt), rtp, rtp, f.goType(tt))
+	f.body.WriteString(g.w.String())
+	f.printf("})\n}\n")
 }
 
 // bound narrows one generator (05 rule 15). Int and Float leaves take

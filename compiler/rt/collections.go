@@ -631,3 +631,10 @@ func GenAnyChar(ctx *Ctx, g *Gen) rune { return rune(GenInt(ctx, g, 32, 126)) }
 func GenAnyDuration(ctx *Ctx, g *Gen) time.Duration {
 	return time.Duration(GenInt(ctx, g, 0, int64(g.Size))) * time.Millisecond
 }
+
+// GenAnyInstant draws an Instant for `any Instant`, within a day of the
+// fake clock's epoch either way.
+func GenAnyInstant(ctx *Ctx, g *Gen) Instant {
+	d := time.Duration(GenInt(ctx, g, -86_400_000, 86_400_000)) * time.Millisecond
+	return Instant{Nanos: TestEpoch.Add(d).UnixNano()}
+}

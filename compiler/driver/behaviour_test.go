@@ -54,3 +54,17 @@ func TestStateInvAfterMethod(t *testing.T) {
 		t.Fatalf("exit %d\n%s%s", code, s, errb.String())
 	}
 }
+
+func TestRepositoryRoundTrip(t *testing.T) {
+	needGo(t)
+	env, out, errb := example(t, "shop")
+	edit(t, env, "shop/orders/orders.jip", "self.by_customer.insert(k, v)", "self.by_customer.insert(k, if v > 3 { 0 } else { v })")
+	code := env.Test(TestOptions{})
+	s := out.String()
+	if code != ExitFail ||
+		!strings.Contains(s, "FAIL  shop.orders  derived Totals.round_trip") ||
+		!strings.Contains(s, "get(k) == Ok(Some(v))") ||
+		!strings.Contains(s, "got = Ok(Some(0))") {
+		t.Fatalf("exit %d\n%s%s", code, s, errb.String())
+	}
+}

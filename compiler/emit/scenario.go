@@ -222,6 +222,9 @@ func (g *gen) genForB(t checker.Type, b *bound) string {
 				}
 				return head + "return " + rtp + ".GenList(ctx, gn, " + n + ", " + g.genFor(x.Args[0]) + ")\n}"
 			}
+			if ti.Mod == "std.time" && ti.Name == "Instant" {
+				return rtp + ".GenAnyInstant"
+			}
 		}
 	}
 	g.e.failf("no generator for `%s`", checker.TypeString(t))
