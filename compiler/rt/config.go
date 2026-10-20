@@ -253,6 +253,14 @@ func (l *ConfigLoader) RunDuration(name, field string, def time.Duration) time.D
 	return l.Duration("run."+name+"."+field, def, CfgOverridable, "")
 }
 
+// Accept marks variables read elsewhere (model keys) as fields, so Finish
+// does not report them.
+func (l *ConfigLoader) Accept(keys ...string) {
+	for _, k := range keys {
+		l.seen[k] = true
+	}
+}
+
 // exemptVars are JIP_* variables that never name a field.
 var exemptVars = map[string]bool{
 	"JIP_ENV": true, "JIP_GO": true, "JIP_SCENARIO_FILTER": true, "JIP_SEED": true,

@@ -22,7 +22,7 @@ func (e *emitter) emitAppCfg() {
 	if e.prog.Config == nil {
 		f.printf("type Config struct{}\ntype Secrets struct{}\n")
 		f.printf("func SecretsFake(ctx *%s.Ctx) Secrets { return Secrets{} }\n", rtp)
-		f.printf("func Load() (Config, map[string]%s.RunOpts, error) { return Config{}, nil, nil }\n", rtp)
+		f.printf("func Load() (Config, map[string]%[1]s.RunOpts, %[1]s.Effects, error) { return Config{}, nil, %[1]s.DefaultEffects(), nil }\n", rtp)
 		f.printf("func TestConfig() Config { return Config{} }\n")
 		return
 	}
@@ -119,6 +119,35 @@ func (e *emitter) emitAppCfg() {
 	}
 	f.printf("\t}\n}\n")
 
+	// effects: the app's leaves; LoadEffects supplies the spec defaults
+	f.printf("\nvar effectsSet = map[string]%s.EffectSet{\n", rtp)
+	for _, fd := range app.EffectSchema {
+		lf := a.Effects[fd.Path]
+		if lf == nil {
+			continue
+		}
+		mode := rtp + ".CfgFixed"
+		if lf.IsDefault {
+			mode = rtp + ".CfgOverridable"
+		}
+		f.printf("\t%q: {Value: %q, Mode: %s, At: %q},\n", fd.Path, appValueString(lf.Value), mode, lf.Pos.String())
+	}
+	f.printf("}\n")
+	for _, fd := range app.EffectSchema {
+		known = append(known, envKey("effects."+fd.Path))
+	}
+	// A declared model role's key variable (rt.NewModel) is a field too.
+	f.printf("\nvar modelKeys = []string{")
+	for i, m := range a.Models {
+		if i > 0 {
+			f.printf(", ")
+		}
+		k := envKey("models." + m.Role + ".key")
+		known = append(known, k)
+		f.printf("%q", k)
+	}
+	f.printf("}\n")
+
 	sort.Strings(known)
 	f.printf("\nvar known = []string{")
 	for i, k := range known {
@@ -131,11 +160,13 @@ func (e *emitter) emitAppCfg() {
 	f.printf(`
 // Load applies the overlay (app body < env block < JIP_* variables) and
 // reports every problem at once.
-func Load() (Config, map[string]%[1]s.RunOpts, error) {
+func Load() (Config, map[string]%[1]s.RunOpts, %[1]s.Effects, error) {
 	l := %[1]s.NewConfigLoader(envBlocks)
 	c := load(l)
 	r := runs(l)
-	return c, r, l.Finish(known)
+	fx := %[1]s.LoadEffects(l, effectsSet)
+	l.Accept(modelKeys...)
+	return c, r, fx, l.Finish(known)
 }
 
 // TestConfig is the config scenarios see: the env test overlay, with
@@ -242,6 +273,9 @@ func appValueString(v ast.AppValue) string {
 		}
 		if c, ok := x.X.(*ast.CallExpr); ok && len(c.Args) == 1 {
 			return appValueString(&ast.AppLit{X: c.Args[0]})
+		}
+		if x.Unit != "" {
+			return checker.ExprString(x.X) + " " + x.Unit
 		}
 		return checker.ExprString(x.X)
 	case *ast.AppPath:

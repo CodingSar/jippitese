@@ -10,7 +10,6 @@ import (
 	"os"
 	"reflect"
 	"strings"
-	"time"
 )
 
 // Model providers (spec 10 rule 3): app.jip `models {}` maps each role to
@@ -227,7 +226,12 @@ func (c *ChatClient) post(ctx *Ctx, body any) (chatMsg, error) {
 	}
 	hc := c.HTTP
 	if hc == nil {
-		hc = &http.Client{Timeout: 60 * time.Second}
+		// effects.llm.timeout (spec 10 rule 3)
+		t := ctx.Effects.LlmTimeout
+		if t <= 0 {
+			t = DefaultEffects().LlmTimeout
+		}
+		hc = &http.Client{Timeout: t}
 	}
 	resp, err := hc.Do(req)
 	if err != nil {

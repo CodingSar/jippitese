@@ -98,6 +98,8 @@ type Ctx struct {
 	Fs      Fs
 	Config  any
 	Secrets map[string]string
+	// Effects is the resolved `effects {}` of app.jip.
+	Effects Effects
 	// Store is the directory of production workflow journals; "" keeps
 	// them in memory.
 	Store string
@@ -171,6 +173,7 @@ func NewCtx() *Ctx {
 		Clock:   RealClock{},
 		Rand:    rand.New(rand.NewSource(time.Now().UnixNano())),
 		Http:    DefaultHttp(),
+		Effects: DefaultEffects(),
 		Llm:     boundaryLlm{},
 		Decide:  boundaryDecide{},
 		Approve: boundaryApprove{},

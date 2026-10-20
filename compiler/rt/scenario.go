@@ -106,6 +106,7 @@ func newScn(t *testing.T, o ScnOpts, seed int64, extern bool) *Scn {
 			Llm:     boundaryLlm{},
 			Decide:  boundaryDecide{},
 			Approve: boundaryApprove{},
+			Effects: DefaultEffects(),
 			sh:      newShared(testLogger{t}),
 		}
 	}

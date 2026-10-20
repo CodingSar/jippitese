@@ -309,8 +309,9 @@ fixes under "deferred from v0"; deviations go to `decisions.md`.
       - [x] T3a `std.http` (get, post, request; `Response` with status,
             headers, body, ok, text), `RealHttp` timeout and idempotent
             retry, `FakeHttp.route`, `Request` with method and headers.
-      - [ ] T3b `effects {}` in `app.jip` (net timeout and retry, approve
+      - [x] T3b `effects {}` in `app.jip` (net timeout and retry, approve
             channel and default timeout) wired into the generated main.
+            Model key variables accepted; E0303 on env blocks.
       - [ ] T3c `std.approve.http` channel.
 - [ ] **T4** Stdlib breadth: `std.strings` (replace, index, pad, repeat,
       format of floats), `std.math`, `std.time` (Instant arithmetic,

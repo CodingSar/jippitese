@@ -103,6 +103,14 @@ func Load(root string, bag *diag.Bag) (*checker.Input, error) {
 				}
 				in.AppFile = f
 				a, err := app.Parse(f)
+				if ae, ok := err.(*app.Error); ok {
+					code := ae.Code
+					if code == "" {
+						code = "E0301"
+					}
+					bag.Errorf(code, ae.Pos, "%s", ae.Msg)
+					continue
+				}
 				if err != nil {
 					addParseError(bag, rel, err)
 					continue

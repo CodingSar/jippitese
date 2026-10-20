@@ -53,7 +53,8 @@ type RealHttp struct {
 // DefaultHttp is the client of `effects.net` defaults: 5s, 3 retries,
 // exponential from 100ms.
 func DefaultHttp() RealHttp {
-	return RealHttp{Timeout: 5 * time.Second, Retry: Retry{Max: 3, Backoff: Backoff_Exp(100 * time.Millisecond)}}
+	e := DefaultEffects()
+	return RealHttp{Timeout: e.NetTimeout, Retry: e.NetRetry}
 }
 
 func (h RealHttp) Do(ctx *Ctx, r HttpReq) (HttpResp, error) {

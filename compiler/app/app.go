@@ -90,9 +90,12 @@ type App struct {
 		Mode  string // "embedded"
 		Store string // journal directory
 	}
-	Runs    []*Run
-	Topics  []*Topic
-	Envs    []*Env
+	Runs   []*Run
+	Topics []*Topic
+	Envs   []*Env
+	// Effects holds the `effects {}` leaves set in the app body, by path
+	// below `effects.` ("net.retry.max").
+	Effects map[string]*EffectLeaf
 	Entries []*ast.AppEntry // every top-level entry, in order
 	Block   *ast.AppBlock
 }
@@ -100,23 +103,23 @@ type App struct {
 // Parse builds the model from a parsed app.jip.
 func Parse(f *ast.File) (*App, error) {
 	if f.App == nil {
-		return nil, fmt.Errorf("%s: no `app { … }` block", f.Path)
+		return nil, errAt(ast.Pos{File: f.Path, Line: 1, Col: 1}, "no `app { … }` block")
 	}
 	b := f.App
-	a := &App{Pos: b.Pos, Block: b, Entries: b.Entries}
+	a := &App{Pos: b.Pos, Block: b, Entries: b.Entries, Effects: map[string]*EffectLeaf{}}
 	a.Workflow.Mode, a.Workflow.Store = "embedded", DefaultWorkflowStore
 	for _, e := range b.Entries {
 		switch {
 		case e.Key == "name":
 			s, ok := litStr(e.Value)
 			if !ok {
-				return nil, fmt.Errorf("%s: `name` must be a string literal", e.Pos)
+				return nil, errAt(e.Pos, "`name` must be a string literal")
 			}
 			a.Name = s
 		case e.Key == "config":
 			blk, ok := e.Value.(*ast.AppBlock)
 			if !ok {
-				return nil, fmt.Errorf("%s: `config` must be a block", e.Pos)
+				return nil, errAt(e.Pos, "`config` must be a block")
 			}
 			for _, c := range blk.Entries {
 				cf := &ConfigField{Pos: c.Pos, Name: c.Key, IsDefault: c.Default}
@@ -126,30 +129,30 @@ func Parse(f *ast.File) (*App, error) {
 				case *ast.AppLit:
 					cf.Default = v.X
 				default:
-					return nil, fmt.Errorf("%s: config field `%s` needs a type or a default literal", c.Pos, c.Key)
+					return nil, errAt(c.Pos, "config field `%s` needs a type or a default literal", c.Key)
 				}
 				a.Config = append(a.Config, cf)
 			}
 		case e.Key == "secrets":
 			blk, ok := e.Value.(*ast.AppBlock)
 			if !ok {
-				return nil, fmt.Errorf("%s: `secrets` must be a block", e.Pos)
+				return nil, errAt(e.Pos, "`secrets` must be a block")
 			}
 			for _, c := range blk.Entries {
 				t, ok := c.Value.(*ast.AppType)
 				if !ok {
-					return nil, fmt.Errorf("%s: secret `%s` needs `secret<T>`", c.Pos, c.Key)
+					return nil, errAt(c.Pos, "secret `%s` needs `secret<T>`", c.Key)
 				}
 				tp, ok := t.T.(*ast.TypePath)
 				if !ok || len(tp.Path) != 1 || tp.Path[0] != "secret" || len(tp.Args) != 1 {
-					return nil, fmt.Errorf("%s: secret `%s` needs `secret<T>`", c.Pos, c.Key)
+					return nil, errAt(c.Pos, "secret `%s` needs `secret<T>`", c.Key)
 				}
 				a.Secrets = append(a.Secrets, &Secret{Pos: c.Pos, Name: c.Key, Type: tp.Args[0]})
 			}
 		case e.Key == "deps":
 			blk, ok := e.Value.(*ast.AppBlock)
 			if !ok {
-				return nil, fmt.Errorf("%s: `deps` must be a block", e.Pos)
+				return nil, errAt(e.Pos, "`deps` must be a block")
 			}
 			for _, c := range blk.Entries {
 				d := &Dep{Pos: c.Pos, Alias: c.Key}
@@ -175,20 +178,20 @@ func Parse(f *ast.File) (*App, error) {
 		case e.Key == "models":
 			blk, ok := e.Value.(*ast.AppBlock)
 			if !ok {
-				return nil, fmt.Errorf("%s: `models` must be a block", e.Pos)
+				return nil, errAt(e.Pos, "`models` must be a block")
 			}
 			for _, c := range blk.Entries {
 				m := &Model{Pos: c.Pos, Role: c.Key}
 				call, ok := c.Value.(*ast.AppCall)
 				if !ok || !slices.Contains(Providers, call.Name) {
-					return nil, fmt.Errorf("%s: model `%s` must be one of %s", c.Pos, c.Key, strings.Join(Providers, ", "))
+					return nil, errAt(c.Pos, "model `%s` must be one of %s", c.Key, strings.Join(Providers, ", "))
 				}
 				m.Provider = call.Name
 				var args []string
 				for _, x := range call.Args {
 					s, ok := litStr(x)
 					if !ok {
-						return nil, fmt.Errorf("%s: model `%s` takes string literals", c.Pos, c.Key)
+						return nil, errAt(c.Pos, "model `%s` takes string literals", c.Key)
 					}
 					args = append(args, s)
 				}
@@ -196,18 +199,18 @@ func Parse(f *ast.File) (*App, error) {
 				case m.Provider == "custom" && len(args) == 2:
 					m.URL, m.Name = args[0], args[1]
 				case m.Provider == "custom":
-					return nil, fmt.Errorf("%s: model `%s` must be `custom(url, model)`", c.Pos, c.Key)
+					return nil, errAt(c.Pos, "model `%s` must be `custom(url, model)`", c.Key)
 				case len(args) == 1:
 					m.Name = args[0]
 				default:
-					return nil, fmt.Errorf("%s: model `%s` must be `%s(model)`", c.Pos, c.Key, m.Provider)
+					return nil, errAt(c.Pos, "model `%s` must be `%s(model)`", c.Key, m.Provider)
 				}
 				a.Models = append(a.Models, m)
 			}
 		case e.Key == "externs":
 			blk, ok := e.Value.(*ast.AppBlock)
 			if !ok {
-				return nil, fmt.Errorf("%s: `externs` must be a block", e.Pos)
+				return nil, errAt(e.Pos, "`externs` must be a block")
 			}
 			a.Externs.Set = true
 			for _, c := range blk.Entries {
@@ -215,19 +218,19 @@ func Parse(f *ast.File) (*App, error) {
 				case "allow":
 					l, ok := c.Value.(*ast.AppList)
 					if !ok {
-						return nil, fmt.Errorf("%s: `externs.allow` must be a list of module paths", c.Pos)
+						return nil, errAt(c.Pos, "`externs.allow` must be a list of module paths")
 					}
 					for _, el := range l.Elems {
 						p, ok := el.(*ast.AppPath)
 						if !ok {
-							return nil, fmt.Errorf("%s: `externs.allow` must be a list of module paths", c.Pos)
+							return nil, errAt(c.Pos, "`externs.allow` must be a list of module paths")
 						}
 						a.Externs.Allow = append(a.Externs.Allow, strings.Join(p.Path, "."))
 					}
 				case "max":
 					n, ok := litInt(c.Value)
 					if !ok {
-						return nil, fmt.Errorf("%s: `externs.max` must be an integer", c.Pos)
+						return nil, errAt(c.Pos, "`externs.max` must be an integer")
 					}
 					a.Externs.Max = int(n)
 				}
@@ -235,53 +238,61 @@ func Parse(f *ast.File) (*App, error) {
 		case e.Key == "contracts":
 			p, ok := e.Value.(*ast.AppPath)
 			if !ok || len(p.Path) != 1 {
-				return nil, fmt.Errorf("%s: `contracts` must be `all`, `pre` or `none`", e.Pos)
+				return nil, errAt(e.Pos, "`contracts` must be `all`, `pre` or `none`")
 			}
 			switch p.Path[0] {
 			case "all", "pre", "none":
 				a.Contracts = p.Path[0]
 			default:
-				return nil, fmt.Errorf("%s: `contracts` must be `all`, `pre` or `none`", e.Pos)
+				return nil, errAt(e.Pos, "`contracts` must be `all`, `pre` or `none`")
 			}
 		case e.Key == "workflow":
 			blk, ok := e.Value.(*ast.AppBlock)
 			if !ok {
-				return nil, fmt.Errorf("%s: `workflow` must be a block", e.Pos)
+				return nil, errAt(e.Pos, "`workflow` must be a block")
 			}
 			for _, c := range blk.Entries {
 				switch c.Key {
 				case "mode":
 					p, ok := c.Value.(*ast.AppPath)
 					if !ok || len(p.Path) != 1 {
-						return nil, fmt.Errorf("%s: `workflow.mode` must be `embedded`", c.Pos)
+						return nil, errAt(c.Pos, "`workflow.mode` must be `embedded`")
 					}
 					if p.Path[0] != "embedded" {
-						return nil, fmt.Errorf("%s: `workflow.mode: %s` is not available; only `embedded`", c.Pos, p.Path[0])
+						return nil, errAt(c.Pos, "`workflow.mode: %s` is not available; only `embedded`", p.Path[0])
 					}
 					a.Workflow.Mode = p.Path[0]
 				case "store":
 					s, ok := litStr(c.Value)
 					if !ok {
-						return nil, fmt.Errorf("%s: `workflow.store` must be a string literal", c.Pos)
+						return nil, errAt(c.Pos, "`workflow.store` must be a string literal")
 					}
 					a.Workflow.Store = s
 				default:
-					return nil, fmt.Errorf("%s: unknown `workflow` field `%s`", c.Pos, c.Key)
+					return nil, errAt(c.Pos, "unknown `workflow` field `%s`", c.Key)
 				}
+			}
+		case e.Key == "effects":
+			blk, ok := e.Value.(*ast.AppBlock)
+			if !ok {
+				return nil, errAt(e.Pos, "`effects` must be a block")
+			}
+			if err := a.effects("", blk.Entries, e.Default); err != nil {
+				return nil, err
 			}
 		case e.Key == "topics":
 			blk, ok := e.Value.(*ast.AppBlock)
 			if !ok {
-				return nil, fmt.Errorf("%s: `topics` must be a block", e.Pos)
+				return nil, errAt(e.Pos, "`topics` must be a block")
 			}
 			for _, c := range blk.Entries {
 				t, ok := c.Value.(*ast.AppType)
 				if !ok {
-					return nil, fmt.Errorf("%s: topic `%s` needs `Topic<T>`", c.Pos, c.Key)
+					return nil, errAt(c.Pos, "topic `%s` needs `Topic<T>`", c.Key)
 				}
 				tp, ok := t.T.(*ast.TypePath)
 				if !ok || len(tp.Path) != 1 || tp.Path[0] != "Topic" || len(tp.Args) != 1 {
-					return nil, fmt.Errorf("%s: topic `%s` needs `Topic<T>`", c.Pos, c.Key)
+					return nil, errAt(c.Pos, "topic `%s` needs `Topic<T>`", c.Key)
 				}
 				a.Topics = append(a.Topics, &Topic{Pos: c.Pos, Name: c.Key, Type: tp.Args[0]})
 			}
@@ -304,9 +315,187 @@ func Parse(f *ast.File) (*App, error) {
 		}
 	}
 	if a.Name == "" {
-		return nil, fmt.Errorf("%s: app.jip has no `name`", b.Pos)
+		return nil, errAt(b.Pos, "app.jip has no `name`")
+	}
+	if err := a.checkEnvs(); err != nil {
+		return nil, err
 	}
 	return a, nil
+}
+
+// checkEnvs rejects an env block that sets a leaf the app body fixes
+// (E0303): a config or effects leaf with a literal and no `default`.
+func (a *App) checkEnvs() error {
+	fixed := map[string]ast.Pos{}
+	for _, c := range a.Config {
+		if c.Default != nil && !c.IsDefault {
+			fixed["config."+c.Name] = c.Default.ExprPos()
+		}
+	}
+	for path, lf := range a.Effects {
+		if !lf.IsDefault {
+			fixed["effects."+path] = lf.Pos
+		}
+	}
+	for _, env := range a.Envs {
+		for _, en := range env.Entries {
+			if at, ok := fixed[en.Key]; ok {
+				return &Error{Pos: en.Pos, Code: "E0303", Msg: fmt.Sprintf("overlay sets a field that is not `default`: `%s` is fixed at %s", en.Key, at)}
+			}
+		}
+	}
+	return nil
+}
+
+// Error is an invalid app.jip (E0301).
+type Error struct {
+	Pos  ast.Pos
+	Code string // "" is E0301
+	Msg  string
+}
+
+func (e *Error) Error() string { return e.Pos.String() + ": " + e.Msg }
+
+func errAt(pos ast.Pos, format string, args ...any) error {
+	return &Error{Pos: pos, Msg: fmt.Sprintf(format, args...)}
+}
+
+// EffectLeaf is one leaf of `effects {}`; a `default` on an enclosing
+// record makes every leaf in it overridable.
+type EffectLeaf struct {
+	Pos       ast.Pos
+	Path      string
+	Value     ast.AppValue
+	IsDefault bool
+}
+
+// EffectField is one leaf of the closed `effects {}` schema (spec 10 rule 3).
+type EffectField struct {
+	Path    string // below `effects.`
+	Kind    string // "Duration", "Int", "Float", "Backoff", "Module", "Budget"
+	Default string // the literal used when the app sets none; "" = unset
+}
+
+// EffectSchema lists the `effects {}` leaves with their spec defaults.
+var EffectSchema = []EffectField{
+	{"net.timeout", "Duration", "5s"},
+	{"net.retry.max", "Int", "3"},
+	{"net.retry.backoff", "Backoff", "exp"},
+	{"net.retry.base", "Duration", "100ms"},
+	{"net.ratelimit.per_second", "Float", ""},
+	{"llm.timeout", "Duration", "60s"},
+	{"llm.budget", "Budget", ""},
+	{"llm.ratelimit.per_second", "Float", ""},
+	{"io.timeout", "Duration", "10s"},
+	{"decide.timeout", "Duration", "1s"},
+	{"approve.channel", "Module", ""},
+	{"approve.default_timeout", "Duration", "24h"},
+}
+
+func effectField(path string) *EffectField {
+	for i := range EffectSchema {
+		if EffectSchema[i].Path == path {
+			return &EffectSchema[i]
+		}
+	}
+	return nil
+}
+
+func effectRecord(path string) bool {
+	for _, f := range EffectSchema {
+		if strings.HasPrefix(f.Path, path+".") {
+			return true
+		}
+	}
+	return false
+}
+
+// effects flattens the entries of an `effects` record below prefix.
+func (a *App) effects(prefix string, entries []*ast.AppEntry, isDefault bool) error {
+	for _, c := range entries {
+		path := prefix + c.Key
+		def := isDefault || c.Default
+		if blk, ok := c.Value.(*ast.AppBlock); ok {
+			if !effectRecord(path) {
+				return errAt(c.Pos, "unknown `effects` record `%s`", path)
+			}
+			if err := a.effects(path+".", blk.Entries, def); err != nil {
+				return err
+			}
+			continue
+		}
+		fd := effectField(path)
+		if fd == nil {
+			if effectRecord(path) {
+				return errAt(c.Pos, "`effects.%s` must be a record", path)
+			}
+			return errAt(c.Pos, "unknown `effects` field `%s`", path)
+		}
+		if _, dup := a.Effects[path]; dup {
+			return errAt(c.Pos, "`effects.%s` is set twice", path)
+		}
+		if !effectValueOk(fd.Kind, c.Value) {
+			return errAt(c.Pos, "`effects.%s` must be %s", path, effectKindText[fd.Kind])
+		}
+		a.Effects[path] = &EffectLeaf{Pos: c.Pos, Path: path, Value: c.Value, IsDefault: def}
+	}
+	return nil
+}
+
+var effectKindText = map[string]string{
+	"Duration": "a duration literal",
+	"Int":      "an integer",
+	"Float":    "a number",
+	"Backoff":  "`exp` or `const`",
+	"Module":   "a module path",
+	"Budget":   "`<n> tokens` or `Money(<n>)`",
+}
+
+// effectValueOk reports whether an app value fits a leaf kind.
+func effectValueOk(kind string, v ast.AppValue) bool {
+	switch kind {
+	case "Duration":
+		l, ok := v.(*ast.AppLit)
+		if !ok {
+			return false
+		}
+		_, ok = l.X.(*ast.DurationLit)
+		return ok
+	case "Int":
+		_, ok := litInt(v)
+		return ok
+	case "Float":
+		l, ok := v.(*ast.AppLit)
+		if !ok {
+			return false
+		}
+		switch l.X.(type) {
+		case *ast.FloatLit, *ast.IntLit:
+			return true
+		}
+		return false
+	case "Backoff":
+		p, ok := v.(*ast.AppPath)
+		return ok && len(p.Path) == 1 && (p.Path[0] == "exp" || p.Path[0] == "const")
+	case "Module":
+		_, ok := v.(*ast.AppPath)
+		return ok
+	case "Budget":
+		l, ok := v.(*ast.AppLit)
+		if !ok {
+			return false
+		}
+		if _, ok := l.X.(*ast.IntLit); ok {
+			return l.Unit == "tokens"
+		}
+		c, ok := l.X.(*ast.CallExpr)
+		if !ok || len(c.Args) != 1 {
+			return false
+		}
+		id, ok := c.Fn.(*ast.Ident)
+		return ok && id.Name == "Money"
+	}
+	return false
 }
 
 // DefaultWorkflowStore is the journal directory when `workflow { store }`

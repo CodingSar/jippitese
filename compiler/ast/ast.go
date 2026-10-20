@@ -601,8 +601,9 @@ type AppEntry struct {
 }
 
 type AppLit struct {
-	Pos Pos
-	X   Expr
+	Pos  Pos
+	X    Expr
+	Unit string // `tokens` in `2_000_000 tokens`; "" otherwise
 }
 type AppCall struct {
 	Pos  Pos

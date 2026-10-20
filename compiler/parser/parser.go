@@ -1468,7 +1468,8 @@ func (p *parser) appValue() ast.AppValue {
 		p.skipTerms()
 		p.expectOp("]")
 		return l
-	case t.Kind == lexer.Ident:
+	case t.Kind == lexer.Ident && !(isTypeName(t.Text) && p.peekN(1).Kind == lexer.Op && p.peekN(1).Text == "("):
+		// `Money(500)` falls through to a literal; `git(…)` is a call
 		if isTypeName(t.Text) || (p.peekN(1).Kind == lexer.Op && p.peekN(1).Text == "<") {
 			return &ast.AppType{Pos: pos, T: p.typeExpr()}
 		}
@@ -1506,7 +1507,12 @@ func (p *parser) appValue() ast.AppValue {
 		p.next()
 		return &ast.AppPath{Pos: pos, Path: []string{t.Text}}
 	}
-	return &ast.AppLit{Pos: pos, X: p.primary(true)}
+	l := &ast.AppLit{Pos: pos, X: p.primary(true)}
+	if _, isInt := l.X.(*ast.IntLit); isInt && p.peek().Kind == lexer.Ident && p.peek().Text == "tokens" {
+		// `budget: 2_000_000 tokens` (spec 10 rule 3)
+		l.Unit = p.next().Text
+	}
+	return l
 }
 
 // toolsExpr parses the list of `tools [f, g]` after `tools`.

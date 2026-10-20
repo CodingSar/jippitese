@@ -304,12 +304,16 @@ func TestEffectiveConfig(t *testing.T) {
 		t.Fatalf("exit %d", code)
 	}
 	for _, want := range []string{
-		`app "orders"  env: prod`,
+		`app "orders" env: prod`,
 		"config.gateway_url", "https://pay.example/charge", "JIP_CONFIG__GATEWAY_URL",
 		"secrets.gateway_key", "<unset>",
 		"run.BillingApi.period", "60s",
+		"effects.net.retry.max 5 env prod",
+		"effects.net.retry.base 200ms app (default)",
+		"effects.llm.budget 2_000_000 tokens",
+		"effects.approve.default_timeout 24h default",
 	} {
-		if !strings.Contains(out.String(), want) {
+		if !strings.Contains(strings.Join(strings.Fields(out.String()), " "), want) {
 			t.Errorf("missing %q in\n%s", want, out.String())
 		}
 	}
@@ -335,6 +339,14 @@ func TestBinaryConfigOverlay(t *testing.T) {
 	out, _ = cmd.CombinedOutput()
 	if !strings.Contains(string(out), "JIP_CONFIG__NOPE matches no field") {
 		t.Fatalf("unknown variable must abort startup:\n%s", out)
+	}
+	// effects leaves and declared model keys are fields; a bad value is named
+	cmd = exec.Command(bin)
+	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "JIP_CONFIG__GATEWAY_URL=http://x", "JIP_SECRETS__GATEWAY_KEY=k",
+		"JIP_EFFECTS__NET__RETRY__MAX=x", "JIP_MODELS__SMART__KEY=k", "JIP_EFFECTS__IO__TIMEOUT=1s"}
+	out, _ = cmd.CombinedOutput()
+	if !strings.Contains(string(out), `JIP_EFFECTS__NET__RETRY__MAX="x" does not parse as Int`) || strings.Contains(string(out), "matches no field") {
+		t.Fatalf("effects overlay:\n%s", out)
 	}
 }
 

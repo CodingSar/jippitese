@@ -404,9 +404,9 @@ func (e *emitter) emitMain() {
 	f.printf("func main() {\n")
 	f.printf("\tctx := %s.NewCtx()\n", rtp)
 	f.printf("\t%s.SetContracts(%q)\n", rtp, level)
-	f.printf("\tcfg, runs, err := %s.Load()\n", cfg)
+	f.printf("\tcfg, runs, fx, err := %s.Load()\n", cfg)
 	f.printf("\tif err != nil {\n\t\tfmt.Fprintln(os.Stderr, \"error: \"+err.Error())\n\t\tos.Exit(2)\n\t}\n")
-	f.printf("\tctx.Config = cfg\n\t_ = runs\n")
+	f.printf("\tctx.Config = cfg\n\t_ = runs\n\tctx.ApplyEffects(fx)\n")
 	if app != nil {
 		f.printf("\tctx.Store = %q\n", app.Workflow.Store)
 	}

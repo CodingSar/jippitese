@@ -73,3 +73,64 @@ func TestParseModels(t *testing.T) {
 		}
 	}
 }
+
+func TestParseEffects(t *testing.T) {
+	parse := func(body string) (*App, error) {
+		f, err := parser.ParseFile("app.jip", "app {\n  name: \"x\"\n  effects {\n"+body+"\n  }\n}\n")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return Parse(f)
+	}
+	a, err := parse(`    net  { timeout: default 5s, retry: default { max: 3, backoff: exp, base: 200ms }, ratelimit: default { per_second: 50.0 } }
+    llm  { timeout: default 60s, budget: default 2_000_000 tokens }
+    io   { timeout: 10s }
+    decide { timeout: default 500ms }
+    approve { channel: orders.review_inbox, default_timeout: default 48h }`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(a.Effects) != 11 {
+		t.Fatalf("leaves: %d", len(a.Effects))
+	}
+	if lf := a.Effects["net.retry.max"]; lf == nil || !lf.IsDefault {
+		t.Fatalf("a `default` record marks its leaves default: %+v", lf)
+	}
+	if lf := a.Effects["io.timeout"]; lf == nil || lf.IsDefault {
+		t.Fatalf("io.timeout is fixed: %+v", lf)
+	}
+	for _, bad := range []string{
+		`net { timeout: 5 }`,
+		`net { retry { backoff: linear } }`,
+		`net { retries: 3 }`,
+		`disk { timeout: 1s }`,
+		`net { retry: 3 }`,
+		`llm { budget: 2_000_000 }`,
+		`net { timeout: 1s, timeout: 2s }`,
+	} {
+		if _, err := parse(bad); err == nil {
+			t.Fatalf("%s accepted", bad)
+		} else if _, ok := err.(*Error); !ok {
+			t.Fatalf("%s: %T is not an app error", bad, err)
+		}
+	}
+	env := func(set string) error {
+		f, err := parser.ParseFile("app.jip", "app {\n  name: \"x\"\n  config { a: 1, b: default 2 }\n  effects { io { timeout: 10s }, net { timeout: default 5s } }\n  env prod { "+set+" }\n}\n")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = Parse(f)
+		return err
+	}
+	for _, ok := range []string{`config.b = 3`, `effects.net.timeout = 1s`, `effects.net.retry.max = 5`} {
+		if err := env(ok); err != nil {
+			t.Fatalf("%s: %v", ok, err)
+		}
+	}
+	for _, bad := range []string{`config.a = 3`, `effects.io.timeout = 1s`} {
+		err := env(bad)
+		if ae, ok := err.(*Error); !ok || ae.Code != "E0303" {
+			t.Fatalf("%s: want E0303, got %v", bad, err)
+		}
+	}
+}

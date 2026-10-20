@@ -226,6 +226,18 @@ func (e *Env) printEffective(prog *checker.Program, env string) {
 			line("secrets."+s.Name, "<unset>", "-")
 		}
 	}
+	for _, fd := range app.EffectSchema {
+		path := "effects." + fd.Path
+		if lf := a.Effects[fd.Path]; lf != nil {
+			src := "app"
+			if lf.IsDefault {
+				src = "app (default)"
+			}
+			resolve(path, appValue(lf.Value), src, lf.IsDefault)
+		} else if fd.Default != "" {
+			resolve(path, fd.Default, "default", true)
+		}
+	}
 	line("contracts", a.ContractLevel(), "app")
 	for _, r := range a.Runs {
 		defs := [][3]string{{"restart", "permanent"}, {"max_restarts", "3"}, {"period", "60s"}, {"shutdown_timeout", "10s"}}
@@ -252,6 +264,9 @@ func appValue(v ast.AppValue) string {
 	case *ast.AppLit:
 		if s, ok := x.X.(*ast.StrLit); ok && len(s.Parts) == 1 && s.Parts[0].Expr == nil {
 			return s.Parts[0].Lit
+		}
+		if x.Unit != "" {
+			return checker.ExprString(x.X) + " " + x.Unit
 		}
 		return checker.ExprString(x.X)
 	case *ast.AppPath:

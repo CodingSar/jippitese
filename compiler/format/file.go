@@ -608,6 +608,9 @@ func (w *writer) appBlock(b *ast.AppBlock, src int) {
 func appValue(v ast.AppValue) string {
 	switch x := v.(type) {
 	case *ast.AppLit:
+		if x.Unit != "" {
+			return Expr(x.X) + " " + x.Unit
+		}
 		return Expr(x.X)
 	case *ast.AppPath:
 		return strings.Join(x.Path, ".")
