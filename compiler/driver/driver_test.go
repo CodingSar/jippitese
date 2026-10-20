@@ -551,3 +551,33 @@ scenario "std.http routes to the fake" {
 		t.Fatalf("exit %d\n%s\n%s", code, out.String(), errb.String())
 	}
 }
+
+func TestStdStrAndNumbers(t *testing.T) {
+	needGo(t)
+	env, out, errb := card(t)
+	p := filepath.Join(env.Root, "orders/billing/scenarios.jip")
+	b, _ := os.ReadFile(p)
+	src := string(b) + `
+scenario "str and number methods" {
+  given s = "  Total: 12.5\r\nnext\n"
+  when  first = s.lines().first().unwrap().trim()
+  then  first.strip_prefix("Total: ").unwrap().parse_float() == Some(12.5)
+  then  first.index_of(":") == Some(5) && first.slice(0, 5) == "Total"
+  then  "a-b".replace("-", "+").repeat(2) == "a+ba+b"
+  then  "7".pad_left(3, '0') == "007" && "ab".pad_right(4, '.') == "ab.."
+  then  s.trim_end().ends_with("next") && s.trim_start().starts_with("Total")
+  then  2.pow(10) == 1024 && 15.clamp(0, 10) == 10
+  then  9_223_372_036_854_775_807.checked_add(1) == None && 3.wrapping_mul(-2) == -6
+  then  12.5.ceil() == 13 && -12.5.to_int() == -12 && 3.14159.format(2) == "3.14"
+  then  !1.5.is_nan() && 1.5.max(2.0).min(1.75) == 1.75 && 9.0.clamp(0.0, 1.0) == 1.0
+}
+`
+	os.WriteFile(p, []byte(src), 0o644)
+	code := env.Test(TestOptions{})
+	if !strings.Contains(out.String(), `ok  orders.billing  "str and number methods"`) {
+		code = -1
+	}
+	if code != ExitOK {
+		t.Fatalf("exit %d\n%s\n%s", code, out.String(), errb.String())
+	}
+}

@@ -1946,8 +1946,12 @@ func (c *Checker) resolveFieldCallee(fe *ast.FieldExpr, e *ast.CallExpr, info *C
 		}
 		return nil, nil, nil
 	}
-	// A value: field holding a closure, or a method.
+	// A value: field holding a closure, or a method. A bare integer literal
+	// receiver is an Int, as `2.pow(10)` reads.
 	xt := c.infer(fe.X, nil)
+	if v, ok := Resolve(xt).(*TVar); ok && v.numeric {
+		defaultNumeric(v)
+	}
 	rt := Resolve(xt)
 	if tc, ok := rt.(*TCon); ok {
 		if tc.Info.Kind == Record {

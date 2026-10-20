@@ -324,6 +324,17 @@ fixes under "deferred from v0"; deviations go to `decisions.md`.
 - [ ] **T4** Stdlib breadth: `std.strings` (replace, index, pad, repeat,
       format of floats), `std.math`, `std.time` (Instant arithmetic,
       formatting, parsing), `std.json` (navigating `Json`), `std.log`.
+  - [x] **T4a** Str, Int and Float methods in the prelude (replace,
+        index_of, slice, pad, repeat, lines, parse_float, strip_prefix;
+        pow, clamp, checked/wrapping arithmetic; format, ceil, to_int,
+        min/max/clamp, trapping Float to Int).
+  - [ ] **T4b** `std.math`: sqrt, pow, exp, ln, log10, log2, trig, hypot,
+        pi, e.
+  - [ ] **T4c** `std.time`: Instant before/after/sub, unix millis, RFC 3339
+        format and parse, UTC calendar fields; Duration minutes/hours.
+  - [ ] **T4d** `Json` navigation (get, at, as_*, items, keys) and
+        `json.parse`.
+  - [ ] **T4e** `std.log`.
 - [ ] **T5** Language server `jip lsp` (LSP over stdio): diagnostics on
       change, hover with type and effects, go to definition, document
       symbols, formatting via `jip fmt`.

@@ -2,6 +2,8 @@ package rt
 
 import (
 	"cmp"
+	"fmt"
+	"math"
 	"math/rand"
 	"slices"
 	"sort"
@@ -10,6 +12,7 @@ import (
 	"sync"
 	"time"
 	"unicode"
+	"unicode/utf8"
 )
 
 // ---- Str --------------------------------------------------------------
@@ -32,6 +35,84 @@ func StrParseInt(ctx *Ctx, s string) Option[int64] {
 	}
 	return Option_Some(n)
 }
+func StrParseFloat(ctx *Ctx, s string) Option[float64] {
+	f, err := strconv.ParseFloat(strings.ReplaceAll(s, "_", ""), 64)
+	if err != nil || math.IsNaN(f) || math.IsInf(f, 0) {
+		return Option_None[float64]()
+	}
+	return Option_Some(f)
+}
+func StrReplace(ctx *Ctx, s, old, new string) string { return strings.ReplaceAll(s, old, new) }
+func StrTrimStart(ctx *Ctx, s string) string         { return strings.TrimLeftFunc(s, unicode.IsSpace) }
+func StrTrimEnd(ctx *Ctx, s string) string           { return strings.TrimRightFunc(s, unicode.IsSpace) }
+
+// StrIndexOf is the character index of the first `sub`.
+func StrIndexOf(ctx *Ctx, s, sub string) Option[int64] {
+	i := strings.Index(s, sub)
+	if i < 0 {
+		return Option_None[int64]()
+	}
+	return Option_Some(int64(utf8.RuneCountInString(s[:i])))
+}
+func StrStripPrefix(ctx *Ctx, s, p string) Option[string] {
+	if !strings.HasPrefix(s, p) {
+		return Option_None[string]()
+	}
+	return Option_Some(s[len(p):])
+}
+func StrStripSuffix(ctx *Ctx, s, p string) Option[string] {
+	if !strings.HasSuffix(s, p) {
+		return Option_None[string]()
+	}
+	return Option_Some(s[:len(s)-len(p)])
+}
+
+// StrSlice is characters `from` up to `to`, both clamped like List.take.
+func StrSlice(ctx *Ctx, s string, from, to int64) string {
+	rs := []rune(s)
+	n := int64(len(rs))
+	from = min(max(from, 0), n)
+	to = min(max(to, from), n)
+	return string(rs[from:to])
+}
+func StrRepeat(ctx *Ctx, s string, n int64) string {
+	if n < 0 {
+		panic(&PanicError{Msg: fmt.Sprintf("Str.repeat with a negative count: %d", n)})
+	}
+	if n > 0 && int64(len(s)) > math.MaxInt32/n {
+		panic(&PanicError{Msg: fmt.Sprintf("Str.repeat: %d copies of %d bytes is too long", n, len(s))})
+	}
+	return strings.Repeat(s, int(n))
+}
+func StrPadLeft(ctx *Ctx, s string, width int64, c rune) string {
+	return strPad(s, width, c) + s
+}
+func StrPadRight(ctx *Ctx, s string, width int64, c rune) string {
+	return s + strPad(s, width, c)
+}
+func strPad(s string, width int64, c rune) string {
+	n := width - int64(utf8.RuneCountInString(s))
+	if n <= 0 {
+		return ""
+	}
+	if n > math.MaxInt32 {
+		panic(&PanicError{Msg: fmt.Sprintf("Str.pad to width %d is too long", width)})
+	}
+	return strings.Repeat(string(c), int(n))
+}
+
+// StrLines splits on "\n", drops a trailing "\r" from each line and the empty
+// line after a final "\n".
+func StrLines(ctx *Ctx, s string) []string {
+	if s == "" {
+		return []string{}
+	}
+	ls := strings.Split(strings.TrimSuffix(s, "\n"), "\n")
+	for i, l := range ls {
+		ls[i] = strings.TrimSuffix(l, "\r")
+	}
+	return ls
+}
 
 // ---- Int / Float / Bytes / Duration -----------------------------------
 
@@ -42,17 +123,86 @@ func IntAbs(ctx *Ctx, n int64) int64 {
 	}
 	return n
 }
-func IntToFloat(ctx *Ctx, n int64) float64  { return float64(n) }
-func IntMin(ctx *Ctx, a, b int64) int64     { return min(a, b) }
-func IntMax(ctx *Ctx, a, b int64) int64     { return max(a, b) }
-func FloatToStr(ctx *Ctx, f float64) string { return strconv.FormatFloat(f, 'g', -1, 64) }
-func FloatFloor(ctx *Ctx, f float64) int64  { return int64(floor(f)) }
-func FloatRound(ctx *Ctx, f float64) int64  { return int64(round(f)) }
-func FloatAbs(ctx *Ctx, f float64) float64 {
-	if f < 0 {
-		return -f
+func IntToFloat(ctx *Ctx, n int64) float64 { return float64(n) }
+func IntMin(ctx *Ctx, a, b int64) int64    { return min(a, b) }
+func IntMax(ctx *Ctx, a, b int64) int64    { return max(a, b) }
+func IntClamp(ctx *Ctx, n, lo, hi int64) int64 {
+	if lo > hi {
+		panic(&PanicError{Msg: fmt.Sprintf("clamp with lo %d above hi %d", lo, hi)})
 	}
-	return f
+	return min(max(n, lo), hi)
+}
+
+func IntCheckedAdd(ctx *Ctx, a, b int64) Option[int64] {
+	if c := a + b; (c > a) == (b > 0) {
+		return Option_Some(c)
+	}
+	return Option_None[int64]()
+}
+func IntCheckedSub(ctx *Ctx, a, b int64) Option[int64] {
+	if c := a - b; (c < a) == (b > 0) {
+		return Option_Some(c)
+	}
+	return Option_None[int64]()
+}
+func IntCheckedMul(ctx *Ctx, a, b int64) Option[int64] {
+	if a == 0 || b == 0 {
+		return Option_Some(int64(0))
+	}
+	if c := a * b; c/b == a && !(a == -1 && b == math.MinInt64) && !(b == -1 && a == math.MinInt64) {
+		return Option_Some(c)
+	}
+	return Option_None[int64]()
+}
+func IntWrappingAdd(ctx *Ctx, a, b int64) int64 { return a + b }
+func IntWrappingSub(ctx *Ctx, a, b int64) int64 { return a - b }
+func IntWrappingMul(ctx *Ctx, a, b int64) int64 { return a * b }
+
+// IntPow is `b` to the power `e`; traps on a negative exponent or overflow.
+func IntPow(ctx *Ctx, b, e int64) int64 {
+	if e < 0 {
+		panic(&PanicError{Msg: fmt.Sprintf("Int.pow with a negative exponent: %d", e)})
+	}
+	r := int64(1)
+	for e > 0 {
+		if e&1 == 1 {
+			r = Mul(ctx, r, b)
+		}
+		e >>= 1
+		if e > 0 {
+			b = Mul(ctx, b, b)
+		}
+	}
+	return r
+}
+func FloatToStr(ctx *Ctx, f float64) string   { return strconv.FormatFloat(f, 'g', -1, 64) }
+func FloatFloor(ctx *Ctx, f float64) int64    { return floatToInt("floor", f, math.Floor(f)) }
+func FloatCeil(ctx *Ctx, f float64) int64     { return floatToInt("ceil", f, math.Ceil(f)) }
+func FloatRound(ctx *Ctx, f float64) int64    { return floatToInt("round", f, math.Round(f)) }
+func FloatToInt(ctx *Ctx, f float64) int64    { return floatToInt("to_int", f, math.Trunc(f)) }
+func FloatAbs(ctx *Ctx, f float64) float64    { return math.Abs(f) }
+func FloatIsNan(ctx *Ctx, f float64) bool     { return math.IsNaN(f) }
+func FloatMin(ctx *Ctx, a, b float64) float64 { return min(a, b) }
+func FloatMax(ctx *Ctx, a, b float64) float64 { return max(a, b) }
+func FloatClamp(ctx *Ctx, f, lo, hi float64) float64 {
+	if !(lo <= hi) {
+		panic(&PanicError{Msg: fmt.Sprintf("clamp with lo %g above hi %g", lo, hi)})
+	}
+	return min(max(f, lo), hi)
+}
+
+// FloatFormat is fixed-point text with `decimals` digits after the point.
+func FloatFormat(ctx *Ctx, f float64, decimals int64) string {
+	return strconv.FormatFloat(f, 'f', int(min(max(decimals, 0), 64)), 64)
+}
+
+// floatToInt converts the already rounded `r`; NaN, infinities and values
+// outside Int trap rather than wrap.
+func floatToInt(op string, f, r float64) int64 {
+	if math.IsNaN(r) || r < -(1<<63) || r >= 1<<63 {
+		panic(&PanicError{Msg: fmt.Sprintf("Float.%s of %g is not an Int", op, f)})
+	}
+	return int64(r)
 }
 func BytesLen(ctx *Ctx, b []byte) int64    { return int64(len(b)) }
 func BytesToStr(ctx *Ctx, b []byte) string { return string(b) }
@@ -63,21 +213,6 @@ func BytesConcat(ctx *Ctx, a, b []byte) []byte {
 }
 func DurationSeconds(ctx *Ctx, d time.Duration) int64 { return int64(d / time.Second) }
 func DurationMillis(ctx *Ctx, d time.Duration) int64  { return int64(d / time.Millisecond) }
-
-func floor(f float64) float64 {
-	i := float64(int64(f))
-	if i > f {
-		return i - 1
-	}
-	return i
-}
-
-func round(f float64) float64 {
-	if f < 0 {
-		return -floor(-f + 0.5)
-	}
-	return floor(f + 0.5)
-}
 
 // ---- List<T> ------------------------------------------------------------
 

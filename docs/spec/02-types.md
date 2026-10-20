@@ -92,7 +92,7 @@ type Option<T> = { kind: "Some"; value: T } | { kind: "None" };
    type `()` with the single value `()`.
 2. **No implicit conversions**, anywhere, including `Int` to `Float`, alias
    to newtype, or `T` to `Option<T>`. Conversions are explicit stdlib calls:
-   `n.to_float()`, `f.to_int()` (truncates toward zero), `Int.parse(s)`,
+   `n.to_float()`, `f.to_int()` (truncates toward zero), `s.parse_int()`,
    `Some(x)`, `Money(n)`.
 3. **Records.** `type Name { field: Type, … }` declares a product type. Fields
    are accessed with `.field`, constructed with `Name { field: value }`, and

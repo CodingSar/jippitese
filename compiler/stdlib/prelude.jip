@@ -210,7 +210,7 @@ pub behaviour Cache<K, V> {
 }
 
 impl Str {
-  /// Number of bytes.
+  /// Number of characters.
   pub extern fn len(self) -> Int = go "rt".StrLen
   /// True when empty.
   pub extern fn is_empty(self) -> Bool = go "rt".StrIsEmpty
@@ -234,6 +234,30 @@ impl Str {
   pub extern fn parse_int(self) -> Option<Int> = go "rt".StrParseInt
   /// Characters.
   pub extern fn chars(self) -> List<Char> = go "rt".StrChars
+  /// Parse a decimal float; NaN and infinities are `None`.
+  pub extern fn parse_float(self) -> Option<Float> = go "rt".StrParseFloat
+  /// Every `from` replaced by `to`.
+  pub extern fn replace(self, from: Str, to: Str) -> Str = go "rt".StrReplace
+  /// Character index of the first `s`.
+  pub extern fn index_of(self, s: Str) -> Option<Int> = go "rt".StrIndexOf
+  /// Characters `from` up to `to`, both clamped to the string.
+  pub extern fn slice(self, from: Int, to: Int) -> Str = go "rt".StrSlice
+  /// Without leading whitespace.
+  pub extern fn trim_start(self) -> Str = go "rt".StrTrimStart
+  /// Without trailing whitespace.
+  pub extern fn trim_end(self) -> Str = go "rt".StrTrimEnd
+  /// The rest after prefix `p`, if present.
+  pub extern fn strip_prefix(self, p: Str) -> Option<Str> = go "rt".StrStripPrefix
+  /// The rest before suffix `p`, if present.
+  pub extern fn strip_suffix(self, p: Str) -> Option<Str> = go "rt".StrStripSuffix
+  /// `n` copies; traps when `n` is negative.
+  pub extern fn repeat(self, n: Int) -> Str = go "rt".StrRepeat
+  /// Padded on the left with `c` to `width` characters.
+  pub extern fn pad_left(self, width: Int, c: Char) -> Str = go "rt".StrPadLeft
+  /// Padded on the right with `c` to `width` characters.
+  pub extern fn pad_right(self, width: Int, c: Char) -> Str = go "rt".StrPadRight
+  /// Lines, without `\n` or `\r\n`; a final newline adds no empty line.
+  pub extern fn lines(self) -> List<Str> = go "rt".StrLines
 }
 
 impl Int {
@@ -247,17 +271,48 @@ impl Int {
   pub extern fn min(self, o: Int) -> Int = go "rt".IntMin
   /// Larger of two.
   pub extern fn max(self, o: Int) -> Int = go "rt".IntMax
+  /// Limited to `lo..=hi`; traps when `lo > hi`.
+  pub extern fn clamp(self, lo: Int, hi: Int) -> Int = go "rt".IntClamp
+  /// Sum, `None` on overflow.
+  pub extern fn checked_add(self, o: Int) -> Option<Int> = go "rt".IntCheckedAdd
+  /// Difference, `None` on overflow.
+  pub extern fn checked_sub(self, o: Int) -> Option<Int> = go "rt".IntCheckedSub
+  /// Product, `None` on overflow.
+  pub extern fn checked_mul(self, o: Int) -> Option<Int> = go "rt".IntCheckedMul
+  /// Sum, wrapping on overflow.
+  pub extern fn wrapping_add(self, o: Int) -> Int = go "rt".IntWrappingAdd
+  /// Difference, wrapping on overflow.
+  pub extern fn wrapping_sub(self, o: Int) -> Int = go "rt".IntWrappingSub
+  /// Product, wrapping on overflow.
+  pub extern fn wrapping_mul(self, o: Int) -> Int = go "rt".IntWrappingMul
+  /// `self` to the power `e`; traps on a negative `e` or overflow.
+  pub extern fn pow(self, e: Int) -> Int = go "rt".IntPow
 }
 
 impl Float {
   /// Shortest text that round-trips.
   pub extern fn to_str(self) -> Str = go "rt".FloatToStr
-  /// Largest integer not above.
+  /// Fixed-point text with `decimals` digits after the point.
+  pub extern fn format(self, decimals: Int) -> Str = go "rt".FloatFormat
+  /// Largest integer not above; this and the other conversions to Int trap
+  /// on NaN, infinities and values outside Int.
   pub extern fn floor(self) -> Int = go "rt".FloatFloor
-  /// Nearest integer.
+  /// Smallest integer not below.
+  pub extern fn ceil(self) -> Int = go "rt".FloatCeil
+  /// Nearest integer, halves away from zero.
   pub extern fn round(self) -> Int = go "rt".FloatRound
+  /// Integer part, towards zero.
+  pub extern fn to_int(self) -> Int = go "rt".FloatToInt
   /// Absolute value.
   pub extern fn abs(self) -> Float = go "rt".FloatAbs
+  /// Not a number.
+  pub extern fn is_nan(self) -> Bool = go "rt".FloatIsNan
+  /// Smaller of two.
+  pub extern fn min(self, o: Float) -> Float = go "rt".FloatMin
+  /// Larger of two.
+  pub extern fn max(self, o: Float) -> Float = go "rt".FloatMax
+  /// Limited to `lo..=hi`; traps when `lo > hi`.
+  pub extern fn clamp(self, lo: Float, hi: Float) -> Float = go "rt".FloatClamp
 }
 
 impl Bytes {
