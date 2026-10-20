@@ -14,7 +14,7 @@ import (
 
 // stdOrder is the order in which the embedded standard library is loaded.
 // The prelude is implicit in every module; the others are reached by `use`.
-var stdOrder = []string{"prelude", "std.json", "std.time", "std.gen", "std.testing"}
+var stdOrder = []string{"prelude", "std.json", "std.time", "std.fs", "std.gen", "std.testing"}
 
 // Check type-checks a whole program. The caller has already added the user
 // sources to bag; the checker adds the standard library sources itself.

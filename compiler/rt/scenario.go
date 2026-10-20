@@ -374,6 +374,8 @@ func (s *Scn) Install(v any) {
 	switch f := v.(type) {
 	case *FakeHttp:
 		s.Ctx.Http = f
+	case *FakeFs:
+		s.Ctx.Fs = f
 	case *FakeClock:
 		s.Ctx.Clock = f
 	case *FakeRandom:

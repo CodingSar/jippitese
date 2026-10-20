@@ -150,7 +150,7 @@ func TestWithdrawNeverOverdraws(t *testing.T) {
 9. **Config.** Effects inside a scenario see the `env test` overlay of
    `app.jip` (cross-reference 10); `JIP_ENV` is ignored under `jip test`.
 10. **Fakes.** `std.testing` provides `FakeHttp` (`net`), `FakeClock` and
-    `FakeRandom` (`nondet`), `FakeLlm` (scripted replies per role),
+    `FakeRandom` (`nondet`), `FakeFs` (`io` through `std.fs`), `FakeLlm` (scripted replies per role),
     `FakeDecide` (scripted or constant decisions) and `FakeApprove`
     (scripted `Ok(value)` or `Err(Rejected)` or `Timeout` answers), and the
     in-memory `MemRepo` and `MemCache` that stand in for `Repository` and
@@ -164,8 +164,11 @@ func TestWithdrawNeverOverdraws(t *testing.T) {
     `await_signal` timeouts are deterministic without a `given`; binding
     `FakeClock.new()` or `FakeRandom.seeded(n)` explicitly takes control of
     the installed fake. The line `given real_time` opts a scenario out and
-    routes `nondet` to the real clock and generator. `io`, `mut` and
-    `spawn` always run for real. A user-written fake (`FakeGateway` in the
+    routes `nondet` to the real clock and generator. `io` runs for real
+    unless a `FakeFs` is bound, which routes every `std.fs` call to an
+    in-memory tree (`FakeFs.new().file(Path.of("/d/a.txt"), b"hi")`,
+    inspected with `contents(p)`); an `io` extern into Go is never routed.
+    `mut` and `spawn` always run for real. A user-written fake (`FakeGateway` in the
     card) is an ordinary type and needs no installation.
 11. **Behaviours.** A `Service`, `Worker`, `Cron`, `Repository` or `Cache`
     impl is exercised by calling its lifecycle methods directly, as

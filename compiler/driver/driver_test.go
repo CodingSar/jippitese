@@ -466,3 +466,49 @@ scenario "hi greets loudly" {
 		t.Fatalf("rebuild: exit %d\n%s", code, errb.String())
 	}
 }
+
+// TestStdFs runs std.fs against a bound FakeFs and, unfaked, against the
+// real file system (spec 12 rule 10).
+func TestStdFs(t *testing.T) {
+	needGo(t)
+	env, out, errb := card(t)
+	p := filepath.Join(env.Root, "orders/billing/scenarios.jip")
+	b, _ := os.ReadFile(p)
+	src := strings.Replace(string(b), "use orders.billing\n", "use orders.billing\nuse std.fs\n", 1) + `
+scenario "fs routes to the fake" {
+  given disk = FakeFs.new().file(Path.of("/d/a.txt"), b"hi")
+  when  r = {
+    fs.append(Path.of("/d/a.txt"), b"!")?
+    fs.mkdir(Path.of("/d/sub/x"))?
+    fs.write_text(Path.of("/d/b.txt"), "yo")?
+    fs.list(Path.of("/d"))
+  }
+  then  r == Ok(["a.txt", "b.txt", "sub"])
+  then  disk.contents(Path.of("/d/a.txt")) == Some(b"hi!")
+  then  fs.read_text(Path.of("/d/b.txt")) == Ok("yo")
+  then  fs.present(Path.of("/d/sub/x")) == Ok(true)
+  then  fs.remove(Path.of("/d/sub")).is_err()
+  then  match fs.read(Path.of("/nope")) { Err(IoError.NotFound(_)) => true, _ => false }
+  then  match fs.write(Path.of("/nope/f"), b"") { Err(IoError.NotFound(_)) => true, _ => false }
+}
+
+scenario "fs unfaked is the real file system" {
+  given p = tmp_path("real.txt")
+  when  r = { fs.write(p, b"on disk")?; fs.read(p) }
+  then  r == Ok(b"on disk")
+  then  p.name() == "real.txt"
+  then  fs.remove(p) == Ok(())
+  then  fs.present(p) == Ok(false)
+}
+`
+	os.WriteFile(p, []byte(src), 0o644)
+	code := env.Test(TestOptions{})
+	for _, name := range []string{"fs routes to the fake", "fs unfaked is the real file system"} {
+		if !strings.Contains(out.String(), `ok  orders.billing  "`+name+`"`) {
+			code = -1
+		}
+	}
+	if code != ExitOK {
+		t.Fatalf("exit %d\n%s\n%s", code, out.String(), errb.String())
+	}
+}

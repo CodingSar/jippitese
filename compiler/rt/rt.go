@@ -94,6 +94,8 @@ type Ctx struct {
 	Llm     LlmClient
 	Decide  DecideClient
 	Approve ApproveClient
+	// Fs is where std.fs goes; nil is the real file system.
+	Fs      Fs
 	Config  any
 	Secrets map[string]string
 	// Store is the directory of production workflow journals; "" keeps

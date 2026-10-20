@@ -7,6 +7,8 @@ pub type Request { url: Url, body: Bytes }
 pub enum Reply { Say(Str), Call(Str, Str), Refuse(Str) }
 /// Fake for `net`.
 pub extern type FakeHttp = go "rt".FakeHttp
+/// In-memory file system for `std.fs`.
+pub extern type FakeFs = go "rt".FakeFs
 /// Fake clock for `nondet`.
 pub extern type FakeClock = go "rt".FakeClock
 /// Fake random generator for `nondet`.
@@ -38,6 +40,15 @@ impl FakeHttp {
   pub extern fn reply(self, status: Int, body: Bytes) -> FakeHttp = go "rt".FakeHttpReply
   /// Every request seen so far.
   pub extern fn requests(self) -> List<Request> = go "rt".FakeHttpRequests
+}
+
+impl FakeFs {
+  /// An empty file system.
+  pub extern fn new() -> FakeFs = go "rt".FakeFsNew
+  /// Add a file at `p` holding `b`, with its parent directories.
+  pub extern fn file(self, p: Path, b: Bytes) -> FakeFs = go "rt".FakeFsFile
+  /// Contents of the file at `p`, if there is one.
+  pub extern fn contents(self, p: Path) -> Option<Bytes> = go "rt".FakeFsContents
 }
 
 impl FakeClock {

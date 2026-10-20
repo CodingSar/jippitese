@@ -1,0 +1,20 @@
+module std.fs
+
+/// Contents of the file at `p`.
+pub extern fn read(p: Path) -> Result<Bytes, IoError> with {io} = go "rt".FsRead
+/// Contents of the file at `p` as text; invalid UTF-8 is replaced.
+pub extern fn read_text(p: Path) -> Result<Str, IoError> with {io} = go "rt".FsReadText
+/// Replace the file at `p` with `b`, creating it; the directory must exist.
+pub extern fn write(p: Path, b: Bytes) -> Result<(), IoError> with {io} = go "rt".FsWrite
+/// Replace the file at `p` with the UTF-8 bytes of `s`.
+pub extern fn write_text(p: Path, s: Str) -> Result<(), IoError> with {io} = go "rt".FsWriteText
+/// Append `b` to the file at `p`, creating it.
+pub extern fn append(p: Path, b: Bytes) -> Result<(), IoError> with {io} = go "rt".FsAppend
+/// Names of the entries of the directory `p`, sorted.
+pub extern fn list(p: Path) -> Result<List<Str>, IoError> with {io} = go "rt".FsList
+/// Whether a file or directory exists at `p` (`exists` is a keyword).
+pub extern fn present(p: Path) -> Result<Bool, IoError> with {io} = go "rt".FsPresent
+/// Remove the file or empty directory at `p`.
+pub extern fn remove(p: Path) -> Result<(), IoError> with {io} = go "rt".FsRemove
+/// Create the directory `p` and any missing parents.
+pub extern fn mkdir(p: Path) -> Result<(), IoError> with {io} = go "rt".FsMkdir

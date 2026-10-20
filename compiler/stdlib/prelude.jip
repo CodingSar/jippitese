@@ -269,6 +269,19 @@ impl Bytes {
   pub extern fn concat(self, o: Bytes) -> Bytes = go "rt".BytesConcat
 }
 
+impl Path {
+  /// The path `s`, cleaned: `a/./b/` is `a/b`.
+  pub extern fn of(s: Str) -> Path = go "rt".PathOf
+  /// `self` with the element `name` appended.
+  pub extern fn join(self, name: Str) -> Path = go "rt".PathJoin
+  /// The path as text.
+  pub extern fn to_str(self) -> Str = go "rt".PathToStr
+  /// The last element.
+  pub extern fn name(self) -> Str = go "rt".PathName
+  /// All but the last element.
+  pub extern fn parent(self) -> Path = go "rt".PathParent
+}
+
 impl Duration {
   /// Whole seconds.
   pub extern fn seconds(self) -> Int = go "rt".DurationSeconds

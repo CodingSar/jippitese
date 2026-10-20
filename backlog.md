@@ -298,8 +298,11 @@ fixes under "deferred from v0"; deviations go to `decisions.md`.
       records clean extern checks under `.jip/cache/externs` instead of
       per-module typecheck/emit. Orders: `jip check` ~340ms → 15ms, rebuild
       ~460ms → ~160ms. Spec 13 r12 and 09 r9 rewritten to match.
-- [ ] **T2** Stdlib `std.fs` (read, write, append, list, exists, remove,
-      mkdir) over `IoError`, with `FakeFs` in `std.testing`.
+- [x] **T2** Stdlib `std.fs` (read, read_text, write, write_text, append,
+      list, present, remove, mkdir) over `IoError`, with `FakeFs` in
+      `std.testing` and `Path.of/join/to_str/name/parent` in the prelude.
+      `exists` is the contract quantifier keyword, so the check is
+      `present`. 12 r10 updated.
 - [ ] **T3** Stdlib `std.http` client (get, post, request with headers)
       over `NetError`, `FakeHttp` routing, and `std.approve.http` channel
       (10 r3).
