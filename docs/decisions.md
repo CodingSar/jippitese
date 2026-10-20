@@ -215,7 +215,7 @@ File extension: `.jip`. CLI: `jip`.
   `spawn` inside `run` lowers to runtime coroutines, not goroutines.
   **Language owns the step rule and types; a library owns the journal.**
   Runtime selected by `workflow: embedded | temporal | restate` in `app.jip`;
-  `embedded` (SQLite journal, single process) is the v0 default and the only
+  `embedded` (one JSON-lines journal file per run, single process) is the v0 default and the only
   v0 runtime; `temporal` and `restate` are deferred.
   `WorkflowError<E> = Replay(ReplayError) | Approval(Rejected) | Cancelled |
   App(E)` (R11); `?` inside `run` uses the ordinary conversion rule from the
@@ -454,25 +454,27 @@ File extension: `.jip`. CLI: `jip`.
 ## Implementation decisions (Phase E)
 
 Settled while building the gate compiler. Each either fills a gap the spec
-left open or is a spec change made in the same commit; open contradictions
-are in `backlog.md` under "Spec bugs found".
+left open or is a spec change made in the same commit. The owner may
+reverse any row; reversing one is a spec change.
 
 | Item | Decision |
 |---|---|
-| `init` budget | `{io, net, mut}` for every behaviour; `Repository` and `Cache` methods carry `mut`. Without it no impl can construct in-process state (spec 06 updated). |
+| `init` budget | `{io, net, mut}` for every behaviour; `Repository` and `Cache` methods carry `mut`. Without it no impl can construct in-process state (spec 06 updated). Ratified after the v0 gate (backlog D1, V2). |
 | Standard library shape | Every std function is `extern fn … = go "rt".X`; the generated tree has no `std` package. |
 | `Query<T>` | `Query.all()` is the v0 constructor; queries carry no filter. |
 | Workflow replay in scenarios | Builtins `record_workflow(Impl, input) -> (Result, Journal)` and `replay_workflow(Impl, input, journal)`; `std.testing.Journal` is opaque with `len()`. |
 | `Ord` bound | A type parameter bounded by `Ord` lowers to Go `cmp.Ordered`; other bounds are checked and erased. |
 | Unary minus on `Int` | Lowers to `rt.Sub(ctx, 0, x)` and traps on overflow like every `Int` operation (R2). |
-| Extern codegen | Direct call with inline conversions (11 rule 9); `rt.IoErrorOf`, `NetErrorOf`, `GoErrorOf`, `MapToGo`, `MapFromGo` carry the boundary. Effect floor from the target package itself (see backlog spec bug). |
-| `rt` as an extern target | Treated as the toolchain's own package: exempt from 11 rules 1–7; a `Result<R, E>` result instantiates rt's generic `R, E`. |
+| Extern codegen | Direct call with inline conversions (11 rule 9); `rt.IoErrorOf`, `NetErrorOf`, `GoErrorOf`, `MapToGo`, `MapFromGo` carry the boundary. Effect floor from the target package itself, imports not unioned: `os` imports `time` and `sync`, and a union would put every file extern at `{io, nondet, mut}` (spec 11 rule 5 updated). |
+| `rt` as an extern target | The toolchain's own package: no `gomod` entry, exempt from 11 rules 3–8; a `Result<R, E>` result instantiates rt's generic `R, E` (spec 11 rule 1 updated). |
+| Extern error types | Any extern in any module may return `GoError`, `IoError` or `NetError`; the card's app-module `read_file` returns `IoError` (spec 11 rule 3 updated). |
+| Workflow journal | `embedded` writes one append-only JSON-lines file per run, `<store>/<Impl>-<run id>.jsonl`, default store `.jip/workflow`; no SQLite dependency (spec 07 rule 16 and 10 updated). |
 | Config overlay paths | A config leaf is `config.<name>` (`JIP_CONFIG__<NAME>`), secrets `secrets.<name>`, run fields `run.<Impl>.<field>`. Scenarios load the `env test` block whatever `JIP_ENV` says. |
 | Worker topics | A `run X { topic: t }` subscribes the Worker from a Go `init()`; in scenarios `publish` delivers synchronously. |
 | Interface file layout | Contract lines print as `pre  …`, `post …`, `inv  …`; effects in canonical order; impl members indented two spaces. |
 | API classification of const values | Changing a `const` value, including a workflow `version` bump, is `compatible`: a value is not a signature, and spec 09 rule 8 lists no such break. |
 | Dependency tree hash | SHA-256 over the sorted lines `<path> <sha256 of content>` of every regular file, `.git` excluded, written `sha256-<base64>`. |
-| Toolchain | `compiler/toolchain.go` pins Go 1.24 (`toolchain go1.24.0` in the generated `go.mod`); `jip` uses `JIP_GO` or `go` on `PATH` at or above the pin. |
+| Toolchain | `compiler/toolchain.go` pins Go 1.24 (`toolchain go1.24.0` in the generated `go.mod`); `jip` uses `JIP_GO` or `go` on `PATH` at or above the pin. A binary cannot embed a Go toolchain; a distribution may ship one next to `jip` (spec 13 rule 11 updated). |
 | `jip fmt` | Keeps every comment (trailing ones aligned), literal text (`1_000_000`, `60s`) and schedule sugar (`every 5m`); a body stays on one line only when written so. Refuses to write a result that would not reparse to the same program. Skips `vendor/`. |
 | Not in v0 | `gomod(...)` Go dependencies for externs (any non-stdlib Go path is E0504); the per-module `.jip/cache` of 13 rule 12 (needs separate compilation in the checker; `GOCACHE` covers the Go side). |
 

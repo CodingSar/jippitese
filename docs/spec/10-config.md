@@ -26,7 +26,7 @@ app {
   telemetry { exporter: otlp, endpoint: default "http://localhost:4317", sample: default 0.1 }
   externs { allow: [orders.pdf], max: 10 }
   contracts: pre
-  workflow { mode: embedded, store: default ".jip/workflow.db" }
+  workflow { mode: embedded, store: default ".jip/workflow" }
   topics { paid: Topic<Receipt> }
   run BillingApi { restart: permanent, max_restarts: 3, period: 60s, shutdown_timeout: 10s, port: default 8080 }
   run Billing
@@ -71,7 +71,7 @@ aborts startup.
    - `telemetry { exporter: otlp | prometheus | none, endpoint: Str, sample: Float }`. Defaults `none`, `""`, `0.1`.
    - `externs { allow: List<ModulePath>, max: Int }`, module paths unquoted. Defaults `[]`, `0` (§11).
    - `contracts: all | pre | none`, default `pre` (`jip test` forces `all`).
-   - `workflow { mode: embedded, store: Path }`, defaults `embedded` and `.jip/workflow.db`. **Deferred:** `mode: temporal | restate` are not in v0; the field exists so that adding a runtime later is a value, not a schema change.
+   - `workflow { mode: embedded, store: Path }`, defaults `embedded` and `.jip/workflow` (a directory: one JSON-lines journal per run, §07 rule 16). **Deferred:** `mode: temporal | restate` are not in v0; the field exists so that adding a runtime later is a value, not a schema change.
    - `topics { name: Topic<T> }`: one declaration per topic that `Worker` impls chain over (§06).
    - `run <Impl> { restart: permanent | transient | temporary, max_restarts: Int, period: Duration, shutdown_timeout: Duration, topic: <name>, port: Int, ttl: Duration }`: one child spec per `impl` instance of `Service`, `Worker`, `Cron`, `Workflow`, `Repository` or `Cache` (§06 rule 13). Defaults `permanent`, `3`, `60s`, `10s`; `topic` only for a `Worker`, `port` only for a `Service` (default `8080`), `ttl` only for a `Cache` (default `5m`); a field on the wrong kind of impl is E0308. `run Billing` with no block takes all defaults. An impl without a `run` line is never started; a `run` naming no impl is E0308.
    - `env <name> { path.to.field = value }`: an overlay block, any number, distinct names.

@@ -80,10 +80,12 @@ shows a Go error and `jip fmt` has no configuration.
     dependency pointing into `vendor/`, a synthesised `vendor/modules.txt`,
     `toolchain go1.24.0`) → `go build -trimpath -mod=vendor`. Output is deterministic: the same sources and
     `app.jip` produce byte-identical Go.
-11. **Toolchain.** The compiler embeds a pinned Go toolchain; v0 pins 1.24
+11. **Toolchain.** The compiler pins a Go toolchain version; v0 pins 1.24
     (R10). The pin lives in `compiler/toolchain.go` and is bumped
-    deliberately. `JIP_GO=<path>` substitutes a system toolchain of at least
-    the pinned version; nothing else changes. The emitter never relies on
+    deliberately; the generated `go.mod` carries `toolchain go1.24.0`.
+    `jip` runs `JIP_GO=<path>` if set, else `go` on `PATH`, and refuses a
+    toolchain older than the pin; nothing else changes. A distribution may
+    ship Go next to `jip` and point `JIP_GO` at it. The emitter never relies on
     generic methods: behaviours lower to dictionaries (§06 rule 15).
 12. **Two caches.** The jippitese cache at `.jip/cache/<module>` is keyed on
     the module's source hash, its direct dependencies' interface digests and

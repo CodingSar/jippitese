@@ -195,36 +195,21 @@ default fakes.
 
 ## Spec bugs found
 
-- **11 rule 3 vs the card.** Rule 3 says app and vendored externs return
-  `GoError` and only stdlib may use `IoError`/`NetError`, but the card's
-  app-module `read_file` returns `IoError` and the rule cites it. The
-  compiler accepts all three everywhere. Fix the rule or the card.
-- **11 rule 5, floor source.** The rule takes the floor as the union over
-  the target package's direct imports, but `os` imports `time`, `sync` and
-  `sync/atomic`, so `read_file` would need `{io, nondet, mut}`; the
-  diagnostic example says the floor comes from the package itself
-  ("floor table: package `os`"). The compiler uses the package itself.
-- **13 rule 11, embedded toolchain.** The compiler cannot embed a Go
-  toolchain binary; `jip` pins the version in `compiler/toolchain.go` and
-  uses `JIP_GO` or `go` on `PATH`, refusing anything older than the pin.
-  The rule should say "pins" rather than "embeds", or distribution must
-  bundle Go next to `jip`.
-- **11 rule 1, `rt` targets.** The card's vendored `http` dependency binds
-  `go "rt".HttpPost`, which is neither a standard-library path nor a
-  `gomod` dep. The compiler treats `rt` as the toolchain's own package and
-  exempts it from rules 1–7; a `Result<R, E>` result instantiates rt's
-  generic `R, E`. The spec should say so or the fixture should change.
+None open. The four found while building v0 (11 r3 error types, 11 r5
+floor source, 13 r11 toolchain, 11 r1 `rt` targets) and the journal store
+text were settled under V1; see `docs/decisions.md`, "Implementation
+decisions".
 
 ## 9. v0 follow-ups
 
-- [ ] **V1** Settle the four spec bugs above in the spec, record each in
+- [x] **V1** Settle the four spec bugs above in the spec, record each in
       `decisions.md` (owner may reverse): 11 r3 any extern may return
       `IoError`/`NetError`; 11 r5 floor from the target package itself;
       13 r11 "pins" instead of "embeds"; 11 r1 `rt` is the toolchain's own
       package. Plus the journal store: spec 07 r16 and 10 say SQLite, the
       runtime writes one JSON-lines file per run; the spec follows the
       runtime.
-- [ ] **V2** Ratify D1 (`mut` in `init` budgets) in `decisions.md`.
+- [x] **V2** Ratify D1 (`mut` in `init` budgets) in `decisions.md`.
 
 ## 10. v1 language
 

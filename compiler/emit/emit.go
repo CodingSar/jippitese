@@ -366,6 +366,9 @@ func (e *emitter) emitMain() {
 	f.printf("\tcfg, runs, err := %s.Load()\n", cfg)
 	f.printf("\tif err != nil {\n\t\tfmt.Fprintln(os.Stderr, \"error: \"+err.Error())\n\t\tos.Exit(2)\n\t}\n")
 	f.printf("\tctx.Config = cfg\n\t_ = runs\n")
+	if app != nil {
+		f.printf("\tctx.Store = %q\n", app.Workflow.Store)
+	}
 	if app != nil && len(app.Runs) > 0 {
 		f.printf("\t%s.Serve(ctx", rtp)
 		for _, r := range app.Runs {

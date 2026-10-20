@@ -30,3 +30,24 @@ func TestParseApp(t *testing.T) {
 		t.Fatal("run fields")
 	}
 }
+
+func TestParseWorkflow(t *testing.T) {
+	parse := func(body string) (*App, error) {
+		f, err := parser.ParseFile("app.jip", "app {\n  name: \"x\"\n"+body+"}\n")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return Parse(f)
+	}
+	a, err := parse("")
+	if err != nil || a.Workflow.Mode != "embedded" || a.Workflow.Store != DefaultWorkflowStore {
+		t.Fatalf("defaults: %+v %v", a, err)
+	}
+	a, err = parse("  workflow { mode: embedded, store: default \"var/wf\" }\n")
+	if err != nil || a.Workflow.Store != "var/wf" {
+		t.Fatalf("store: %+v %v", a, err)
+	}
+	if _, err := parse("  workflow { mode: temporal }\n"); err == nil {
+		t.Fatal("temporal accepted")
+	}
+}

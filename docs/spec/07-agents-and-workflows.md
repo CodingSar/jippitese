@@ -185,8 +185,8 @@ func Escalation(ctx workflow.Context, id TicketID) (Summary, error) {
     `task@<site>#<n>/<callee>@<site>#<m>`. `Cell` cannot be created or
     passed in.
 16. **Runtime.** `workflow { mode: embedded, store: default
-    ".jip/workflow.db" }` in `app.jip` selects the journal: an embedded
-    SQLite file, one process. *Status: deferred from v0 (revision-plan R1):*
+    ".jip/workflow" }` in `app.jip` selects the journal: one append-only
+    JSON-lines file per run, `<store>/<Impl>-<run id>.jsonl`, one process. *Status: deferred from v0 (revision-plan R1):*
     `temporal` and `restate` modes. `Name.start(in: Input) -> RunId with
     {io}`, `Name.signal(run: RunId, s: Signal) with {io}` and
     `Name.result(run: RunId) -> Option<Result<Output, WorkflowError<E>>>

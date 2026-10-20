@@ -11,7 +11,7 @@ app {
   externs { allow: [orders.billing], max: 1 }    // modules that may declare `extern`
   telemetry { exporter: otlp, endpoint: default "http://localhost:4317", sample: default 0.1 }
   contracts: pre
-  workflow { mode: embedded }                    // SQLite journal, single process
+  workflow { mode: embedded }                    // JSON-lines journal, single process
   run BillingApi { restart: permanent, max_restarts: 3, period: 60s }
   run Billing
   env prod { telemetry.sample = 0.01 }

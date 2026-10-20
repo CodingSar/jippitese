@@ -77,6 +77,10 @@ type App struct {
 		Set   bool
 	}
 	Contracts string // "all", "pre", "none" ("" = unset → all)
+	Workflow  struct {
+		Mode  string // "embedded"
+		Store string // journal directory
+	}
 	Runs      []*Run
 	Topics    []*Topic
 	Envs      []*Env
@@ -91,6 +95,7 @@ func Parse(f *ast.File) (*App, error) {
 	}
 	b := f.App
 	a := &App{Pos: b.Pos, Block: b, Entries: b.Entries}
+	a.Workflow.Mode, a.Workflow.Store = "embedded", DefaultWorkflowStore
 	for _, e := range b.Entries {
 		switch {
 		case e.Key == "name":
@@ -208,6 +213,32 @@ func Parse(f *ast.File) (*App, error) {
 			default:
 				return nil, fmt.Errorf("%s: `contracts` must be `all`, `pre` or `none`", e.Pos)
 			}
+		case e.Key == "workflow":
+			blk, ok := e.Value.(*ast.AppBlock)
+			if !ok {
+				return nil, fmt.Errorf("%s: `workflow` must be a block", e.Pos)
+			}
+			for _, c := range blk.Entries {
+				switch c.Key {
+				case "mode":
+					p, ok := c.Value.(*ast.AppPath)
+					if !ok || len(p.Path) != 1 {
+						return nil, fmt.Errorf("%s: `workflow.mode` must be `embedded`", c.Pos)
+					}
+					if p.Path[0] != "embedded" {
+						return nil, fmt.Errorf("%s: `workflow.mode: %s` is not available; only `embedded`", c.Pos, p.Path[0])
+					}
+					a.Workflow.Mode = p.Path[0]
+				case "store":
+					s, ok := litStr(c.Value)
+					if !ok {
+						return nil, fmt.Errorf("%s: `workflow.store` must be a string literal", c.Pos)
+					}
+					a.Workflow.Store = s
+				default:
+					return nil, fmt.Errorf("%s: unknown `workflow` field `%s`", c.Pos, c.Key)
+				}
+			}
 		case e.Key == "topics":
 			blk, ok := e.Value.(*ast.AppBlock)
 			if !ok {
@@ -247,6 +278,10 @@ func Parse(f *ast.File) (*App, error) {
 	}
 	return a, nil
 }
+
+// DefaultWorkflowStore is the journal directory when `workflow { store }`
+// is absent: one JSON-lines file per run (spec 07 rule 16).
+const DefaultWorkflowStore = ".jip/workflow"
 
 // Run returns the run line for an impl name, or nil.
 func (a *App) RunFor(name string) *Run {

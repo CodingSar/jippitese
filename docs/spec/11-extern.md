@@ -83,6 +83,11 @@ here the compiler checks the declared effects against the Go import path.
    v0 binds package-level functions only; `go "<path>".Type.Method` is a
    compile error (E0503). The import path is a Go standard-library path or
    the module path of a `gomod(...)` entry in `deps {}` (E0504 otherwise).
+   The path `"rt"` names the toolchain's own runtime package, shipped with
+   `jip` and copied into every build: it needs no `gomod` entry, rules 3
+   to 8 do not apply to it, and a generic `rt` function is instantiated
+   from the declared signature (a `Result<R, E>` result instantiates `R`
+   and `E`). The stdlib and vendored dependencies bind `rt` this way.
 2. **Explicit effects.** The effect set is written or the extern is pure.
    Effects are never inferred from the Go side; the Go side is only used to
    check a floor (rule 5).
@@ -104,11 +109,15 @@ here the compiler checks the declared effects against the Go import path.
    | `Option<T>` | `(T, bool)` |
    | `Result<T, GoError>` | `(T, error)` |
    | `Result<(), GoError>` | `error` |
+   | `Result<T, IoError>`, `Result<T, NetError>` | `(T, error)` |
 
-   `GoError(Str)` is a prelude newtype holding `err.Error()`. In app and
-   vendored modules the error type of an extern is `GoError`; stdlib modules
-   may also declare `IoError` or `NetError`, whose mapping from Go's `error`
-   is built into the compiler (the card's `read_file` uses this). A
+   `GoError(Str)` is a prelude newtype holding `err.Error()`. Any extern,
+   in any module, may use `GoError`, `IoError` or `NetError` as its error
+   type; the mapping from Go's `error` to each is built into the compiler
+   (`rt.GoErrorOf`, `rt.IoErrorOf`, `rt.NetErrorOf`: `fs.ErrNotExist` is
+   `NotFound`, `fs.ErrPermission` is `Permission`, a timeout is
+   `Timeout`, anything else `Other` with the message). The card's
+   `read_file` returns `IoError`. A
    parameter or return type outside the table is E0505. A Go function whose
    real signature does not match the mapped one is E0506, reported with
    both signatures.
@@ -129,10 +138,12 @@ here the compiler checks the declared effects against the Go import path.
    | `sync`, `sync/atomic` | `mut` |
    | `os/exec` | `io` |
 
-   The floor of an extern is the union over the Go packages that the target
-   function's own package imports directly (its `import` block), read from
-   the vendored source; nothing is resolved transitively and no goroutine
-   analysis is attempted (R13). `spawn` is never inferred: an extern that
+   The floor of an extern is the table entry of the target function's own
+   package (`net/*` matches every package under `net/`); a package not in
+   the table has floor `{}`. The package's imports are not unioned in:
+   `os` itself imports `time` and `sync`, and a union would put every
+   file extern at `{io, nondet, mut}`. Nothing is resolved transitively and
+   no goroutine analysis is attempted (R13). `spawn` is never inferred: an extern that
    wants it writes it. A target package that imports `context` is a compile
    error (E0508): externs receive no context and are never interrupted
    (rule 9). A declaration whose set is not a superset of the floor is a
