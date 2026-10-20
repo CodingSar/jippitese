@@ -236,6 +236,12 @@ func (p printer) expr(e ast.Expr) string {
 		return "decide<" + e.Role + ">(" + p.expr(e.Input) + ")"
 	case *ast.ApproveExpr:
 		return "approve::<" + p.typ(e.Type) + ">(" + p.expr(e.Review) + ")"
+	case *ast.ToolsExpr:
+		names := make([]string, len(e.Fns))
+		for i, f := range e.Fns {
+			names[i] = f.Name
+		}
+		return "tools [" + strings.Join(names, ", ") + "]"
 	case *ast.OldExpr:
 		return "old(" + p.expr(e.X) + ")"
 	case *ast.RetExpr:

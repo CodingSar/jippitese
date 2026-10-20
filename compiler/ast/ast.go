@@ -398,6 +398,10 @@ type OldExpr struct {
 	Pos Pos
 	X   Expr
 }
+type ToolsExpr struct { // `tools [f, g]`, the `const tools` of an Agent
+	Pos Pos
+	Fns []*Ident
+}
 type RetExpr struct{ Pos Pos }
 type QuantExpr struct {
 	Pos    Pos
@@ -447,6 +451,7 @@ func (e *LlmExpr) ExprPos() Pos      { return e.Pos }
 func (e *DecideExpr) ExprPos() Pos   { return e.Pos }
 func (e *ApproveExpr) ExprPos() Pos  { return e.Pos }
 func (e *OldExpr) ExprPos() Pos      { return e.Pos }
+func (e *ToolsExpr) ExprPos() Pos    { return e.Pos }
 func (e *RetExpr) ExprPos() Pos      { return e.Pos }
 func (e *QuantExpr) ExprPos() Pos    { return e.Pos }
 func (e *AnyExpr) ExprPos() Pos      { return e.Pos }

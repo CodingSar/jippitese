@@ -222,7 +222,7 @@ pub behaviour Agent {                      // semantics in section 07
   const tools: List<Tool>
   const budget: Budget                     // Budget { max_turns: Int, max_cost: Money }
   fn init(cfg: Config) -> Result<Self, AgentError> with {io, net, mut}
-  fn begin(self, task: Str) -> State
+  fn begin(self, goal: Str) -> State
   fn observe(self, st: State, ev: Event) -> State
   fn stop(self, st: State) -> Option<Answer>
   fn gate(self, call: ToolCall) -> Gate with {decide, approve}

@@ -207,7 +207,7 @@ design; a v0 compiler rejects `impl Agent` (E0706) and `tools [...]`.
     a method cannot be a tool.
 19. **Declaration.** `State`, `Answer`, `const model: Role`, `const tools:
     List<Tool>`, `const budget: Budget` with `Budget { max_turns: Int,
-    max_cost: Money }` both required; `begin(self, task: Str) -> State`,
+    max_cost: Money }` both required; `begin(self, goal: Str) -> State`,
     `observe(self, st: State, ev: Event) -> State` and `stop(self, st:
     State) -> Option<Answer>` are pure; `gate(self, call: ToolCall) -> Gate
     with {decide, approve}`. `Event = Said(Str) | Called(ToolCall) |
@@ -217,8 +217,8 @@ design; a v0 compiler rejects `impl Agent` (E0706) and `tools [...]`.
     misspelt tool name is a compile error; `Gate = Allow | Deny(Str) |
     Ask`; `Answer` must be schema-derivable, since the model is asked to
     produce it.
-20. **Loop.** `Name.run(task: Str) -> Outcome<Answer>` (effects per rule 18)
-    runs: `st = begin(task)`; repeat { model call with the transcript and
+20. **Loop.** `Name.run(goal: Str) -> Outcome<Answer>` (effects per rule 18)
+    runs: `st = begin(goal)`; repeat { model call with the transcript and
     the tool schemas; for each tool call, `gate` (`Ask` routes through
     `approve` with a generated `Review`, `Deny(reason)` returns the reason
     to the model); execute allowed tools; `st = observe(st, ev)` per event;
@@ -242,7 +242,7 @@ impl Agent for Triage {
   const tools = tools [lookup, refund]
   const budget = Budget { max_turns: 12, max_cost: Money(200) }
   fn init(cfg: Config) -> Result<Self, AgentError> with {io} { Ok(Triage {}) }
-  fn begin(self, task: Str) -> TriageState { TriageState { task, seen: [], answer: None } }
+  fn begin(self, goal: Str) -> TriageState { TriageState { goal, seen: [], answer: None } }
   fn observe(self, st: TriageState, ev: Event) -> TriageState {
     match ev {
       Returned(call, out) => TriageState { ..st, seen: st.seen.push(call.tool) },

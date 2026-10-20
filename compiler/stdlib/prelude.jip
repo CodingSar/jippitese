@@ -30,6 +30,8 @@ pub extern type Json = go "rt".Json
 pub extern type RunId = go "rt".RunId
 /// Repository query.
 pub extern type Query<T> = go "rt".Query
+/// A function an `Agent` may call, built with `tools [f, g]`.
+pub extern type Tool = go "rt".Tool
 
 /// A URL.
 pub type Url(Str)
@@ -51,6 +53,14 @@ pub type Rejected { reason: Option<Str>, timed_out: Bool }
 pub type ReplayError { expected: Int, found: Int }
 /// Liveness and readiness of a running impl.
 pub type Health { live: Bool, ready: Bool, detail: Option<Str> }
+/// A model role from `models {}` in `app.jip`.
+pub type Role(Str)
+/// Money in minor units.
+pub type Money(Int)
+/// Limits of one `Agent` run; both are required.
+pub type Budget { max_turns: Int, max_cost: Money }
+/// A tool call the model asked for: which tool, and its arguments.
+pub type ToolCall<T> { tool: T, args: Json }
 
 /// An optional value.
 pub enum Option<T> { None, Some(T) }
@@ -78,6 +88,16 @@ pub enum WorkflowError<E> { Replay(ReplayError), Approval(Rejected), Cancelled, 
 pub enum IoError { NotFound(Str), Permission(Str), Other(Str) }
 /// Network failures.
 pub enum NetError { Timeout, Refused(Str), Other(Str) }
+/// What happened in one step of an `Agent` loop.
+pub enum Event<T> { Said(Str), Called(ToolCall<T>), Returned(ToolCall<T>, Str), Compacted }
+/// Whether an `Agent` may run a tool call.
+pub enum Gate { Allow, Deny(Str), Ask }
+/// The limit an `Agent` run hit.
+pub enum BudgetExceeded { Turns, Cost }
+/// How an `Agent` run ended.
+pub enum Outcome<A> { Finished(A), Stopped(BudgetExceeded), Refused(Str) }
+/// `Agent.init` failures.
+pub enum AgentError { Unavailable(Str), Invalid(Str) }
 
 impl Health {
   /// Live and ready.
@@ -151,6 +171,21 @@ pub behaviour Workflow {
   fn init(cfg: Config) -> Result<Self, E> with {io, net, mut}
   fn run(self, input: Input) -> Result<Output, WorkflowError<E>> with {io, net, llm, decide, nondet, spawn, approve}
   fn on_signal(self, s: Signal) {}
+}
+
+/// A bounded model loop over tools; `Tools` is generated from `tools`.
+pub behaviour Agent {
+  type State
+  type Answer
+  type Tools
+  const model: Role
+  const tools: List<Tool>
+  const budget: Budget
+  fn init(cfg: Config) -> Result<Self, AgentError> with {io, net, mut}
+  fn begin(self, goal: Str) -> State
+  fn observe(self, st: State, ev: Event<Tools>) -> State
+  fn stop(self, st: State) -> Option<Answer>
+  fn gate(self, call: ToolCall<Tools>) -> Gate with {decide, approve} { Gate.Allow }
 }
 
 /// Keyed storage.

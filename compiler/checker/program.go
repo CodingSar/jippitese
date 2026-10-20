@@ -135,7 +135,8 @@ type ImplInfo struct {
 	MethodOrder   []string
 	Defaults      []string // behaviour methods taken from the default body
 	Inv           []ast.Expr
-	Name          string // target type name, used as the instance name for behaviour impls
+	Name          string    // target type name, used as the instance name for behaviour impls
+	Tools         *TypeInfo // Agent: the generated Tools enum
 }
 
 // BehaviourInfo is a `behaviour` declaration.
@@ -376,6 +377,9 @@ type Checker struct {
 	approvePos    map[*FnInfo]ast.Pos
 	resolving     map[*TypeInfo]bool
 	pendingSchema []schemaCheck
+	agentEnums    map[*ast.ImplDecl]*TypeInfo // the generated Tools enum of each Agent impl
+	agentTools    *TypeInfo                   // the Tools enum of the Agent impl being declared or checked
+	toolsImpl     *ImplInfo                   // the Agent impl whose `const tools` is being checked
 }
 
 // fnCtx is the per-function checking state.

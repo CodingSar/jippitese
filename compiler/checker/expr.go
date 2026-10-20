@@ -133,7 +133,7 @@ func (c *Checker) useEffect(e ast.Effect, pos ast.Pos, what string) {
 // budgetHelp finds another prelude behaviour whose corresponding method
 // admits e.
 func (c *Checker) budgetHelp(e ast.Effect, b *BehaviourInfo) string {
-	for _, name := range []string{"Service", "Worker", "Cron", "Workflow", "Machine"} {
+	for _, name := range []string{"Service", "Worker", "Cron", "Workflow", "Machine", "Agent"} {
 		if name == b.Name {
 			continue
 		}
@@ -233,6 +233,15 @@ func parseEffectKey(k string) (ast.Effect, bool) {
 func (c *Checker) checkConst(ci *ConstInfo) {
 	if ci.Decl == nil || ci.Decl.Value == nil {
 		return
+	}
+	if ci.Impl != nil && ci.Impl.Tools != nil {
+		if ci.Name == "budget" && c.budgetMissing(ci) {
+			return
+		}
+		if ci.Name == "tools" {
+			c.toolsImpl = ci.Impl
+			defer func() { c.toolsImpl = nil }()
+		}
 	}
 	c.fn = c.newFnCtx(nil, ci.Module)
 	c.fn.ret = ci.Type
@@ -719,6 +728,8 @@ func (c *Checker) inferInner(e ast.Expr, want Type) Type {
 			es = append(es, c.infer(el, w))
 		}
 		return &TTuple{Elems: es}
+	case *ast.ToolsExpr:
+		return c.inferTools(e)
 	case *ast.ListLit:
 		var elem Type
 		if want != nil {
@@ -1152,6 +1163,10 @@ func (c *Checker) inferStaticMember(e *ast.FieldExpr, ti *TypeInfo, want Type, a
 			}
 			me := c.preludeType("MachineError")
 			return &TFn{Params: []Type{key, ev}, Ret: con(c.preludeType("Result"), unit, con(me)), Effects: []ast.Effect{{Name: "io"}}, Explicit: true}
+		}
+		if e.Name == "run" && impl.Tools != nil {
+			c.prog.Fields[e] = &FieldRef{Kind: FieldImpl, Impl: impl, Type: ti}
+			return c.agentRun(impl, e.Pos)
 		}
 		if e.Name == "enqueue" && impl.Behaviour != nil && impl.Behaviour.Name == "Worker" {
 			c.prog.Fields[e] = &FieldRef{Kind: FieldImpl, Impl: impl, Type: ti}
@@ -1914,8 +1929,11 @@ func (c *Checker) resolveFieldCallee(fe *ast.FieldExpr, e *ast.CallExpr, info *C
 					}
 					info.Kind = CallBuiltin
 					info.Builtin = "enqueue"
-					if r.Impl.Behaviour.Name == "Machine" {
+					switch r.Impl.Behaviour.Name {
+					case "Machine":
 						info.Builtin = "machine_send"
+					case "Agent":
+						info.Builtin = "agent_run"
 					}
 					c.record(fe, t)
 					return t.(*TFn), nil, nil

@@ -59,6 +59,24 @@ type Health struct {
 	Detail Option[string] `json:"detail"`
 }
 
+// Role is `Role`.
+type Role string
+
+// Money is `Money`.
+type Money int64
+
+// Budget is `Budget`.
+type Budget struct {
+	Max_turns int64 `json:"max_turns"`
+	Max_cost  Money `json:"max_cost"`
+}
+
+// ToolCall is `ToolCall<T>`.
+type ToolCall[T any] struct {
+	Tool T    `json:"tool"`
+	Args Json `json:"args"`
+}
+
 // Schedule is `Schedule`.
 type Schedule struct {
 	Tag     uint8
@@ -297,6 +315,120 @@ func NetError_Other(a0 string) NetError          { return NetError{Tag: NetError
 func (NetError) JipVariants() []string           { return []string{"Timeout", "Refused", "Other"} }
 func (v NetError) MarshalJSON() ([]byte, error)  { return MarshalEnum(v) }
 func (v *NetError) UnmarshalJSON(b []byte) error { return UnmarshalEnum(v, b) }
+
+// Event is `Event<T>`.
+type Event[T any] struct {
+	Tag        uint8
+	Said_0     string
+	Called_0   ToolCall[T]
+	Returned_0 ToolCall[T]
+	Returned_1 string
+}
+
+const (
+	EventTag_Said uint8 = iota
+	EventTag_Called
+	EventTag_Returned
+	EventTag_Compacted
+)
+
+func Event_Said[T any](a0 string) Event[T] { return Event[T]{Tag: EventTag_Said, Said_0: a0} }
+func Event_Called[T any](a0 ToolCall[T]) Event[T] {
+	return Event[T]{Tag: EventTag_Called, Called_0: a0}
+}
+func Event_Returned[T any](a0 ToolCall[T], a1 string) Event[T] {
+	return Event[T]{Tag: EventTag_Returned, Returned_0: a0, Returned_1: a1}
+}
+func Event_Compacted[T any]() Event[T] { return Event[T]{Tag: EventTag_Compacted} }
+func (Event[T]) JipVariants() []string {
+	return []string{"Said", "Called", "Returned", "Compacted"}
+}
+func (v Event[T]) MarshalJSON() ([]byte, error)  { return MarshalEnum(v) }
+func (v *Event[T]) UnmarshalJSON(b []byte) error { return UnmarshalEnum(v, b) }
+
+// Gate is `Gate`.
+type Gate struct {
+	Tag    uint8
+	Deny_0 string
+}
+
+const (
+	GateTag_Allow uint8 = iota
+	GateTag_Deny
+	GateTag_Ask
+)
+
+func Gate_Allow() Gate                       { return Gate{Tag: GateTag_Allow} }
+func Gate_Deny(a0 string) Gate               { return Gate{Tag: GateTag_Deny, Deny_0: a0} }
+func Gate_Ask() Gate                         { return Gate{Tag: GateTag_Ask} }
+func (Gate) JipVariants() []string           { return []string{"Allow", "Deny", "Ask"} }
+func (v Gate) MarshalJSON() ([]byte, error)  { return MarshalEnum(v) }
+func (v *Gate) UnmarshalJSON(b []byte) error { return UnmarshalEnum(v, b) }
+
+// BudgetExceeded is `BudgetExceeded`.
+type BudgetExceeded struct {
+	Tag uint8
+}
+
+const (
+	BudgetExceededTag_Turns uint8 = iota
+	BudgetExceededTag_Cost
+)
+
+func BudgetExceeded_Turns() BudgetExceeded             { return BudgetExceeded{Tag: BudgetExceededTag_Turns} }
+func BudgetExceeded_Cost() BudgetExceeded              { return BudgetExceeded{Tag: BudgetExceededTag_Cost} }
+func (BudgetExceeded) JipVariants() []string           { return []string{"Turns", "Cost"} }
+func (v BudgetExceeded) MarshalJSON() ([]byte, error)  { return MarshalEnum(v) }
+func (v *BudgetExceeded) UnmarshalJSON(b []byte) error { return UnmarshalEnum(v, b) }
+
+// Outcome is `Outcome<A>`.
+type Outcome[A any] struct {
+	Tag        uint8
+	Finished_0 A
+	Stopped_0  BudgetExceeded
+	Refused_0  string
+}
+
+const (
+	OutcomeTag_Finished uint8 = iota
+	OutcomeTag_Stopped
+	OutcomeTag_Refused
+)
+
+func Outcome_Finished[A any](a0 A) Outcome[A] {
+	return Outcome[A]{Tag: OutcomeTag_Finished, Finished_0: a0}
+}
+func Outcome_Stopped[A any](a0 BudgetExceeded) Outcome[A] {
+	return Outcome[A]{Tag: OutcomeTag_Stopped, Stopped_0: a0}
+}
+func Outcome_Refused[A any](a0 string) Outcome[A] {
+	return Outcome[A]{Tag: OutcomeTag_Refused, Refused_0: a0}
+}
+func (Outcome[A]) JipVariants() []string           { return []string{"Finished", "Stopped", "Refused"} }
+func (v Outcome[A]) MarshalJSON() ([]byte, error)  { return MarshalEnum(v) }
+func (v *Outcome[A]) UnmarshalJSON(b []byte) error { return UnmarshalEnum(v, b) }
+
+// AgentError is `AgentError`.
+type AgentError struct {
+	Tag           uint8
+	Unavailable_0 string
+	Invalid_0     string
+}
+
+const (
+	AgentErrorTag_Unavailable uint8 = iota
+	AgentErrorTag_Invalid
+)
+
+func AgentError_Unavailable(a0 string) AgentError {
+	return AgentError{Tag: AgentErrorTag_Unavailable, Unavailable_0: a0}
+}
+func AgentError_Invalid(a0 string) AgentError {
+	return AgentError{Tag: AgentErrorTag_Invalid, Invalid_0: a0}
+}
+func (AgentError) JipVariants() []string           { return []string{"Unavailable", "Invalid"} }
+func (v AgentError) MarshalJSON() ([]byte, error)  { return MarshalEnum(v) }
+func (v *AgentError) UnmarshalJSON(b []byte) error { return UnmarshalEnum(v, b) }
 
 // JsonError is `std.json.Error`.
 type JsonError struct {

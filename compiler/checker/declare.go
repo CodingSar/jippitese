@@ -38,6 +38,9 @@ func (c *Checker) lookupTypeInfo(m *Module, name string) *TypeInfo {
 	if t, ok := m.Types[name]; ok {
 		return t
 	}
+	if name == "Tools" && c.agentTools != nil && m == c.agentTools.Module {
+		return c.agentTools
+	}
 	if m.IsScenarios && m.Parent != nil {
 		if t, ok := m.Parent.Types[name]; ok {
 			return t
@@ -189,6 +192,9 @@ func (c *Checker) resolveTypePath(sc *tscope, tp *ast.TypePath) Type {
 			}
 			return p
 		}
+		if t := c.agentType(sc, tp); t != nil {
+			return t
+		}
 		if name == "Self" {
 			if sc.self == nil {
 				c.errorf("E0404", tp.Pos, "`Self` outside an `impl` or `behaviour`")
@@ -330,6 +336,10 @@ func (c *Checker) declareNames(m *Module) {
 				}
 				m.Behaviours[d.Name] = b
 				m.Order = append(m.Order, d.Name)
+			case *ast.ImplDecl:
+				if isAgent(d) {
+					c.declareAgentTools(m, d)
+				}
 			}
 		}
 		for i, s := range f.Scenarios {
@@ -660,16 +670,16 @@ func (c *Checker) declareImpl(m *Module, d *ast.ImplDecl) {
 	if d.Behaviour != "" {
 		b := c.lookupBehaviour(m, d.Behaviour)
 		if b == nil {
-			if d.Behaviour == "Agent" {
-				dg := c.errorf("E0706", d.Pos, "`%s` is not available yet", d.Behaviour)
-				dg.Label("`Agent` is deferred (revision-plan R1)")
-				dg.Helpf("call `llm` and `decide` from a `Workflow` step instead")
-			} else {
-				c.errorf("E0404", d.Pos, "unknown behaviour `%s`", d.Behaviour)
-			}
+			c.errorf("E0404", d.Pos, "unknown behaviour `%s`", d.Behaviour)
 			return
 		}
 		impl.Behaviour = b
+		if tools := c.agentEnums[d]; tools != nil && b.Mod == "prelude" {
+			impl.Tools = tools
+			impl.Assoc["Tools"] = con(tools)
+			c.agentTools = tools
+			defer func() { c.agentTools = nil }()
+		}
 		if len(d.BehaviourArgs) != len(b.Params) {
 			c.errorf("E0405", d.Pos, "`%s` takes %d type argument(s), found %d", b.Name, len(b.Params), len(d.BehaviourArgs))
 			return
@@ -681,6 +691,11 @@ func (c *Checker) declareImpl(m *Module, d *ast.ImplDecl) {
 			bsub[b.Params[i]] = t
 		}
 		for _, a := range d.Assoc {
+			if impl.Tools != nil && a.Name == "Tools" {
+				dg := c.errorf("E0708", a.Type.TypePos(), "`Tools` of `%s` is generated from `const tools`", impl.Name)
+				dg.Helpf("remove `type Tools = …`")
+				continue
+			}
 			if _, known := b.Assoc[a.Name]; !known {
 				dg := c.errorf("E0708", a.Type.TypePos(), "`%s` is not an associated type of `%s`", a.Name, b.Name)
 				dg.Helpf("remove `type %s = …`", a.Name)

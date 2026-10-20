@@ -255,14 +255,123 @@ impl Worker for Indexer {
 	expectDiag(t, out, []string{"E0702"}, "effect `spawn` exceeds the budget of `Worker.perform`", "not in {io, net, mut, llm, decide, nondet}")
 }
 
-func TestDeferredBehaviour(t *testing.T) {
-	out := checkSnippet(t, `
-/// State.
-pub type Light { on: Bool }
-impl Agent for Light {
+// checkSupport checks an extra module `orders.support` next to the fixture,
+// so the prelude `Money` of `Budget` is not shadowed by the billing one.
+func checkSupport(t *testing.T, src string) string {
+	t.Helper()
+	dir := t.TempDir()
+	for _, f := range []string{"app.jip", "vendor/http/http.jip", "orders/billing/types.jip", "orders/billing/billing.jip", "orders/customers/customers.jip"} {
+		b, err := os.ReadFile(filepath.Join("testdata/orders", f))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, f)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, f), b, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "orders/support"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "orders/support/support.jip"), []byte("module orders.support\n"+src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, _, out := checkDir(t, dir)
+	return out
 }
-`, "")
-	expectDiag(t, out, []string{"E0706"}, "`Agent` is not available yet")
+
+// expectErrors is expectDiag over error codes only.
+func expectErrors(t *testing.T, out string, wantCodes []string, wantText ...string) {
+	t.Helper()
+	var errs []string
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, "warning[") {
+			continue
+		}
+		errs = append(errs, line)
+	}
+	expectDiag(t, strings.Join(errs, "\n"), wantCodes, wantText...)
+}
+
+const agentSrc = `
+/// A ticket summary.
+pub type Summary { text: Str }
+/// Triage state.
+pub type TriageState { goal: Str, seen: Int, answer: Option<Summary> }
+/// Triage agent.
+pub type Triage {}
+
+/// Looks up an order.
+pub fn lookup(id: Int) -> Str with {io} { "order" }
+/// Refunds an order.
+pub fn issue_refund(id: Int, cents: Int) -> Result<Bool, Str> with {net} { Ok(true) }
+
+/// Resolves one ticket.
+impl Agent for Triage {
+  type State = TriageState
+  type Answer = Summary
+  const model = smart
+  const tools = tools [lookup, issue_refund]
+  BUDGET
+  fn init(cfg: Config) -> Result<Self, AgentError> with {io} { Ok(Triage {}) }
+  fn begin(self, goal: Str) -> TriageState { TriageState { goal, seen: 0, answer: None } }
+  fn observe(self, st: TriageState, ev: Event) -> TriageState {
+    match ev {
+      Event.Returned(call, out) => TriageState { ..st, seen: st.seen + 1 },
+      Event.Said(text) => TriageState { ..st, answer: Some(Summary { text }) },
+      Event.Called(_) | Event.Compacted => st,
+    }
+  }
+  fn stop(self, st: TriageState) -> Option<Summary> { st.answer }
+  fn gate(self, call: ToolCall) -> Gate with {approve} {
+    match call.tool {
+      Tools.IssueRefund => Gate.Ask,
+      Tools.Lookup => Gate.Allow,
+    }
+  }
+}
+
+/// Triages a ticket.
+pub fn triage(goal: Str) -> Outcome<Summary> with {io, net, llm<smart>, approve} { Triage.run(goal) }
+`
+
+func agentSnippet(budget string) string {
+	return strings.Replace(agentSrc, "BUDGET", budget, 1)
+}
+
+func TestAgentChecks(t *testing.T) {
+	out := checkSupport(t, agentSnippet("const budget = Budget { max_turns: 12, max_cost: Money(200) }"))
+	// `approve` is reachable from `triage`, which no `Workflow.run` calls.
+	expectErrors(t, out, []string{"E0707"}, "`approve` is reachable only from `Workflow.run`")
+}
+
+func TestAgentBudgetMissing(t *testing.T) {
+	out := checkSupport(t, agentSnippet("const budget = Budget { max_turns: 12 }"))
+	expectErrors(t, out, []string{"E0705", "E0707"}, "`Agent.budget` is missing `max_cost`", "expected `Budget { max_turns: Int, max_cost: Money }`", "both limits are required")
+}
+
+func TestAgentToolNotPub(t *testing.T) {
+	src := strings.Replace(agentSnippet("const budget = Budget { max_turns: 12, max_cost: Money(200) }"), "pub fn lookup", "fn lookup", 1)
+	out := checkSupport(t, src)
+	expectErrors(t, out, []string{"E0706", "E0707"}, "`lookup` cannot be a tool", "declare it `pub fn lookup`")
+}
+
+func TestToolsOutsideAgent(t *testing.T) {
+	out := checkSupport(t, `
+/// Looks up.
+pub fn lookup(id: Int) -> Str { "x" }
+/// Tools.
+pub const ts: List<Tool> = tools [lookup]
+`)
+	expectErrors(t, out, []string{"E0706"}, "`tools [...]` outside an `Agent`")
+}
+
+func TestAgentToolsNamedByUser(t *testing.T) {
+	src := strings.Replace(agentSnippet("const budget = Budget { max_turns: 12, max_cost: Money(200) }"), "type Answer = Summary", "type Answer = Summary\n  type Tools = Int", 1)
+	out := checkSupport(t, src)
+	expectErrors(t, out, []string{"E0707", "E0708"}, "`Tools` of `Triage` is generated from `const tools`")
 }
 
 func TestThenExpectsBool(t *testing.T) {
@@ -303,4 +412,10 @@ impl Workflow for Counter {
 }
 `, "")
 	expectDiag(t, out, []string{"E0703"}, "effect `mut` is not allowed inside `Workflow.run`")
+}
+
+func TestAgentRunEffects(t *testing.T) {
+	src := strings.Replace(agentSnippet("const budget = Budget { max_turns: 12, max_cost: Money(200) }"), "with {io, net, llm<smart>, approve} { Triage.run", "with {llm<smart>, approve} { Triage.run", 1)
+	out := checkSupport(t, src)
+	expectErrors(t, out, []string{"E0412", "E0412", "E0707"}, "`Triage.run` has effect `io`", "`Triage.run` has effect `net`")
 }

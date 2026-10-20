@@ -21,6 +21,10 @@ func (c *Checker) checkImpl(impl *ImplInfo) {
 		c.checkInv(impl.TargetInfo, impl.Inv, impl.Module, true)
 		return
 	}
+	if impl.Tools != nil {
+		c.agentTools = impl.Tools
+		defer func() { c.agentTools = nil }()
+	}
 	d := impl.Decl
 	header := fmt.Sprintf("impl %s for %s", behaviourHeader(b, impl), impl.TargetInfo.Name)
 
@@ -142,7 +146,22 @@ func (c *Checker) checkImpl(impl *ImplInfo) {
 			}
 		}
 	}
+	if ans, ok := impl.Assoc["Answer"]; ok && impl.Tools != nil {
+		c.pendingSchema = append(c.pendingSchema, schemaCheck{t: ans, pos: assocPos(d, "Answer"), what: "Agent.Answer"})
+	}
 	c.checkInv(impl.TargetInfo, impl.Inv, impl.Module, true)
+}
+
+// assocPos is where `type name = …` is written in d, or d itself.
+func assocPos(d *ast.ImplDecl, name string) ast.Pos {
+	for _, a := range d.Assoc {
+		if a.Name == name {
+			if p := a.Type.TypePos(); p.Line > 0 {
+				return p
+			}
+		}
+	}
+	return d.Pos
 }
 
 // behaviourHeader renders `Worker` or `Repository<Account, AccountId>`.

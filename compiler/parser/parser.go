@@ -135,7 +135,8 @@ func (p *parser) skipTerms() {
 	}
 }
 
-// term requires a statement terminator unless the next token closes a block.
+// term requires a statement terminator unless the next token closes a block
+// or, after a type ending in `>` (which emits no newline), starts an item.
 func (p *parser) term() {
 	if p.peek().Kind == lexer.Term {
 		p.skipTerms()
@@ -143,6 +144,11 @@ func (p *parser) term() {
 	}
 	if p.isOp("}") || p.peek().Kind == lexer.EOF {
 		return
+	}
+	if p.i > 0 && p.toks[p.i-1].Kind == lexer.Op && p.toks[p.i-1].Text == ">" && p.toks[p.i-1].Pos.Line < p.peek().Pos.Line {
+		if t := p.peek(); t.Kind == lexer.Doc || t.Kind == lexer.Keyword && (t.Text == "const" || t.Text == "fn" || t.Text == "type" || t.Text == "pub") {
+			return
+		}
 	}
 	p.fail("E0002", "expected end of line, found %s", p.peek())
 }
@@ -983,6 +989,9 @@ func (p *parser) primary(nr bool) ast.Expr {
 		return s
 	case lexer.Ident:
 		p.next()
+		if t.Text == "tools" && p.isOp("[") {
+			return p.toolsExpr(pos)
+		}
 		return &ast.Ident{Pos: pos, Name: t.Text}
 	case lexer.Op:
 		switch t.Text {
@@ -1497,4 +1506,25 @@ func (p *parser) appValue() ast.AppValue {
 		return &ast.AppPath{Pos: pos, Path: []string{t.Text}}
 	}
 	return &ast.AppLit{Pos: pos, X: p.primary(true)}
+}
+
+// toolsExpr parses the list of `tools [f, g]` after `tools`.
+func (p *parser) toolsExpr(pos ast.Pos) *ast.ToolsExpr {
+	p.expectOp("[")
+	e := &ast.ToolsExpr{Pos: pos}
+	for {
+		p.skipTerms()
+		if p.isOp("]") {
+			break
+		}
+		t := p.expect(lexer.Ident, "")
+		e.Fns = append(e.Fns, &ast.Ident{Pos: t.Pos, Name: t.Text})
+		p.skipTerms()
+		if !p.acceptOp(",") {
+			break
+		}
+	}
+	p.skipTerms()
+	p.expectOp("]")
+	return e
 }
