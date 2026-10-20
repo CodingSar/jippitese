@@ -1,7 +1,7 @@
 module shop.orders
 
-/// An order was placed by a customer.
-pub type Placed { customer: Int, total: Int }
+/// Order `id` was placed by a customer.
+pub type Placed { id: Int, customer: Int, total: Int }
 
 /// Why indexing an order failed.
 pub enum IndexError { Repo(RepoError), Rejected(Str) }
@@ -28,10 +28,32 @@ impl Repository<Int, Int> for Totals {
   }
 }
 
+/// The ids of orders already added to a total, kept in process.
+pub type Counted { ids: MutMap<Int, Bool> }
+
+/// The counted-orders store.
+impl Repository<Bool, Int> for Counted {
+  fn init(cfg: Config) -> Result<Self, RepoError> with {io, mut} {
+    Ok(Counted { ids: MutMap.new() })
+  }
+  fn get(self, k: Int) -> Result<Option<Bool>, RepoError> with {mut} { Ok(self.ids.get(k)) }
+  fn put(self, k: Int, v: Bool) -> Result<(), RepoError> with {mut} {
+    self.ids.insert(k, v)
+    Ok(())
+  }
+  fn delete(self, k: Int) -> Result<(), RepoError> with {mut} {
+    self.ids.remove(k)
+    Ok(())
+  }
+  fn query(self, q: Query<Bool>) -> Result<List<Bool>, RepoError> with {mut} {
+    Ok(self.ids.freeze().values())
+  }
+}
+
 /// The indexer: no state of its own.
 pub type Indexer {}
 
-/// Adds every placed order to its customer's total.
+/// Adds every placed order to its customer's total, once per order id.
 impl Worker for Indexer {
   type Msg = Placed
   type E = IndexError
@@ -39,8 +61,10 @@ impl Worker for Indexer {
   fn init(cfg: Config) -> Result<Self, IndexError> with {io} { Ok(Indexer {}) }
   fn perform(self, m: Placed) -> Result<(), IndexError> with {mut} {
     if m.total < 0 { return Err(IndexError.Rejected("negative total")) }
+    if Counted.get(m.id)?.is_some() { return Ok(()) }
     let current = Totals.get(m.customer)?.unwrap_or(0)
     Totals.put(m.customer, current + m.total)?
+    Counted.put(m.id, true)?
     Ok(())
   }
 }

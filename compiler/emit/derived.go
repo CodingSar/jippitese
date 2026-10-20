@@ -179,8 +179,8 @@ func (e *emitter) emitDerived(p *pkg) {
 			}
 		}
 	}
-	repos := roundTrips(m)
-	if len(fns) == 0 && len(repos) == 0 {
+	repos, workers := behaviourChecks(m, "Repository"), behaviourChecks(m, "Worker")
+	if len(fns) == 0 && len(repos) == 0 && len(workers) == 0 {
 		return
 	}
 	f := p.newFile("derived_test.go", true)
@@ -236,22 +236,74 @@ func (e *emitter) emitDerived(p *pkg) {
 	for _, impl := range repos {
 		emitRoundTrip(f, impl)
 	}
+	for _, impl := range workers {
+		emitIdempotent(f, impl)
+	}
 }
 
-// roundTrips are the module's `Repository` impls whose `K` and `T` can be
-// generated (spec 06 rule 10).
-func roundTrips(m *checker.Module) []*checker.ImplInfo {
+// behaviourChecks are the module's non-generic impls of std behaviour b
+// whose derived check can draw its inputs: `K` and `T` of a `Repository`
+// (spec 06 rule 10), `Msg` of a `Worker` (rule 8).
+func behaviourChecks(m *checker.Module, b string) []*checker.ImplInfo {
 	var out []*checker.ImplInfo
 	for _, impl := range m.Impls {
-		if impl.Behaviour == nil || impl.Behaviour.Name != "Repository" || impl.Behaviour.Module == nil || !impl.Behaviour.Module.IsStd ||
-			len(impl.TypeParams) > 0 || len(impl.BehaviourArgs) != 2 {
+		if impl.Behaviour == nil || impl.Behaviour.Name != b || impl.Behaviour.Module == nil || !impl.Behaviour.Module.IsStd ||
+			len(impl.TypeParams) > 0 {
 			continue
 		}
-		if generable(impl.BehaviourArgs[0], map[*checker.TypeInfo]bool{}) && generable(impl.BehaviourArgs[1], map[*checker.TypeInfo]bool{}) {
+		var drawn []checker.Type
+		switch b {
+		case "Repository":
+			drawn = impl.BehaviourArgs
+		case "Worker":
+			if t := impl.Assoc["Msg"]; t != nil {
+				drawn = []checker.Type{t}
+			}
+		}
+		ok := len(drawn) > 0
+		for _, t := range drawn {
+			ok = ok && generable(t, map[*checker.TypeInfo]bool{})
+		}
+		if ok {
 			out = append(out, impl)
 		}
 	}
 	return out
+}
+
+// behaviourScenario opens the derived scenario `<Impl>.<check>` of an impl.
+func behaviourScenario(f *file, impl *checker.ImplInfo, check string) (*gen, string) {
+	rtp := f.rt()
+	m, pos := impl.Module, impl.Decl.Pos
+	f.printf("\nfunc TestDerived_%s_%s(t *%s.T) {\n", sanitize(impl.Name), check, f.use("testing", "testing"))
+	f.line(pos)
+	f.printf("%s.Scenario(t, %s.ScnOpts{Module: %q, Name: %q, Derived: true, Property: true, File: %q, Line: %d, Col: %d}, func(scn *%s.Scn) {\n",
+		rtp, rtp, m.Path, impl.Name+"."+check, pos.File, pos.Line, pos.Col, rtp)
+	f.printf("ctx := scn.Ctx\nctx.Config = %s\n", f.cfgRef("TestConfig()"))
+	return newGen(f, nil), strconv.Quote(pos.String())
+}
+
+// emitIdempotent writes the derived idempotency check of a `Worker` impl:
+// for `any Msg`, `perform(m); perform(m)` leaves every `Repository` and
+// `Cache` fake as `perform(m)` does and ends in the same result (spec 06
+// rule 8).
+func emitIdempotent(f *file, impl *checker.ImplInfo) {
+	rtp := f.rt()
+	mt := impl.Assoc["Msg"]
+	g, at := behaviourScenario(f, impl, "idempotent")
+	g.printf("var m %s\n", f.goType(mt))
+	g.printf("scn.Given(%s, %q)\n", at, "any m: "+checker.TypeString(mt))
+	g.printf("%s.Pre(scn, %s, \"\", func(ctx *%s.Ctx, gn *%s.Gen) bool {\nm = (%s)(ctx, gn)\nreturn true\n})\n",
+		rtp, at, rtp, rtp, g.genForB(mt, nil))
+	g.printf("scn.Bind(\"m\", m)\n")
+	g.printf("scn.When(%s, %q)\n", at, "perform(m) against fresh fakes, and perform(m); perform(m)")
+	g.printf("once, twice, diff := %s.WorkerTwice(ctx, %s, m)\n", rtp, f.implRef(impl, "spec"))
+	g.printf("scn.Bind(\"once\", once)\nscn.Bind(\"twice\", twice)\n")
+	g.printf("if diff != \"\" {\nscn.Bind(\"differs\", diff)\n}\n")
+	g.printf("scn.Then(%s, %q, diff == \"\")\n", at, "perform(m); perform(m) leaves the fakes as perform(m)")
+	g.printf("scn.Then(%s, %q, %s.Equal(once, twice))\n", at, "perform(m); perform(m) ends as perform(m)", rtp)
+	f.body.WriteString(g.w.String())
+	f.printf("})\n}\n")
 }
 
 // emitRoundTrip writes the derived round-trip of a `Repository` impl:
@@ -259,16 +311,8 @@ func roundTrips(m *checker.Module) []*checker.ImplInfo {
 // `any K`, `any T` (spec 06 rule 10).
 func emitRoundTrip(f *file, impl *checker.ImplInfo) {
 	rtp := f.rt()
-	m, pos := impl.Module, impl.Decl.Pos
 	tt, kt := impl.BehaviourArgs[0], impl.BehaviourArgs[1]
-	name := impl.Name + ".round_trip"
-	f.printf("\nfunc TestDerived_%s_round_trip(t *%s.T) {\n", sanitize(impl.Name), f.use("testing", "testing"))
-	f.line(pos)
-	f.printf("%s.Scenario(t, %s.ScnOpts{Module: %q, Name: %q, Derived: true, Property: true, File: %q, Line: %d, Col: %d}, func(scn *%s.Scn) {\n",
-		rtp, rtp, m.Path, name, pos.File, pos.Line, pos.Col, rtp)
-	f.printf("ctx := scn.Ctx\nctx.Config = %s\n", f.cfgRef("TestConfig()"))
-	g := newGen(f, nil)
-	at := strconv.Quote(pos.String())
+	g, at := behaviourScenario(f, impl, "round_trip")
 	g.printf("var k %s\nvar v %s\n", f.goType(kt), f.goType(tt))
 	g.printf("scn.Given(%s, %q)\n", at, "any k: "+checker.TypeString(kt)+", v: "+checker.TypeString(tt))
 	g.printf("%s.Pre(scn, %s, \"\", func(ctx *%s.Ctx, gn *%s.Gen) bool {\nk = (%s)(ctx, gn)\nv = (%s)(ctx, gn)\nreturn true\n})\n",

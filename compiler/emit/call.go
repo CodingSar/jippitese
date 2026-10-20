@@ -50,6 +50,9 @@ func (g *gen) callValue(x *ast.CallExpr, info *checker.CallInfo) string {
 		return g.f.fnRef(info.Fn) + "(" + ctxArgs(vals) + ")"
 	case checker.CallInstance:
 		args := g.exprs(x.Args)
+		if h := substitutable(info); h != "" {
+			return g.rt() + "." + h + "(" + ctxArgs(append([]string{g.f.implRef(info.Impl, "spec")}, args...)) + ")"
+		}
 		inst := g.instance(info.Impl)
 		return g.f.fnRef(info.Fn) + "(" + ctxArgs(append([]string{inst}, args...)) + ")"
 	case checker.CallVariant:
@@ -90,6 +93,22 @@ func ctxArgs(args []string) string {
 		return "ctx"
 	}
 	return "ctx, " + strings.Join(args, ", ")
+}
+
+// substitutes maps the methods of the std behaviours whose impls a
+// derived idempotency check replaces by a fake (spec 06 rule 8) to the rt
+// helper that routes the call.
+var substitutes = map[string]map[string]string{
+	"Repository": {"get": "RepoGet", "put": "RepoPut", "delete": "RepoDelete", "query": "RepoQuery"},
+	"Cache":      {"get": "CacheGet", "set": "CacheSet", "invalidate": "CacheInvalidate"},
+}
+
+func substitutable(info *checker.CallInfo) string {
+	b := info.Impl.Behaviour
+	if b == nil || b.Module == nil || !b.Module.IsStd {
+		return ""
+	}
+	return substitutes[b.Name][info.Fn.Name]
 }
 
 // instance is the one running instance of a behaviour impl.

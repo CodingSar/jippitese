@@ -117,6 +117,7 @@ type shared struct {
 	log         Logger
 	serving     bool
 	queues      map[string]chan any
+	fakes       map[string]any // impl name → MemRepo or MemCache; nil substitutes nothing
 }
 
 // queue returns the in-process queue of a Worker, creating it on first use.

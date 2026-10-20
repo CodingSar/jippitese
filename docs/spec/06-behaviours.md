@@ -259,10 +259,16 @@ the runtime's timeout; the state is reloaded on the next event.
    without one, from a runtime queue fed by `Name.enqueue(m) -> Result<(),
    QueueError> with {io}`. `Err` from `perform` is retried per `retry` (a
    compile-time literal); after `max` failures the message is dead-lettered.
-   *Status: deferred from v0 (revision-plan R9).* The derived idempotency
-   check `perform(m); perform(m) ≡ perform(m)` on `any Msg`, with every
-   `Repository` and `Cache` the worker references replaced by the stdlib fake
-   (`std.testing.MemRepo`, `MemCache`), is v1; in v0 a scenario states it.
+   `jip test` derives an idempotency check `<Impl>.idempotent` for every
+   non-generic impl whose `Msg` has a structural generator: for `any Msg`,
+   `perform(m)` on fresh instances and, separately, `perform(m);
+   perform(m)` on fresh instances end with equal results and leave every
+   fake with the same entries. In both runs each `Repository` and `Cache`
+   impl the worker calls is replaced by a fresh stdlib fake
+   (`std.testing.MemRepo`, `MemCache` with the default `5m` ttl), created on
+   first use. It runs as a property (05 rule 16), its seed in
+   `<module dir>/<Impl>.idempotent.seed`; a failure names the first entry
+   that differs.
 9. **`Cron`.** `schedule` is a compile-time literal, `every <Duration>` or
    `cron "<five fields>"`, validated at compile time; `run` is not re-entered
    while a tick is still running. Under `jip test` the clock is fake (section

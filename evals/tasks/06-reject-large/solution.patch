@@ -1,11 +1,11 @@
 diff -ruN '--exclude=.jip' '--exclude=interface.jipi' a/shop/orders/orders.jip b/shop/orders/orders.jip
---- a/shop/orders/orders.jip	2026-10-19 21:31:57.980541174 +0000
-+++ b/shop/orders/orders.jip	2026-10-19 21:31:58.018027871 +0000
-@@ -39,6 +39,7 @@
+--- a/shop/orders/orders.jip	2026-10-20 17:23:18.671129321 +0000
++++ b/shop/orders/orders.jip	2026-10-20 17:23:18.690279184 +0000
+@@ -61,6 +61,7 @@
    fn init(cfg: Config) -> Result<Self, IndexError> with {io} { Ok(Indexer {}) }
    fn perform(self, m: Placed) -> Result<(), IndexError> with {mut} {
      if m.total < 0 { return Err(IndexError.Rejected("negative total")) }
 +    if m.total > 100_000 { return Err(IndexError.Rejected("too large")) }
+     if Counted.get(m.id)?.is_some() { return Ok(()) }
      let current = Totals.get(m.customer)?.unwrap_or(0)
      Totals.put(m.customer, current + m.total)?
-     Ok(())

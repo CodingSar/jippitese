@@ -3,9 +3,9 @@ use shop.orders
 
 scenario "placed orders are totalled per customer" {
   when  r = {
-    topics.placed.publish(Placed { customer: 7, total: 30 })?
-    topics.placed.publish(Placed { customer: 7, total: 12 })?
-    topics.placed.publish(Placed { customer: 8, total: 5 })?
+    topics.placed.publish(Placed { id: 1, customer: 7, total: 30 })?
+    topics.placed.publish(Placed { id: 2, customer: 7, total: 12 })?
+    topics.placed.publish(Placed { id: 3, customer: 8, total: 5 })?
     Totals.get(7)
   }
   then  r == Ok(Some(42))
@@ -14,8 +14,17 @@ scenario "placed orders are totalled per customer" {
 
 scenario "a rejected order is dead-lettered and counts nothing" {
   when  r = {
-    topics.placed.publish(Placed { customer: 9, total: -1 })?
+    topics.placed.publish(Placed { id: 4, customer: 9, total: -1 })?
     Totals.get(9)
   }
   then  r == Ok(None)
+}
+
+scenario "a redelivered order is counted once" {
+  when  r = {
+    topics.placed.publish(Placed { id: 5, customer: 10, total: 8 })?
+    topics.placed.publish(Placed { id: 5, customer: 10, total: 8 })?
+    Totals.get(10)
+  }
+  then  r == Ok(Some(8))
 }

@@ -1,16 +1,27 @@
-interface shop.orders digest sha256:e92db53262f8735cf5cce78527fe9c6c8e9ead352d1245d7596aa9b0bed4aac7
+interface shop.orders digest sha256:b31267d82a4a1cb55c099a7e6ae2ae0193e7780a3c7fb8e99fe24a0d08d40f2d
+
+/// The ids of orders already added to a total, kept in process.
+pub type Counted { ids: MutMap<Int, Bool> }
 
 /// The indexer: no state of its own.
 pub type Indexer {}
 
-/// An order was placed by a customer.
-pub type Placed { customer: Int, total: Int }
+/// Order `id` was placed by a customer.
+pub type Placed { id: Int, customer: Int, total: Int }
 
 /// Running order totals per customer, kept in process.
 pub type Totals { by_customer: MutMap<Int, Int> }
 
 /// Why indexing an order failed.
 pub enum IndexError { Repo(RepoError), Rejected(Str) }
+
+/// The counted-orders store.
+impl Repository<Bool, Int> for Counted
+  fn init(cfg: Config) -> Result<Self, RepoError> with {io, mut}
+  fn get(self, k: Int) -> Result<Option<Bool>, RepoError> with {mut}
+  fn put(self, k: Int, v: Bool) -> Result<(), RepoError> with {mut}
+  fn delete(self, k: Int) -> Result<(), RepoError> with {mut}
+  fn query(self, q: Query<Bool>) -> Result<List<Bool>, RepoError> with {mut}
 
 /// The totals store.
 impl Repository<Int, Int> for Totals
@@ -20,7 +31,7 @@ impl Repository<Int, Int> for Totals
   fn delete(self, k: Int) -> Result<(), RepoError> with {mut}
   fn query(self, q: Query<Int>) -> Result<List<Int>, RepoError> with {mut}
 
-/// Adds every placed order to its customer's total.
+/// Adds every placed order to its customer's total, once per order id.
 impl Worker for Indexer
   type Msg = Placed
   type E = IndexError

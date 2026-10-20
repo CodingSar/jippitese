@@ -1,7 +1,7 @@
 diff -ruN '--exclude=.jip' '--exclude=interface.jipi' a/shop/orders/orders.jip b/shop/orders/orders.jip
---- a/shop/orders/orders.jip	2026-10-19 21:31:58.030471236 +0000
-+++ b/shop/orders/orders.jip	2026-10-19 21:31:58.047791191 +0000
-@@ -44,3 +44,6 @@
+--- a/shop/orders/orders.jip	2026-10-20 17:23:18.701983673 +0000
++++ b/shop/orders/orders.jip	2026-10-20 17:23:18.707399793 +0000
+@@ -68,3 +68,6 @@
      Ok(())
    }
  }

@@ -68,3 +68,18 @@ func TestRepositoryRoundTrip(t *testing.T) {
 		t.Fatalf("exit %d\n%s%s", code, s, errb.String())
 	}
 }
+
+func TestWorkerIdempotent(t *testing.T) {
+	needGo(t)
+	env, out, errb := example(t, "shop")
+	edit(t, env, "shop/orders/orders.jip", "    if Counted.get(m.id)?.is_some() { return Ok(()) }\n", "")
+	code := env.Test(TestOptions{})
+	s := out.String()
+	if code != ExitFail ||
+		!strings.Contains(s, "FAIL  shop.orders  derived Indexer.idempotent") ||
+		!strings.Contains(s, "perform(m); perform(m) leaves the fakes as perform(m) is false") ||
+		!strings.Contains(s, "after one perform") ||
+		!strings.Contains(s, "ok  shop.orders  \"placed orders are totalled per customer\"") {
+		t.Fatalf("exit %d\n%s%s", code, s, errb.String())
+	}
+}

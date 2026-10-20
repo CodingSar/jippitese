@@ -13,11 +13,11 @@ cf31516949f5be46d39d824fab1d2120430257136841f6ba42b18094d2c6a79f  ./04-line-disc
 bd5236a6d53b8ce4cd6118d3bd99912665417c00968274f955e698d579efc6e9  ./05-largest-line/accept.jip
 238b2732085aea2794807295ad87dd18ff68e032f2044c69cfdd13f31a932b07  ./05-largest-line/solution.patch
 6a8311bd9bb42e3e4b550e34608c4ebf68bdb1c4d96febe62eb2fe76cd952669  ./05-largest-line/task.md
-7d435174e37eaccfb4cba7ee442b5a66ecf4fef9c43243a0415202682e5dff7c  ./06-reject-large/accept.jip
-14b3236b0fd2acdae4547ecf49902d8ac48b5129aae112d441d0662f252750d4  ./06-reject-large/solution.patch
+132e63fbc40a579730d45a297b54eac0b16310e7980a00550c72003b78eb4c63  ./06-reject-large/accept.jip
+ab8237601bf2c1abdb06ea87c386376daa1a2f270fd55c1fc95ad04b03f6600d  ./06-reject-large/solution.patch
 e9dca35af5fd2bc3969f94f03eac179b36574b9c7ea078e0f16e34aa5cebb0b9  ./06-reject-large/task.md
-61097da23614b7d30e440195a038443acc93681c5b915956b1e008ca6091721b  ./07-grand-total/accept.jip
-637db4e0f29cd57d52922734e2b86b19a7db7bfbae871c02862b3d42ba6afcf1  ./07-grand-total/solution.patch
+289414bca0e70a09bfae96d198424327e7a03c752eebcf59424d38ca4c1e9af2  ./07-grand-total/accept.jip
+3fff6df33cf0820a29f9679fcd229890ce97ea61eb572e86fe743fbee1cf4c97  ./07-grand-total/solution.patch
 2dfa7181d59cdaa200bf429a9915ac4fefa31c60d0a769bbb24f3f59e2aed6f6  ./07-grand-total/task.md
 5673624b90fd49ac1aea7026bc9d8338e1e2da27fe2b985895df725dd2223f22  ./08-idle-30m/accept.jip
 ad337f8ab6feab9c656cb6c8260b44151cf8cd9de46f002eaed863216094fe72  ./08-idle-30m/solution.patch
