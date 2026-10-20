@@ -233,9 +233,11 @@ fixes under "deferred from v0"; deviations go to `decisions.md`.
       `Repository` get-after-put, with `MemRepo`/`MemCache` substitution.
       `emitStateful`, `emitRoundTrip`, `emitIdempotent` in
       `emit/derived.go`; `rt/substitute.go`; `driver/behaviour_test.go`.
-- [ ] **L4** `Machine` behaviour (06): `Key`, `State`, `Event`, `Action`;
+- [x] **L4** `Machine` behaviour (06): `Key`, `State`, `Event`, `Action`;
       exhaustive `on`; one turn per key; `Name.send`; `deactivate` on idle;
-      `run` line; example `examples/doors` (or similar).
+      `run` line; example `examples/doors`. `rt/machine.go`
+      (`TestMachineTurnsAndIdle`); `machine_send` in `checker/expr.go` and
+      `emit/call.go`; multi-line docs in `iface` (`TestMultiLineDocRoundTrip`).
 - [ ] **L5** `Agent` behaviour and `tools [...]` (07 r17–23): tool schemas
       from `pub fn`s, generated `Tools` enum, `Event`, `Gate`, `Outcome`,
       budget, loop in `rt` against the `llm` fake, journaled inside a

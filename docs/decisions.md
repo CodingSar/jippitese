@@ -162,9 +162,9 @@ File extension: `.jip`. CLI: `jip`.
 - A **behaviour** is a stdlib-defined pattern contract: an interface, its
   associated types, its effect budget, its contracts, and a lifecycle.
 - **v0 behaviours (R1):** `Service`, `Worker`, `Cron`, `Workflow`,
-  `Repository`, `Cache`. **`Machine` and `Agent` are deferred** from v0:
-  `Machine` is `Workflow` plus signals, `Agent` is a stdlib loop over
-  `Workflow`; each returns only with a compiled example. `Cron` and `Cache`
+  `Repository`, `Cache`. **`Machine` and `Agent` were deferred** from v0:
+  `Machine` returned in v1 with `examples/doors`; `Agent`, a stdlib loop
+  over `Workflow`, returns only with a compiled example. `Cron` and `Cache`
   stay because every v0 behaviour must go through the same dictionary
   lowering, run lines and `app.jip` overlay from the start rather than be
   retrofitted. No `Pipeline`: chain `Worker`s over the stdlib type
@@ -172,11 +172,11 @@ File extension: `.jip`. CLI: `jip`.
 - **Lifecycle** is fixed to `init / handle / stop / health`; `health` has
   defaults (liveness = booted, readiness = aggregate of `Repository` and
   `Cache` impls). `init(cfg: Config)` receives the `Config` record defined
-  in §10. `Machine` (deferred) adds `deactivate`.
+  in §10. `Machine` adds `deactivate`.
 - **Effect budget.** Each behaviour fixes the maximum effects an `impl`
   method may declare (table in `docs/research/a-pattern-catalogs.md`); the
   runtime supplies the rest.
-- **`Machine`** (deferred) is a closed `State × Event` exhaustive match, one
+- **`Machine`** (v1) is a closed `State × Event` exhaustive match, one
   turn per key, state persisted per turn; side effects only through returned
   `Action`s.
 - **Stdlib-provided contracts** for behaviours (`Worker` idempotency,
@@ -486,6 +486,7 @@ reverse any row; reversing one is a spec change.
 | Repository round-trip | Spec 06 rule 10 is now a derived property, `<Impl>.round_trip`, for each non-generic `Repository` impl whose `K` and `T` generate. It runs on a fresh instance per run with the module's test `Config`. `any Instant` now generates too, within a day of the fake clock's epoch, so records with timestamps qualify. |
 | Worker idempotency | Spec 06 rule 8 is now a derived property, `<Impl>.idempotent`, for each non-generic `Worker` impl whose `Msg` generates. Calls to a `Repository` or `Cache` impl go through `rt.RepoGet`, `rt.CacheSet` and siblings, which use the impl's instance unless the ctx substitutes fakes; the check runs `perform` once and twice on two such ctxs and compares the fakes' entries and the final results. The check found `shop` double-counting a redelivered order, so `Placed` gained an `id` and the `Indexer` records counted ids in a `Counted` repository; eval tasks 06 and 07 were re-frozen with the new `Placed` literals before any measurement was taken. |
 | Derived stateful checks (v1) | Spec 05 rule 17 for each non-generic `impl` with `inv` whose declared `init` (returning `Ok(self)` or `Self`) and at least one method on `self` are within `{mut}` with generable parameters; any other method is never drawn. `init` is redrawn until `Ok` under the `W0510` count; a step whose `pre` fails is redrawn; `stop` is called last when it qualifies. The check is `derived <Impl>`, seed `<module dir>/<Impl>.seed`, and its `when` line is the call sequence. A generated `Config` always holds `Secrets.fake()`. Shrinking halves the size as rule 16, so a failing sequence is shorter but not minimal. Rule 18 is the dedicated `round_trip` and `idempotent` checks of spec 06, not stdlib `post` clauses. No example `impl` carries `inv` yet, so the check is covered by a driver test that adds one to `shop`. |
+| `Machine` (v1) | Spec 06 `Machine`. State is held in process per impl, keyed by the shown `Key`, and is lost on restart; durable state waits for a storage design. Turns of one impl are serialised (the spec's one-per-key holds a fortiori). Under `jip test` `send` runs its turns before returning, so scenarios need no settling step; under `jip build` it queues on the impl's runtime queue (`Err(Full)` when full). A failed `act` is logged, never retried. `idle` on the `run` line (default `5m`) is checked every `idle/2`; the fake clock never deactivates. `act` lacks `mut`, so `examples/doors` records positions through a topic and a `Worker`. E0706 now covers `Agent` only. Interface files now keep every line of a multi-line doc comment (they lost the `///` of all but the first). |
 | Not in v0 | `gomod(...)` Go dependencies for externs (any non-stdlib Go path is E0504); the per-module `.jip/cache` of 13 rule 12 (needs separate compilation in the checker; `GOCACHE` covers the Go side). |
 
 ## Resolved deferred decisions
@@ -527,7 +528,6 @@ reverse any row; reversing one is a spec change.
 | Solver-based verification | post-v1 |
 | Persistent-by-default collections (final) | §13 collections benchmark |
 | Minimal-version selection for deps | ecosystem pressure |
-| `Machine` behaviour | a compiled example (R1) |
 | `Agent` behaviour | a compiled example (R1) |
 | Approvals library (decision types, visualisations, routing, audit, channels) | v0 gate; design notes in `docs/revision-plan.md` §10 |
 | `temporal` and `restate` workflow runtimes | `embedded` passing the gate |

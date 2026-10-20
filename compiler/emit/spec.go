@@ -19,6 +19,7 @@ var specShapes = map[string]struct {
 	"Service":    {[]string{"assoc:Req", "assoc:Resp", "assoc:E"}, [][2]string{{"Handle", "handle"}, {"Stop", "stop"}, {"Health", "health"}}, nil},
 	"Worker":     {[]string{"assoc:Msg", "assoc:E"}, [][2]string{{"Perform", "perform"}, {"Stop", "stop"}, {"Health", "health"}}, [][2]string{{"Retry", "retry"}}},
 	"Cron":       {[]string{"assoc:E"}, [][2]string{{"Run", "run"}, {"Stop", "stop"}, {"Health", "health"}}, [][2]string{{"Schedule", "schedule"}}},
+	"Machine":    {[]string{"assoc:Key", "assoc:State", "assoc:Event", "assoc:Action", "assoc:E"}, [][2]string{{"Activate", "activate"}, {"On", "on"}, {"Act", "act"}, {"Deactivate", "deactivate"}, {"Stop", "stop"}, {"Health", "health"}}, nil},
 	"Workflow":   {[]string{"assoc:Input", "assoc:Output", "assoc:Signal", "assoc:E"}, [][2]string{{"Run", "run"}, {"OnSignal", "on_signal"}}, [][2]string{{"Version", "version"}}},
 	"Repository": {[]string{"arg:0", "arg:1"}, [][2]string{{"Get", "get"}, {"Put", "put"}, {"Delete", "delete"}, {"Query", "query"}, {"Stop", "stop"}, {"Health", "health"}}, nil},
 	"Cache":      {[]string{"arg:0", "arg:1"}, [][2]string{{"Get", "get"}, {"Set", "set"}, {"Invalidate", "invalidate"}, {"Stop", "stop"}, {"Health", "health"}}, nil},
@@ -92,10 +93,13 @@ func (f *file) emitSpec(impl *checker.ImplInfo) {
 			continue
 		}
 		switch m[1] {
-		case "stop", "on_signal":
+		case "stop", "on_signal", "deactivate":
 			extra := ""
-			if m[1] == "on_signal" {
+			switch m[1] {
+			case "on_signal":
 				extra = ", _ " + targs[3]
+			case "deactivate":
+				extra = ", _ " + targs[1] + ", _ " + targs[2]
 			}
 			f.printf("\t%s: func(ctx *%s.Ctx, _ %s%s) %s.Unit { return %s.U },\n", m[0], rtp, s, extra, rtp, rtp)
 		case "health":

@@ -122,6 +122,9 @@ func (g *gen) builtin(x *ast.CallExpr, info *checker.CallInfo) string {
 	case "enqueue":
 		args := g.exprs(x.Args)
 		return g.rt() + ".Enqueue(ctx, " + spec + ", " + args[0] + ")"
+	case "machine_send":
+		args := g.exprs(x.Args)
+		return g.rt() + ".MachineSend(ctx, " + spec + ", " + args[0] + ", " + args[1] + ")"
 	case "run_workflow":
 		args := g.exprs(x.Args[1:])
 		return g.rt() + ".RunWorkflow(ctx, " + spec + ", " + args[0] + ")"

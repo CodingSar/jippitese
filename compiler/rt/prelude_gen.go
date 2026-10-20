@@ -178,6 +178,25 @@ func (QueueError) JipVariants() []string           { return []string{"Full", "Un
 func (v QueueError) MarshalJSON() ([]byte, error)  { return MarshalEnum(v) }
 func (v *QueueError) UnmarshalJSON(b []byte) error { return UnmarshalEnum(v, b) }
 
+// MachineError is `MachineError`.
+type MachineError struct {
+	Tag           uint8
+	Unavailable_0 string
+}
+
+const (
+	MachineErrorTag_Full uint8 = iota
+	MachineErrorTag_Unavailable
+)
+
+func MachineError_Full() MachineError { return MachineError{Tag: MachineErrorTag_Full} }
+func MachineError_Unavailable(a0 string) MachineError {
+	return MachineError{Tag: MachineErrorTag_Unavailable, Unavailable_0: a0}
+}
+func (MachineError) JipVariants() []string           { return []string{"Full", "Unavailable"} }
+func (v MachineError) MarshalJSON() ([]byte, error)  { return MarshalEnum(v) }
+func (v *MachineError) UnmarshalJSON(b []byte) error { return UnmarshalEnum(v, b) }
+
 // LlmError is `LlmError`.
 type LlmError struct {
 	Tag         uint8

@@ -90,6 +90,7 @@ type RunOpts struct {
 	Topic           string
 	Port            int
 	Ttl             time.Duration
+	Idle            time.Duration
 }
 
 // Runner is one supervised child.

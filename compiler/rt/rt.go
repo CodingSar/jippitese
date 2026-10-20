@@ -118,6 +118,7 @@ type shared struct {
 	serving     bool
 	queues      map[string]chan any
 	fakes       map[string]any // impl name → MemRepo or MemCache; nil substitutes nothing
+	machines    map[string]any // Machine impl name → its per-key states
 }
 
 // queue returns the in-process queue of a Worker, creating it on first use.
@@ -154,6 +155,7 @@ func newShared(log Logger) *shared {
 		signals:   map[string][]any{},
 		results:   map[RunId]any{},
 		queues:    map[string]chan any{},
+		machines:  map[string]any{},
 		log:       log,
 	}
 }

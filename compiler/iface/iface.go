@@ -259,9 +259,7 @@ func implEntry(m *checker.Module, d *ast.ImplDecl) (Entry, ast.Visibility, bool)
 			if fd.Vis == ast.Private {
 				continue
 			}
-			if fd.Doc != "" {
-				e.Lines = append(e.Lines, "/// "+fd.Doc)
-			}
+			e.Lines = append(e.Lines, docLines(fd.Doc)...)
 			e.Lines = append(e.Lines, vis(fd.Vis)+FnSig(fd))
 		} else {
 			e.Lines = append(e.Lines, FnSig(fd))
@@ -276,12 +274,24 @@ func implEntry(m *checker.Module, d *ast.ImplDecl) (Entry, ast.Visibility, bool)
 
 // ---- text ------------------------------------------------------------------
 
+// docLines renders a doc comment, one `///` line per source line.
+func docLines(doc string) []string {
+	if doc == "" {
+		return nil
+	}
+	var ls []string
+	for _, l := range strings.Split(doc, "\n") {
+		ls = append(ls, "/// "+l)
+	}
+	return ls
+}
+
 func entriesText(es []Entry) string {
 	var b strings.Builder
 	for _, e := range es {
 		b.WriteString("\n")
-		if e.Doc != "" {
-			b.WriteString("/// " + e.Doc + "\n")
+		for _, l := range docLines(e.Doc) {
+			b.WriteString(l + "\n")
 		}
 		b.WriteString(e.Sig + "\n")
 		for _, l := range e.Lines {
@@ -344,6 +354,8 @@ func Parse(text string) (in *Interface, pubDigest, modDigest string, err error) 
 			cur.Lines = append(cur.Lines, strings.TrimPrefix(l, "  "))
 		case strings.HasPrefix(l, "/// ") && cur == nil:
 			cur = &Entry{Doc: strings.TrimPrefix(l, "/// ")}
+		case strings.HasPrefix(l, "/// ") && cur.Sig == "":
+			cur.Doc += "\n" + strings.TrimPrefix(l, "/// ")
 		default:
 			if cur == nil {
 				cur = &Entry{}

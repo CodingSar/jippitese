@@ -212,7 +212,7 @@ const (
 	CallInstance                  // behaviour instance by name: Orders.get(k)
 	CallVariant                   // enum constructor
 	CallNewtype                   // newtype construction
-	CallBuiltin                   // run_workflow, tick, send_signal, enqueue, publish
+	CallBuiltin                   // run_workflow, tick, send_signal, enqueue, machine_send, publish
 	CallClosure                   // call through a local of function type
 	CallRecordInv                 // never emitted; reserved
 )

@@ -1,0 +1,37 @@
+module doors.door.scenarios
+use doors.door
+
+scenario "a pushed door opens" {
+  when  r = {
+    Door.send(1, Input.Push)?
+    Positions.get(1)
+  }
+  then  r == Ok(Some(Position.Open))
+}
+
+scenario "locking an open door shuts it first" {
+  when  r = {
+    Door.send(2, Input.Push)?
+    Door.send(2, Input.Lock)?
+    Positions.get(2)
+  }
+  then  r == Ok(Some(Position.Locked))
+}
+
+scenario "an input the position ignores records nothing" {
+  when  r = {
+    Door.send(3, Input.Unlock)?
+    Positions.get(3)
+  }
+  then  r == Ok(None)
+}
+
+scenario "each door keeps its own position" {
+  when  r = {
+    Door.send(4, Input.Push)?
+    Door.send(5, Input.Push)?
+    Door.send(5, Input.Push)?
+    (Positions.get(4), Positions.get(5))
+  }
+  then  r == (Ok(Some(Position.Open)), Ok(Some(Position.Closed)))
+}

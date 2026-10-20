@@ -660,9 +660,10 @@ func (c *Checker) declareImpl(m *Module, d *ast.ImplDecl) {
 	if d.Behaviour != "" {
 		b := c.lookupBehaviour(m, d.Behaviour)
 		if b == nil {
-			if d.Behaviour == "Machine" || d.Behaviour == "Agent" {
-				dg := c.errorf("E0706", d.Pos, "`%s` is not available in v0", d.Behaviour)
-				dg.Label("`Machine` and `Agent` are deferred (revision-plan R1)")
+			if d.Behaviour == "Agent" {
+				dg := c.errorf("E0706", d.Pos, "`%s` is not available yet", d.Behaviour)
+				dg.Label("`Agent` is deferred (revision-plan R1)")
+				dg.Helpf("call `llm` and `decide` from a `Workflow` step instead")
 			} else {
 				c.errorf("E0404", d.Pos, "unknown behaviour `%s`", d.Behaviour)
 			}

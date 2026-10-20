@@ -133,7 +133,7 @@ func (c *Checker) useEffect(e ast.Effect, pos ast.Pos, what string) {
 // budgetHelp finds another prelude behaviour whose corresponding method
 // admits e.
 func (c *Checker) budgetHelp(e ast.Effect, b *BehaviourInfo) string {
-	for _, name := range []string{"Service", "Worker", "Cron", "Workflow"} {
+	for _, name := range []string{"Service", "Worker", "Cron", "Workflow", "Machine"} {
 		if name == b.Name {
 			continue
 		}
@@ -1141,6 +1141,18 @@ func (c *Checker) inferStaticMember(e *ast.FieldExpr, ti *TypeInfo, want Type, a
 			m, _ := c.instantiate(fi.TypeParams)
 			return subst(fi.Type, m)
 		}
+		if e.Name == "send" && impl.Behaviour != nil && impl.Behaviour.Name == "Machine" {
+			c.prog.Fields[e] = &FieldRef{Kind: FieldImpl, Impl: impl, Type: ti}
+			key, ev := impl.Assoc["Key"], impl.Assoc["Event"]
+			if key == nil {
+				key = c.newVar()
+			}
+			if ev == nil {
+				ev = c.newVar()
+			}
+			me := c.preludeType("MachineError")
+			return &TFn{Params: []Type{key, ev}, Ret: con(c.preludeType("Result"), unit, con(me)), Effects: []ast.Effect{{Name: "io"}}, Explicit: true}
+		}
 		if e.Name == "enqueue" && impl.Behaviour != nil && impl.Behaviour.Name == "Worker" {
 			c.prog.Fields[e] = &FieldRef{Kind: FieldImpl, Impl: impl, Type: ti}
 			msg := impl.Assoc["Msg"]
@@ -1902,6 +1914,9 @@ func (c *Checker) resolveFieldCallee(fe *ast.FieldExpr, e *ast.CallExpr, info *C
 					}
 					info.Kind = CallBuiltin
 					info.Builtin = "enqueue"
+					if r.Impl.Behaviour.Name == "Machine" {
+						info.Builtin = "machine_send"
+					}
 					c.record(fe, t)
 					return t.(*TFn), nil, nil
 				}

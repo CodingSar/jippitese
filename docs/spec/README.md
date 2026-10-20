@@ -23,7 +23,7 @@ v0 behaviour.
 | `03-functions-and-effects.md` | `fn`, signatures, effect sets, `fn` closures, inherent `impl` (R3) | all |
 | `04-expressions-and-control.md` | `let`/`var`, blocks, `if`, `match`, loops, `?`, operators, turbofish | all |
 | `05-contracts.md` | `pre`, `post`, `inv`, levels, generators | all |
-| `06-behaviours.md` | `behaviour`, `impl … for`, the six v0 behaviours, child specs | `Service, Worker, Cron, Workflow, Repository, Cache`; `Machine` deferred (R1) |
+| `06-behaviours.md` | `behaviour`, `impl … for`, the lifecycle behaviours, child specs | `Service, Worker, Cron, Workflow, Repository, Cache`; `Machine` (v1, L4); `Agent` deferred (R1) |
 | `07-agents-and-workflows.md` | `llm`, `decide`, `approve`, `Workflow`, `WorkflowError<E>` | all but `Agent` and tools, deferred (R1) |
 | `08-concurrency-and-mutation.md` | `spawn`/`task`, `Cell`, `mut`, persistent and mutable collections | all |
 | `09-modules-and-context.md` | `module`, `use`, `pub`, interface files, `jip check`, context packs | all; two digests (R7), `--accept-breaking` (R8) |

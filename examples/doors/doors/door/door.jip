@@ -1,0 +1,84 @@
+module doors.door
+
+/// Where a door is.
+pub enum Position { Closed, Open, Locked }
+
+/// What can happen to a door.
+pub enum Input { Push, Lock, Unlock }
+
+/// What a turn asks the runtime to do.
+pub enum Effect { Record(Position), Shut }
+
+/// Door `door` reached `to`.
+pub type Moved { door: Int, to: Position }
+
+/// Why an action failed.
+pub enum DoorError { Topic(TopicError) }
+
+/// The doors: no state of their own; the runtime keeps one `Position` per
+/// door.
+pub type Door {}
+
+/// One state machine per door id.
+impl Machine for Door {
+  type Key = Int
+  type State = Position
+  type Event = Input
+  type Action = Effect
+  type E = DoorError
+  fn init(cfg: Config) -> Result<Self, DoorError> with {io} { Ok(Door {}) }
+  fn activate(self, key: Int) -> Position { Position.Closed }
+  fn on(self, s: Position, e: Input) -> (Position, List<Effect>) {
+    match (s, e) {
+      (Position.Closed, Input.Push) => (Position.Open, [Effect.Record(Position.Open)]),
+      (Position.Open, Input.Push) => (Position.Closed, [Effect.Record(Position.Closed)]),
+      (Position.Closed, Input.Lock) => (Position.Locked, [Effect.Record(Position.Locked)]),
+      (Position.Open, Input.Lock) => (Position.Open, [Effect.Shut]),
+      (Position.Locked, Input.Unlock) => (Position.Closed, [Effect.Record(Position.Closed)]),
+      (_, _) => (s, []),
+    }
+  }
+  fn act(self, key: Int, a: Effect) -> Result<List<Input>, DoorError> with {io} {
+    match a {
+      Effect.Record(p) => {
+        topics.moved.publish(Moved { door: key, to: p })?
+        Ok([])
+      },
+      Effect.Shut => Ok([Input.Push, Input.Lock]),
+    }
+  }
+}
+
+/// The last position recorded per door, kept in process.
+pub type Positions { by_door: MutMap<Int, Position> }
+
+/// The positions store.
+impl Repository<Position, Int> for Positions {
+  fn init(cfg: Config) -> Result<Self, RepoError> with {io, mut} {
+    Ok(Positions { by_door: MutMap.new() })
+  }
+  fn get(self, k: Int) -> Result<Option<Position>, RepoError> with {mut} { Ok(self.by_door.get(k)) }
+  fn put(self, k: Int, v: Position) -> Result<(), RepoError> with {mut} {
+    self.by_door.insert(k, v)
+    Ok(())
+  }
+  fn delete(self, k: Int) -> Result<(), RepoError> with {mut} {
+    self.by_door.remove(k)
+    Ok(())
+  }
+  fn query(self, q: Query<Position>) -> Result<List<Position>, RepoError> with {mut} {
+    Ok(self.by_door.freeze().values())
+  }
+}
+
+/// The recorder: no state of its own.
+pub type Recorder {}
+
+/// Stores every recorded move.
+impl Worker for Recorder {
+  type Msg = Moved
+  type E = RepoError
+  const retry = Retry { max: 2, backoff: Backoff.Fixed(10ms) }
+  fn init(cfg: Config) -> Result<Self, RepoError> with {io} { Ok(Recorder {}) }
+  fn perform(self, m: Moved) -> Result<(), RepoError> with {mut} { Positions.put(m.door, m.to) }
+}

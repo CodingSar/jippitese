@@ -259,10 +259,10 @@ func TestDeferredBehaviour(t *testing.T) {
 	out := checkSnippet(t, `
 /// State.
 pub type Light { on: Bool }
-impl Machine for Light {
+impl Agent for Light {
 }
 `, "")
-	expectDiag(t, out, []string{"E0706"}, "`Machine` is not available in v0")
+	expectDiag(t, out, []string{"E0706"}, "`Agent` is not available yet")
 }
 
 func TestThenExpectsBool(t *testing.T) {

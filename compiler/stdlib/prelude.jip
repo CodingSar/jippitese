@@ -68,6 +68,8 @@ pub enum CacheError { Unavailable(Str) }
 pub enum TopicError { Unavailable(Str) }
 /// Queue failures.
 pub enum QueueError { Full, Unavailable(Str) }
+/// `Machine.send` failures.
+pub enum MachineError { Full, Unavailable(Str) }
 /// `llm` failures.
 pub enum LlmError { Schema(Str), Refused(Str), Transport(Str), Budget }
 /// What a workflow run can fail with.
@@ -119,6 +121,22 @@ pub behaviour Cron {
   const schedule: Schedule
   fn init(cfg: Config) -> Result<Self, E> with {io, net, mut}
   fn run(self) -> Result<(), E> with {io, net, mut, llm, decide, nondet}
+  fn stop(self) with {io, net} {}
+  fn health(self) -> Health with {io, net} { Health.aggregate(self) }
+}
+
+/// A keyed state machine: one turn per key at a time.
+pub behaviour Machine {
+  type Key
+  type State
+  type Event
+  type Action
+  type E
+  fn init(cfg: Config) -> Result<Self, E> with {io, net, mut}
+  fn activate(self, key: Key) -> State
+  fn on(self, s: State, e: Event) -> (State, List<Action>)
+  fn act(self, key: Key, a: Action) -> Result<List<Event>, E> with {io, net, llm, decide, nondet}
+  fn deactivate(self, key: Key, s: State) with {io, net} {}
   fn stop(self) with {io, net} {}
   fn health(self) -> Health with {io, net} { Health.aggregate(self) }
 }

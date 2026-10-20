@@ -72,7 +72,7 @@ func supervise(ctx context.Context, w Worker[OrderEvent], in <-chan OrderEvent) 
 }
 ```
 
-## The six v0 behaviours
+## The behaviours
 
 All are declared in `std.behaviour`. `Config` is the record of the `config {}`
 block of `app.jip` plus a `secrets` field (section 10, rule 5 below).
@@ -163,12 +163,10 @@ read and write its own maps. `approve` is in the
 `Workflow` budget only: an approval is a durable suspension, and only a
 journaled `run` can resume after one (section 07 rule 7).
 
-### Deferred from v0
+### `Machine`
 
-*Status: deferred from v0 (revision-plan R1).* `Machine` and `Agent` keep
-their declarations here so that the v1 shape is fixed, but no v0 compiler
-accepts an `impl` of either (E0706) and the `run` list of section 10 does not
-admit them. The `Agent` semantics are in section 07 under the same banner.
+One state machine per key: the runtime keeps a `State` per `Key` and feeds
+it the key's events one turn at a time.
 
 ```jip
 pub behaviour Machine {
@@ -185,7 +183,38 @@ pub behaviour Machine {
   fn stop(self) with {io, net} {}
   fn health(self) -> Health with {io, net} { Health.aggregate(self) }
 }
+```
 
+| Behaviour | Method | Budget |
+|---|---|---|
+| `Machine` | `on` pure; `act` | `io net nondet llm decide` |
+
+`Machine` rule: `on` is pure and must `match` exhaustively over `(State,
+Event)` (section 04). Events enter by `Name.send(key, e) -> Result<(),
+MachineError> with {io}`, `MachineError { Full, Unavailable(Str) }`. A turn
+is: `activate` on the key's first event, `on`, persist the state, then
+`act` for each returned `Action` in order; the events an `act` returns
+queue as later turns of the same key, after the ones already queued. An
+`Err` from `act` is logged and that action's events are lost; the state is
+already persisted. Turns of one impl run one at a time. Under `jip build`
+`send` queues the event and returns `Err(Full)` when the impl's queue is
+full; under `jip test` `send` runs every turn it causes before it returns,
+so the next `when` line sees their effects. `deactivate` runs once a key
+has had no turn for the `idle` of the impl's `run` line (rule 13, default
+`5m`); its state stays and is reloaded, without `activate`, by the key's
+next event. The fake clock of `jip test` never deactivates a key. In v1 the
+state lives in the process: a restart activates every key afresh. `act`
+has no `mut`, so it reaches an in-process `Repository` through a topic and
+a `Worker`.
+
+### Deferred from v0
+
+*Status: deferred from v0 (revision-plan R1).* `Agent` keeps its
+declaration here so that the v1 shape is fixed, but no compiler accepts an
+`impl` of it yet (E0706) and the `run` list of section 10 does not admit
+it. Its semantics are in section 07 under the same banner.
+
+```jip
 pub behaviour Agent {                      // semantics in section 07
   type State
   type Answer
@@ -202,15 +231,7 @@ pub behaviour Agent {                      // semantics in section 07
 
 | Behaviour | Method | Budget |
 |---|---|---|
-| `Machine` | `on` pure; `act` | `io net nondet llm decide` |
 | `Agent` | `gate` | `decide approve`; `begin`, `observe`, `stop` pure; tools add their own |
-
-`Machine` rule (v1): `on` is pure and must `match` exhaustively over `(State,
-Event)`. One turn per key at a time: `activate` on the first event, `on`,
-persist the state, then `act` for each returned `Action`, whose events queue
-as later turns of the same key. Events enter by `Name.send(key, e) ->
-Result<(), MachineError> with {io}`. `deactivate` runs when a key idles past
-the runtime's timeout; the state is reloaded on the next event.
 
 ## Rules
 
@@ -295,8 +316,8 @@ the runtime's timeout; the state is reloaded on the next event.
     `run Name { … }` line in `app.jip`, fields `restart: permanent |
     transient | temporary` (default `permanent`), `max_restarts: Int` (3),
     `period: Duration` (60s), `shutdown_timeout: Duration` (10s), `topic:
-    <name>` for a `Worker`, `port: Int` for a `Service` (8080) and `ttl:
-    Duration` for a `Cache` (5m). An impl without a `run` line is never
+    <name>` for a `Worker`, `port: Int` for a `Service` (8080), `ttl:
+    Duration` for a `Cache` (5m) and `idle: Duration` for a `Machine` (5m). An impl without a `run` line is never
     started and naming it (rule 6) is a compile error; a second `run` line
     for one impl is a compile error: one line, one instance.
 14. **`Topic<T>`.** Declared in the `topics { name: Topic<T> }` block of
@@ -340,12 +361,12 @@ error[E0702]: effect `spawn` exceeds the budget of `Worker.perform`
 A deferred behaviour:
 
 ```text
-error[E0706]: `Machine` is not available in v0
-  --> orders/lock.jip:8:1
+error[E0706]: `Agent` is not available yet
+  --> orders/triage.jip:8:1
    |
- 8 | impl Machine for Lock {
-   | ^^^^^^^^^^^^^^^^^^^^^ `Machine` and `Agent` are deferred (revision-plan R1)
-   = help: model the states as a `Workflow` with signals, or a `Worker` over a `Repository`
+ 8 | impl Agent for Triage {
+   | ^^^^^^^^^^^^^^^^^^^^^ `Agent` is deferred (revision-plan R1)
+   = help: call `llm` and `decide` from a `Workflow` step instead
 ```
 
 ## Grammar

@@ -113,9 +113,9 @@ func (e *emitter) emitAppCfg() {
 			d, _ := parseDur(def)
 			return "l.RunDuration(" + strconv.Quote(r.Name) + ", " + strconv.Quote(field) + ", " + strconv.FormatInt(d, 10) + ")"
 		}
-		f.printf("\t\t%q: {Name: %q, Restart: %s, MaxRestarts: %s, Period: %s, ShutdownTimeout: %s, Topic: %s, Port: %s, Ttl: %s},\n",
+		f.printf("\t\t%q: {Name: %q, Restart: %s, MaxRestarts: %s, Period: %s, ShutdownTimeout: %s, Topic: %s, Port: %s, Ttl: %s, Idle: %s},\n",
 			r.Name, r.Name, str("restart", "permanent"), num("max_restarts", 3), dur("period", "60s"),
-			dur("shutdown_timeout", "10s"), str("topic", ""), num("port", 8080), dur("ttl", "5m"))
+			dur("shutdown_timeout", "10s"), str("topic", ""), num("port", 8080), dur("ttl", "5m"), dur("idle", "5m"))
 	}
 	f.printf("\t}\n}\n")
 

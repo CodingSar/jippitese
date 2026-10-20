@@ -85,6 +85,21 @@ func TestRoundTripStableDigest(t *testing.T) {
 	}
 }
 
+func TestMultiLineDocRoundTrip(t *testing.T) {
+	a := mutate(t, "/// A customer order.", "/// A customer\n/// order.")
+	txt := a.Text()
+	if !strings.Contains(txt, "/// A customer\n/// order.\npub type Order") {
+		t.Fatalf("doc lines lost their prefix:\n%s", txt)
+	}
+	b, _, _, err := Parse(txt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.Text() != txt {
+		t.Fatalf("round trip differs:\n%s\n---\n%s", txt, b.Text())
+	}
+}
+
 func mutate(t *testing.T, old, new string) *Interface {
 	t.Helper()
 	dir := t.TempDir()

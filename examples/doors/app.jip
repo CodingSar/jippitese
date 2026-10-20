@@ -1,0 +1,13 @@
+app {
+  name: "doors"
+  topics {
+    moved: Topic<Moved>
+  }
+  run Door {
+    idle: 10m
+  }
+  run Recorder {
+    topic: moved
+  }
+  run Positions
+}

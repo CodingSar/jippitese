@@ -1,0 +1,54 @@
+interface doors.door digest sha256:6ceafb675e287fcffd46ff3ccb238c80ff950e08674311794c8c4b95c877e765
+
+/// The doors: no state of their own; the runtime keeps one `Position` per
+/// door.
+pub type Door {}
+
+/// Door `door` reached `to`.
+pub type Moved { door: Int, to: Position }
+
+/// The last position recorded per door, kept in process.
+pub type Positions { by_door: MutMap<Int, Position> }
+
+/// The recorder: no state of its own.
+pub type Recorder {}
+
+/// Why an action failed.
+pub enum DoorError { Topic(TopicError) }
+
+/// What a turn asks the runtime to do.
+pub enum Effect { Record(Position), Shut }
+
+/// What can happen to a door.
+pub enum Input { Push, Lock, Unlock }
+
+/// Where a door is.
+pub enum Position { Closed, Open, Locked }
+
+/// One state machine per door id.
+impl Machine for Door
+  type Key = Int
+  type State = Position
+  type Event = Input
+  type Action = Effect
+  type E = DoorError
+  fn init(cfg: Config) -> Result<Self, DoorError> with {io}
+  fn activate(self, key: Int) -> Position
+  fn on(self, s: Position, e: Input) -> (Position, List<Effect>)
+  fn act(self, key: Int, a: Effect) -> Result<List<Input>, DoorError> with {io}
+
+/// The positions store.
+impl Repository<Position, Int> for Positions
+  fn init(cfg: Config) -> Result<Self, RepoError> with {io, mut}
+  fn get(self, k: Int) -> Result<Option<Position>, RepoError> with {mut}
+  fn put(self, k: Int, v: Position) -> Result<(), RepoError> with {mut}
+  fn delete(self, k: Int) -> Result<(), RepoError> with {mut}
+  fn query(self, q: Query<Position>) -> Result<List<Position>, RepoError> with {mut}
+
+/// Stores every recorded move.
+impl Worker for Recorder
+  type Msg = Moved
+  type E = RepoError
+  const retry = Retry { max: 2, backoff: Backoff.Fixed(10ms) }
+  fn init(cfg: Config) -> Result<Self, RepoError> with {io}
+  fn perform(self, m: Moved) -> Result<(), RepoError> with {mut}

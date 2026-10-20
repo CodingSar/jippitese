@@ -405,7 +405,7 @@ func (e *emitter) findRunImpl(name string) (*checker.ImplInfo, *pkg) {
 
 func isV0Behaviour(name string) bool {
 	switch name {
-	case "Service", "Worker", "Cron", "Workflow", "Repository", "Cache":
+	case "Service", "Worker", "Cron", "Workflow", "Repository", "Cache", "Machine":
 		return true
 	}
 	return false
