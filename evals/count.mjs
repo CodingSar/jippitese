@@ -5,7 +5,8 @@
 //   node count.mjs --transcript t.jsonl
 //
 // A transcript is one JSON object per line, in the order the agent saw
-// them: {"kind": "read", "path": "…", "text": "…"} for a file it read,
+// them: {"kind": "prompt", "text": "…"} for its prompt,
+// {"kind": "read", "path": "…", "text": "…"} for a file it read,
 // {"kind": "tool", "cmd": "jip check", "text": "…", "exit": 0} for a tool
 // output. Tokens are summed up to and including the first `jip check` (or
 // `go vet` for the Go baseline) that exits 0; iterations are the number

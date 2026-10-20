@@ -6,6 +6,8 @@
 // and prints, per language and model, the tokens read and iterations to
 // the first green check for each task, with the median over tasks. A run
 // that never turned green is reported as such and excluded from medians.
+// Runs written by run.mjs also report whether the hidden acceptance tests
+// passed and whether a server-side fallback model served any turn.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { measureTranscript, TOKENIZER } from "./count.mjs";
@@ -32,11 +34,16 @@ for (const lang of readdirSync(dir)) {
     const runs = [];
     for (const f of readdirSync(md).filter((f) => f.endsWith(".jsonl")).sort()) {
       const lines = readFileSync(join(md, f), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
-      runs.push({ task: f.replace(/\.jsonl$/, ""), ...measureTranscript(lines) });
+      const result = lines.find((l) => l.kind === "result");
+      runs.push({
+        task: f.replace(/\.jsonl$/, ""), ...measureTranscript(lines),
+        ...(result ? { accept: result.accept, fallback: result.fallback } : {}),
+      });
     }
     const green = runs.filter((r) => r.green);
     rows.push({
       language: lang, model, tasks: runs.length, green: green.length,
+      accepted: runs.filter((r) => r.accept).length,
       median_tokens: median(green.map((r) => r.tokens)),
       median_iterations: median(green.map((r) => r.iterations)),
       runs,

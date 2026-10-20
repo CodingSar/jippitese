@@ -188,7 +188,7 @@ default fakes.
 - [x] **F2** Freeze a task set of at least ten changes over the
       `examples/` corpus (each: description, jippitese diff, Go diff of
       the emitted code or a hand-written Go equivalent).
-- [ ] **F3** (blocked: needs model access, the choice of models, and a Go baseline corpus; the harness is ready in `evals/`) Measure the spec 13 metric on jippitese and Go for every
+- [ ] **F3** (blocked: needs Anthropic API credentials; `evals/run.mjs` and the Go baseline are ready) Measure the spec 13 metric on jippitese and Go for every
       task; script it under `evals/`.
 - [ ] **F4** (blocked on F3) Write the numbers into spec 09 r10 and decisions §13; only
       then claim any figure in the docs.
@@ -347,7 +347,7 @@ fixes under "deferred from v0"; deviations go to `decisions.md`.
 
 - [x] **F5** Go baseline corpus for the twelve tasks (`evals/go/`), each
       task's Go starting point plus solution, building and testing green.
-- [ ] **F6** Agent runner `evals/run.mjs` against the Anthropic API
+- [x] **F6** Agent runner `evals/run.mjs` against the Anthropic API
       (models configurable, default the current Claude models); records
       tokens and iterations per task per language. Running it needs
       `ANTHROPIC_API_KEY`; F3/F4 then use its output.

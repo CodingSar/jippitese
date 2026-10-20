@@ -2,8 +2,9 @@
   "name": "jippitese-evals",
   "private": true,
   "type": "module",
-  "description": "Phase F harness: token counting for the decisions §13 metric",
+  "description": "Phase F harness: agent runs and token counting for the decisions §13 metric",
   "dependencies": {
+    "@anthropic-ai/sdk": "0.131.0",
     "js-tiktoken": "1.0.21"
   }
 }

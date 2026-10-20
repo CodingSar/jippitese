@@ -79,23 +79,54 @@ a framework, so any measured jippitese advantage is understated:
 ## Transcripts
 
 A run is one agent solving one task in a fresh copy of the project, with
-the acceptance scenarios hidden. Its harness logs, in order, every file the
-agent reads and every tool output it receives, one JSON object per line:
+the acceptance scenarios hidden. Its harness logs, in order, the prompt,
+every file the agent reads and every tool output it receives, one JSON
+object per line:
 
 ```text
+{"kind": "prompt", "text": "…"}
 {"kind": "read", "path": "orders/billing/billing.jip", "text": "…"}
 {"kind": "tool", "cmd": "jip context orders.billing", "text": "…", "exit": 0}
 {"kind": "tool", "cmd": "jip check", "text": "…", "exit": 1}
+{"kind": "result", "accept": true, "usage": {…}, …}
 ```
 
 The count stops at the first `jip check` (or `go vet` for Go) that exits
 0. Transcripts go to `out/<jip|go>/<model>/<task>.jsonl` (`out/` is not
 committed until a run is reported).
 
+## Running agents
+
+```sh
+node run.mjs --lang jip                       # every task, every default model
+node run.mjs --lang go --model claude-sonnet-5-5 --task 03-charge-retry
+node run.mjs --lang go --model reference --out /tmp/self-test
+node report.mjs out/
+```
+
+`run.mjs` drives each model through the Anthropic API (Application
+Programming Interface) with five tools: `list_dir`, `read_file`,
+`write_file`, `edit_file` and `run`, which runs an allow-listed command
+(`jip check|context|test|fmt`; `go vet|test|build|doc`, `gofmt`) without a
+shell, confined to the workspace. The jippitese prompt carries the language
+card (`docs/spec/00-language-card.md`), counted like any other read; the Go
+prompt carries none. When the agent stops, the hidden acceptance tests are
+added and run the way `validate.sh` and `validate_go.sh` do, and the
+`result` line records the outcome with the API token usage.
+
+Defaults: the current Claude models, `--effort high`, `--max-turns 40`,
+adaptive thinking. Opus and Sonnet runs enable server-side refusal
+fallbacks (`--no-fallback` turns them off); a run a fallback model served
+is marked `"fallback": true` in its result and in the report. Credentials
+come from `ANTHROPIC_API_KEY` or whatever else the Anthropic SDK resolves.
+The pseudo-model `reference` needs none: it replays each reference solution
+and tests the harness end to end.
+
 ## Status
 
 - Tokenizer, task set, validation, counting and aggregation: done.
-- Agent runs: not started. They need model access and the choice of models
-  ("run across multiple models", decisions §13); this environment has
-  neither.
+- Agent runner: done (`run.mjs`); the `reference` self-test is green and
+  accepted on all twelve tasks in both languages.
+- Agent runs: not started. They need Anthropic API credentials, which this
+  environment does not have.
 - Go baseline: done (`go/`, `validate_go.sh`).
