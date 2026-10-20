@@ -340,7 +340,7 @@ fixes under "deferred from v0"; deviations go to `decisions.md`.
       symbols, formatting via `jip fmt`.
   - [x] **T5a** Open-buffer overlay over the module loader, diagnostics on
         open/change/save/close, whole-document formatting, `jip lsp`.
-  - [ ] **T5b** Document symbols.
+  - [x] **T5b** Document symbols.
   - [ ] **T5c** Hover (type, effects, doc) and go to definition.
 
 ## 12. v1 evaluation and runtimes

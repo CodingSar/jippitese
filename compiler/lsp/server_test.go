@@ -185,3 +185,73 @@ func TestPositions(t *testing.T) {
 		t.Errorf("uri round trip: %q", got)
 	}
 }
+
+func TestDocumentSymbols(t *testing.T) {
+	src := `module m
+
+/// A customer order.
+pub type Order { id: Int, total: Int }
+  inv total >= 0
+
+pub enum Status { Pending, Paid }
+
+// the size
+pub fn size(o: Order) -> Int { 1 }
+
+impl Order {
+  const MAX: Int = 3
+  pub fn lines(self) -> Int {
+    0
+  }
+}
+
+scenario "size is one" {
+  then size(Order { id: 1, total: 2 }) == 1
+}
+`
+	uri := "file:///tmp/nowhere/m.jip"
+	_, msgs := session(t,
+		req(1, "initialize", map[string]any{"capabilities": map[string]any{}}),
+		note("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "jip", "version": 1, "text": src}}),
+		req(2, "textDocument/documentSymbol", map[string]any{"textDocument": map[string]any{"uri": uri}}),
+	)
+	var syms []documentSymbol
+	for _, m := range msgs {
+		if string(m.ID) == "2" {
+			if err := json.Unmarshal(m.Result, &syms); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	type want struct {
+		name           string
+		kind           int
+		start, end     int // 0-based lines
+		selLine, selCh int
+		children       int
+	}
+	wants := []want{
+		{"Order", kindStruct, 3, 4, 3, 9, 2},
+		{"Status", kindEnum, 6, 6, 6, 9, 2},
+		{"size", kindFunction, 9, 9, 9, 7, 0},
+		{"impl Order", kindClass, 11, 16, 11, 0, 2},
+		{"size is one", kindEvent, 18, 20, 18, 0, 0},
+	}
+	if len(syms) != len(wants) {
+		t.Fatalf("got %d symbols: %+v", len(syms), syms)
+	}
+	for i, w := range wants {
+		g := syms[i]
+		if g.Name != w.name || g.Kind != w.kind || g.Range.Start.Line != w.start || g.Range.End.Line != w.end ||
+			g.SelectionRange.Start != (Position{w.selLine, w.selCh}) || len(g.Children) != w.children {
+			t.Errorf("symbol %d: got %+v, want %+v", i, g, w)
+		}
+	}
+	m := syms[3].Children[1]
+	if m.Name != "lines" || m.Kind != kindMethod || m.Range.Start.Line != 13 || m.Range.End.Line != 15 || !strings.Contains(m.Detail, "fn lines(self) -> Int") {
+		t.Errorf("method: %+v", m)
+	}
+	if f := syms[0].Children[1]; f.Name != "total" || f.Detail != "Int" || f.SelectionRange.Start != (Position{3, 26}) {
+		t.Errorf("field: %+v", f)
+	}
+}

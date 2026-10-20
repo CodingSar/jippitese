@@ -145,6 +145,8 @@ func (s *Server) dispatch(m *message) (any, *rpcError) {
 		s.analyze(uri)
 	case "textDocument/formatting":
 		return s.formatting(uri), nil
+	case "textDocument/documentSymbol":
+		return s.documentSymbols(uri), nil
 	default:
 		if len(m.ID) > 0 {
 			return nil, &rpcError{codeMethodNotFound, "unsupported method " + m.Method}
@@ -175,6 +177,7 @@ func (s *Server) initialize(params json.RawMessage) any {
 				"save":      map[string]any{"includeText": false},
 			},
 			"documentFormattingProvider": true,
+			"documentSymbolProvider":     true,
 		},
 		"serverInfo": map[string]any{"name": "jip"},
 	}
