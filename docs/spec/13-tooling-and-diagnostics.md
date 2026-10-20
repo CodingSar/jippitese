@@ -77,8 +77,9 @@ shows a Go error and `jip fmt` has no configuration.
     (§02 ADT encodings, `?`, `match`, workflow steps, spawn scopes) → emit
     `gofmt`-ed Go under `.jip/gen/<module path>/` with one `//line
     <file>:<line>:<col>` directive per statement → generate `.jip/gen/go.mod`
-    from `app.jip` (module `jip/<name>`, a `replace` line per `gomod(...)`
-    dependency pointing into `vendor/`, a synthesised `vendor/modules.txt`,
+    from `app.jip` (module `jip/<name>`, a `require` and a `replace` line
+    per `gomod(...)` dependency pointing into `vendor/`, a synthesised
+    `.jip/gen/vendor/modules.txt`,
     `toolchain go1.24.0`) → `go build -trimpath -mod=vendor`. Output is deterministic: the same sources and
     `app.jip` produce byte-identical Go.
 11. **Toolchain.** The compiler pins a Go toolchain version; v0 pins 1.24

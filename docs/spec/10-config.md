@@ -99,10 +99,15 @@ aborts startup.
    fetch --save` writes the computed hash into `app.jip`. A `git(...)` or
    `gomod(...)` without `hash` is a compile error (E0306). Dependencies are
    vendored flat under `vendor/<alias>`; the vendored tree is committed, and
-   `jip check` re-hashes it against `app.jip` (E0309 on mismatch). For
-   every `gomod(...)` entry `jip build` synthesises `vendor/modules.txt`
-   from the pinned path and commit, because `go build -mod=vendor` rejects a
-   vendor tree without it; the file is generated, never edited.
+   `jip check` re-hashes it against `app.jip` (E0309 on mismatch). A
+   `gomod(path)` is cloned from `https://<path>`; a module hosted elsewhere
+   is reached through git's `url.<base>.insteadOf`. Its vendored `go.mod`
+   must declare `module <path>` (E0309), and every module it requires needs
+   a `gomod` entry of its own (E0504). For the `gomod(...)` entries `jip
+   build` links `.jip/gen/vendor/<path>` to `vendor/<alias>` and
+   synthesises `.jip/gen/vendor/modules.txt` listing their packages,
+   because `go build -mod=vendor` rejects a vendor tree without it; both
+   are generated, never edited.
 8. **One commit per URL.** A dependency's own `app.jip` contributes only its
    `deps {}` and `externs {}` blocks to the graph. Across the whole graph each
    URL resolves to one commit. Two different commits for one URL (a diamond)

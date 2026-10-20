@@ -90,8 +90,9 @@ here the compiler checks the declared effects against the Go import path.
    bind too. A method extern without parameters, over a name that is not
    such a type, or whose receiver type does not match is E0503; a method
    that does not exist or whose signature (receiver excluded) does not
-   match is E0506. The floor (rule 5) is that of the type's package. The import path is a Go standard-library path or
-   the module path of a `gomod(...)` entry in `deps {}` (E0504 otherwise).
+   match is E0506. The floor (rule 5) is that of the type's package. The
+   import path is a Go standard-library path or a package of the module of
+   a `gomod(...)` entry in `deps {}` (E0504 otherwise).
    The path `"rt"` names the toolchain's own runtime package, shipped with
    `jip` and copied into every build: it needs no `gomod` entry, rules 3
    to 8 do not apply to it, and a generic `rt` function is instantiated
