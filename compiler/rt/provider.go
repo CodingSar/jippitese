@@ -22,21 +22,21 @@ type ModelClient interface {
 	AgentClient
 }
 
-// Models routes calls by role; a role without a client reaches the
-// boundary.
+// Models routes calls by role; a role without a client (or with a nil
+// one, from a provider NewModel does not speak) reaches the boundary.
 type Models map[string]ModelClient
 
 func (m Models) Call(ctx *Ctx, role, prompt string, input any, out reflect.Type) (any, error) {
-	c, ok := m[role]
-	if !ok {
+	c := m[role]
+	if c == nil {
 		boundary("llm")
 	}
 	return c.Call(ctx, role, prompt, input, out)
 }
 
 func (m Models) Turn(ctx *Ctx, role string, req AgentRequest) (AgentReply, error) {
-	c, ok := m[role]
-	if !ok {
+	c := m[role]
+	if c == nil {
 		boundary("llm")
 	}
 	return c.Turn(ctx, role, req)

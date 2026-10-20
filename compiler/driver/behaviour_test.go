@@ -110,3 +110,16 @@ func TestStatefulImplCheck(t *testing.T) {
 		t.Fatalf("exit %d\n%s%s", code, s, errb.String())
 	}
 }
+
+func TestModelsInMain(t *testing.T) {
+	needGo(t)
+	env, _, errb := example(t, "triage")
+	edit(t, env, "app.jip", `smart = anthropic("claude-sonnet")`, `smart = custom("http://localhost:8080/v1", "qwen")`)
+	if code := env.Build(BuildOptions{}); code != ExitOK {
+		t.Fatalf("build: exit %d\n%s", code, errb.String())
+	}
+	b, _ := os.ReadFile(filepath.Join(env.Root, ".jip", "gen", "main.go"))
+	if !strings.Contains(string(b), `"smart": rt.NewModel("smart", "custom", "http://localhost:8080/v1", "qwen"),`) {
+		t.Fatalf("main.go:\n%s", b)
+	}
+}

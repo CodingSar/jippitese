@@ -410,6 +410,13 @@ func (e *emitter) emitMain() {
 	if app != nil {
 		f.printf("\tctx.Store = %q\n", app.Workflow.Store)
 	}
+	if app != nil && len(app.Models) > 0 {
+		f.printf("\tctx.Llm = %s.Models{\n", rtp)
+		for _, m := range app.Models {
+			f.printf("\t\t%q: %s.NewModel(%q, %q, %q, %q),\n", m.Role, rtp, m.Role, m.Provider, m.URL, m.Name)
+		}
+		f.printf("\t}\n")
+	}
 	if app != nil && len(app.Runs) > 0 {
 		f.printf("\t%s.Serve(ctx", rtp)
 		for _, r := range app.Runs {
