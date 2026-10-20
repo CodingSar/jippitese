@@ -104,6 +104,7 @@ type emitter struct {
 	constNames map[*checker.ConstInfo]string
 	implNames  map[*checker.ImplInfo]string // the `<Target>` base used for spec/check names
 	invNames   map[*checker.TypeInfo]string
+	stateInvs  map[*checker.ImplInfo]string // `<Target>_stateInv`, the check of an impl `inv`
 	cfgPkg     *pkg
 	pkgs       map[*checker.Module]*pkg
 	pkgOrder   []*pkg
@@ -230,6 +231,7 @@ func Emit(prog *checker.Program, opts Options) (out *Output, err error) {
 		constNames: map[*checker.ConstInfo]string{},
 		implNames:  map[*checker.ImplInfo]string{},
 		invNames:   map[*checker.TypeInfo]string{},
+		stateInvs:  map[*checker.ImplInfo]string{},
 		pkgs:       map[*checker.Module]*pkg{},
 		out:        &Output{Files: map[string][]byte{}, Packages: map[string]string{}},
 		mainPkg:    "jip/" + sanitize(prog.AppName),

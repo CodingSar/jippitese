@@ -146,6 +146,9 @@ func (e *emitter) allocateModule(m *checker.Module, p *pkg) {
 		for _, n := range sortedConstNames(impl) {
 			e.constNames[impl.Consts[n]] = p.alloc(base + "_" + n)
 		}
+		if len(impl.Inv) > 0 && !m.IsStd {
+			e.stateInvs[impl] = p.alloc(base + "_stateInv")
+		}
 	}
 }
 

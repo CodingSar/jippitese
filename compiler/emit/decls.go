@@ -235,6 +235,12 @@ func (f *file) emitFn(fi *checker.FnInfo) {
 	name := f.p.e.fnNames[fi]
 	f.printf("\n")
 	f.doc(fi.Doc)
+	if subj := stateSubject(fi); subj != "" && fi.Extern == nil && f.p.e.stateInvs[fi.Impl] != "" {
+		body := f.p.alloc(name + "_body")
+		f.emitStateWrapper(fi, name, body, subj)
+		name = body
+		f.printf("\n")
+	}
 	f.line(fi.Pos)
 	f.printf("func %s {\n", f.signature(fi, name))
 	if fi.Extern != nil {
@@ -288,6 +294,9 @@ func (f *file) emitConst(ci *checker.ConstInfo) {
 // ---- impls ----------------------------------------------------------------
 
 func (f *file) emitImpl(impl *checker.ImplInfo) {
+	if f.p.e.stateInvs[impl] != "" {
+		f.emitStateInv(impl)
+	}
 	for _, n := range impl.MethodOrder {
 		fi := impl.Methods[n]
 		if fi == nil || (impl.Behaviour != nil && !hasMethod(impl, n)) {
@@ -301,4 +310,81 @@ func (f *file) emitImpl(impl *checker.ImplInfo) {
 	if impl.Behaviour != nil && isV0Behaviour(impl.Behaviour.Name) {
 		f.emitSpec(impl)
 	}
+}
+
+// emitStateInv writes `<Target>_stateInv(ctx, self)`, the check of an impl's
+// state invariant (spec 05 rule 8): every field in scope bare, a `Cell`
+// field as a snapshot of its payload.
+func (f *file) emitStateInv(impl *checker.ImplInfo) {
+	rtp := f.rt()
+	f.printf("\nfunc %s%s(ctx *%s.Ctx, self %s) {\n", f.p.e.stateInvs[impl], f.typeParamList(impl.TypeParams), rtp, f.goType(impl.Target))
+	g := newGen(f, nil)
+	g.selfName = "self"
+	for _, fl := range impl.TargetInfo.Fields {
+		n := localName(fl.Name)
+		v := "self." + fieldName(fl.Name)
+		if isCell(fl.Type) {
+			v = rtp + ".CellGet(ctx, " + v + ")"
+		}
+		g.printf("%s := %s\n_ = %s\n", n, v, n)
+	}
+	for _, inv := range impl.Inv {
+		g.contract("inv", inv)
+	}
+	f.body.WriteString(g.w.String())
+	f.printf("}\n")
+}
+
+// stateSubject says which value an impl method leaves its state in: "self"
+// for a method on self, "ret" for an `init` returning Self or
+// Result<Self, E>, "" for any other method.
+func stateSubject(fi *checker.FnInfo) string {
+	if fi.Impl == nil || fi.Decl == nil {
+		return ""
+	}
+	if fi.HasSelf {
+		return "self"
+	}
+	if fi.Name != "init" {
+		return ""
+	}
+	t, ok := checker.Zonk(fi.Type.Ret).(*checker.TCon)
+	if ok && t.Info.Mod == "prelude" && t.Info.Name == "Result" && len(t.Args) == 2 {
+		t, ok = checker.Zonk(t.Args[0]).(*checker.TCon)
+		if ok && t.Info == fi.Impl.TargetInfo {
+			return "ok"
+		}
+		return ""
+	}
+	if ok && t.Info == fi.Impl.TargetInfo {
+		return "ret"
+	}
+	return ""
+}
+
+// emitStateWrapper writes the method under its own name as a call of body
+// followed by the state invariant check, under `contracts: all` only.
+func (f *file) emitStateWrapper(fi *checker.FnInfo, name, body, subj string) {
+	rtp := f.rt()
+	args := []string{"ctx"}
+	for i := range fi.Decl.Params {
+		args = append(args, paramGoName(f.p.e.prog, &fi.Decl.Params[i]))
+	}
+	inv := f.p.e.stateInvs[fi.Impl]
+	f.printf("func %s {\n\tr := %s%s(%s)\n\tif %s.Contracts.Inv {\n", f.signature(fi, name), body, typeParamUse(fi.TypeParams), strings.Join(args, ", "), rtp)
+	switch subj {
+	case "self":
+		f.printf("\t\t%s(ctx, %s)\n", inv, args[1])
+	case "ret":
+		f.printf("\t\t%s(ctx, r)\n", inv)
+	case "ok":
+		f.printf("\t\tif r.Tag == %s.ResultTag_Ok {\n\t\t\t%s(ctx, r.Ok_0)\n\t\t}\n", rtp, inv)
+	}
+	f.printf("\t}\n\treturn r\n}\n")
+}
+
+// isCell says whether t is the prelude `Cell<T>`.
+func isCell(t checker.Type) bool {
+	c, ok := checker.Resolve(t).(*checker.TCon)
+	return ok && c.Info.Mod == "prelude" && c.Info.Name == "Cell"
 }
