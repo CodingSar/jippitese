@@ -7,3 +7,7 @@ pub enum Error { Syntax(Int), Shape(Str) }
 pub extern fn encode<T>(v: T) -> Bytes = go "rt".JsonEncode
 /// Decode a schema-derivable value.
 pub extern fn decode<T>(b: Bytes) -> Result<T, Error> = go "rt".JsonDecode
+/// Parse a schema-less document.
+pub extern fn parse(b: Bytes) -> Result<Json, Error> = go "rt".JsonParse
+/// The document encoding `v`.
+pub extern fn of<T>(v: T) -> Json = go "rt".JsonOf

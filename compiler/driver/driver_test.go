@@ -557,7 +557,18 @@ func TestStdStrAndNumbers(t *testing.T) {
 	env, out, errb := card(t)
 	p := filepath.Join(env.Root, "orders/billing/scenarios.jip")
 	b, _ := os.ReadFile(p)
-	src := strings.Replace(string(b), "use orders.billing\n", "use orders.billing\nuse std.math\nuse std.time\n", 1) + `
+	src := strings.Replace(string(b), "use orders.billing\n", "use orders.billing\nuse std.json\nuse std.math\nuse std.time\n", 1) + `
+scenario "json" {
+  given doc = json.parse(b" {\"b\": [1, 2.0, 1e3], \"a\": {\"s\": \"hi\", \"t\": true, \"n\": null}, \"b\": [7]} ").unwrap()
+  when  a = doc.get("a").unwrap()
+  then  a.get("s").unwrap().as_str() == Some("hi") && a.get("t").unwrap().as_bool() == Some(true)
+  then  a.get("n").unwrap().is_null() && a.get("x") == None && a.get("s").unwrap().as_int() == None
+  then  doc.get("b").unwrap().at(0).unwrap().as_int() == Some(7) && doc.keys() == Some(["b", "a"])
+  then  doc.as_map().unwrap().len() == 2 && a.to_str() == "{{\"s\":\"hi\",\"t\":true,\"n\":null}}"
+  then  json.of([1, 2]).as_list().unwrap().len() == 2 && json.of(1.5).as_float() == Some(1.5)
+  then  json.parse(b"{").is_err() && json.of("x").at(0) == None
+}
+
 scenario "time" {
   given start = time.now()
   when  later = start.add(Duration.of_seconds(90).times(2))
@@ -593,7 +604,7 @@ scenario "str and number methods" {
 `
 	os.WriteFile(p, []byte(src), 0o644)
 	code := env.Test(TestOptions{})
-	for _, name := range []string{"str and number methods", "math", "time"} {
+	for _, name := range []string{"str and number methods", "math", "time", "json"} {
 		if !strings.Contains(out.String(), `ok  orders.billing  "`+name+`"`) {
 			code = -1
 		}

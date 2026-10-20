@@ -324,6 +324,33 @@ impl Bytes {
   pub extern fn concat(self, o: Bytes) -> Bytes = go "rt".BytesConcat
 }
 
+impl Json {
+  /// Field `key` of an object; the last duplicate wins.
+  pub extern fn get(self, key: Str) -> Option<Json> = go "rt".JsonGet
+  /// Element `i` of an array.
+  pub extern fn at(self, i: Int) -> Option<Json> = go "rt".JsonAt
+  /// The text of a string.
+  pub extern fn as_str(self) -> Option<Str> = go "rt".JsonAsStr
+  /// An integral number within Int range; `2.0` counts.
+  pub extern fn as_int(self) -> Option<Int> = go "rt".JsonAsInt
+  /// A number that fits a Float.
+  pub extern fn as_float(self) -> Option<Float> = go "rt".JsonAsFloat
+  /// A boolean.
+  pub extern fn as_bool(self) -> Option<Bool> = go "rt".JsonAsBool
+  /// Null test.
+  pub extern fn is_null(self) -> Bool = go "rt".JsonIsNull
+  /// The elements of an array.
+  pub extern fn as_list(self) -> Option<List<Json>> = go "rt".JsonAsList
+  /// The fields of an object in source order.
+  pub extern fn as_map(self) -> Option<Map<Str, Json>> = go "rt".JsonAsMap
+  /// The field names of an object in source order.
+  pub extern fn keys(self) -> Option<List<Str>> = go "rt".JsonKeys
+  /// Compact text.
+  pub extern fn to_str(self) -> Str = go "rt".JsonToStr
+  /// Compact encoding.
+  pub extern fn to_bytes(self) -> Bytes = go "rt".JsonToBytes
+}
+
 impl Path {
   /// The path `s`, cleaned: `a/./b/` is `a/b`.
   pub extern fn of(s: Str) -> Path = go "rt".PathOf

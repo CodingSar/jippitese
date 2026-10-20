@@ -332,7 +332,7 @@ fixes under "deferred from v0"; deviations go to `decisions.md`.
         pi, e.
   - [x] **T4c** `std.time`: Instant before/after/sub, unix millis, RFC 3339
         format and parse, UTC calendar fields; Duration minutes/hours.
-  - [ ] **T4d** `Json` navigation (get, at, as_*, items, keys) and
+  - [x] **T4d** `Json` navigation (get, at, as_*, items, keys) and
         `json.parse`.
   - [ ] **T4e** `std.log`.
 - [ ] **T5** Language server `jip lsp` (LSP over stdio): diagnostics on
