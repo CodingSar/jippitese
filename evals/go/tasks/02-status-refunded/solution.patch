@@ -1,0 +1,18 @@
+diff -ruN a/billing/billing.go b/billing/billing.go
+--- a/billing/billing.go	2026-10-20 19:46:34.841593773 +0000
++++ b/billing/billing.go	2026-10-20 19:51:00.483339041 +0000
+@@ -54,8 +54,14 @@
+ 	Pending Status = iota
+ 	Paid
+ 	Failed
++	Refunded
+ )
+ 
++// IsFinal reports whether s is a status a charge never leaves.
++func IsFinal(s Status) bool {
++	return s == Paid || s == Failed || s == Refunded
++}
++
+ // Decision is what finance answers on a high-risk order.
+ type Decision int
+ 

@@ -1,0 +1,22 @@
+diff -ruN a/billing/billing.go b/billing/billing.go
+--- a/billing/billing.go	2026-10-20 19:46:34.841593773 +0000
++++ b/billing/billing.go	2026-10-20 19:51:00.487280554 +0000
+@@ -99,12 +99,14 @@
+ 	if err != nil {
+ 		return Receipt{}, &NetError{err}
+ 	}
+-	defer resp.Body.Close()
+ 	at := now()
+-	attempts := 0
+-	for attempts < 3 && resp.StatusCode == http.StatusServiceUnavailable {
+-		attempts++
++	for attempts := 1; attempts < 3 && resp.StatusCode == http.StatusServiceUnavailable; attempts++ {
++		resp.Body.Close()
++		if resp, err = post(ctx, gw.URL, body); err != nil {
++			return Receipt{}, &NetError{err}
++		}
+ 	}
++	defer resp.Body.Close()
+ 	var r Receipt
+ 	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+ 		return Receipt{}, &DeclinedError{"bad receipt: " + err.Error()}

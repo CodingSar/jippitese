@@ -1,0 +1,63 @@
+diff -ruN a/cache/cache.go b/cache/cache.go
+--- a/cache/cache.go	2026-10-20 19:47:34.269597305 +0000
++++ b/cache/cache.go	2026-10-20 19:51:00.512052841 +0000
+@@ -59,25 +59,36 @@
+ 	delete(c.entries, k)
+ }
+ 
++// UnknownCurrencyError is a rate asked of a currency without a quote.
++type UnknownCurrencyError struct {
++	Code string
++}
++
++func (e *UnknownCurrencyError) Error() string { return "unknown currency " + e.Code }
++
+ // Rate is the rate of a currency: the cached value, or the quoted one
+ // cached anew.
+-func (c *Rates) Rate(code string) int {
++func (c *Rates) Rate(code string) (int, error) {
+ 	if r, ok := c.Get(code); ok {
+-		return r
++		return r, nil
++	}
++	r, ok := Quote(code)
++	if !ok {
++		return 0, &UnknownCurrencyError{code}
+ 	}
+-	r := Quote(code)
+ 	c.Set(code, r, 0)
+-	return r
++	return r, nil
+ }
+ 
+-// Quote is a fixed quote standing in for a market data call.
+-func Quote(code string) int {
++// Quote is a fixed quote standing in for a market data call; false for a
++// currency it has no quote for.
++func Quote(code string) (int, bool) {
+ 	switch code {
+ 	case "EUR":
+-		return 10850
++		return 10850, true
+ 	case "GBP":
+-		return 12700
++		return 12700, true
+ 	default:
+-		return 10000
++		return 0, false
+ 	}
+ }
+diff -ruN a/cache/cache_test.go b/cache/cache_test.go
+--- a/cache/cache_test.go	2026-10-20 19:47:39.069597591 +0000
++++ b/cache/cache_test.go	2026-10-20 19:51:00.512138923 +0000
+@@ -40,8 +40,8 @@
+ 	c, clock := newFake()
+ 	c.Set("GBP", 1, 0)
+ 	clock.advance(10 * time.Minute)
+-	if r := c.Rate("GBP"); r != 12700 {
+-		t.Errorf("Rate = %d, want 12700", r)
++	if r, err := c.Rate("GBP"); err != nil || r != 12700 {
++		t.Errorf("Rate = %d, %v; want 12700", r, err)
+ 	}
+ 	if v, ok := c.Get("GBP"); !ok || v != 12700 {
+ 		t.Errorf("Get = %d, %v; want 12700", v, ok)

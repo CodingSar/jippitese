@@ -1,0 +1,12 @@
+diff -ruN a/flow/flow.go b/flow/flow.go
+--- a/flow/flow.go	2026-10-20 19:47:52.169598369 +0000
++++ b/flow/flow.go	2026-10-20 19:51:00.519882547 +0000
+@@ -72,7 +72,7 @@
+ 	if err := j.Check(Version); err != nil {
+ 		return Refunded{}, err
+ 	}
+-	if r.Amount > 10_000 {
++	if r.Amount > 20_000 {
+ 		return Refunded{}, &TooLargeError{r.Amount}
+ 	}
+ 	if r.Amount >= 500 {

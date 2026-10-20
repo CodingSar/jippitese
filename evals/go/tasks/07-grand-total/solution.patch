@@ -1,0 +1,19 @@
+diff -ruN a/orders/orders.go b/orders/orders.go
+--- a/orders/orders.go	2026-10-20 19:47:10.633468025 +0000
++++ b/orders/orders.go	2026-10-20 19:51:00.502820203 +0000
+@@ -60,6 +60,15 @@
+ 	return nil
+ }
+ 
++// GrandTotal is the sum of every customer's running total.
++func (ix *Indexer) GrandTotal() int {
++	sum := 0
++	for _, t := range ix.Totals.All() {
++		sum += t
++	}
++	return sum
++}
++
+ // Deliver performs m, retrying as ix.Retry says, and dead-letters it when
+ // every attempt fails.
+ func (ix *Indexer) Deliver(m Placed) {

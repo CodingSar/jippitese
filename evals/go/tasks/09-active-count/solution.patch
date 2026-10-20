@@ -1,0 +1,13 @@
+diff -ruN a/store/store.go b/store/store.go
+--- a/store/store.go	2026-10-20 19:47:26.821596863 +0000
++++ b/store/store.go	2026-10-20 19:51:00.508875299 +0000
+@@ -50,6 +50,9 @@
+ 	}
+ }
+ 
++// ActiveCount is the number of sessions currently stored.
++func (s *Store) ActiveCount() int { return len(s.Sessions.All()) }
++
+ // Touch records activity on a session at the current time.
+ func (s *Store) Touch(id string) {
+ 	s.Sessions.Put(id, Session{ID: id, LastSeen: s.Now()})

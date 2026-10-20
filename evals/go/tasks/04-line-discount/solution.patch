@@ -1,0 +1,32 @@
+diff -ruN a/billing/billing.go b/billing/billing.go
+--- a/billing/billing.go	2026-10-20 19:46:34.841593773 +0000
++++ b/billing/billing.go	2026-10-20 19:51:00.491295725 +0000
+@@ -67,11 +67,11 @@
+ // now is the clock; tests replace it.
+ var now = time.Now
+ 
+-// Total is the sum of line totals.
++// Total is the sum of line totals, each less its discount.
+ func Total(lines []Line) Money {
+ 	var t Money
+ 	for _, l := range lines {
+-		t += l.Price * Money(l.Qty)
++		t += l.Price*Money(l.Qty) - l.Discount
+ 	}
+ 	return t
+ }
+diff -ruN a/billing/types.go b/billing/types.go
+--- a/billing/types.go	2026-10-20 19:46:16.573592687 +0000
++++ b/billing/types.go	2026-10-20 19:51:00.491175948 +0000
+@@ -16,8 +16,9 @@
+ 
+ // Line is one order line.
+ type Line struct {
+-	Price Money `json:"price"`
+-	Qty   int   `json:"qty"`
++	Price    Money `json:"price"`
++	Qty      int   `json:"qty"`
++	Discount Money `json:"discount"`
+ }
+ 
+ // Gateway is where to charge.

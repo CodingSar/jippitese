@@ -1,0 +1,27 @@
+diff -ruN a/flow/flow.go b/flow/flow.go
+--- a/flow/flow.go	2026-10-20 19:47:52.169598369 +0000
++++ b/flow/flow.go	2026-10-20 19:51:00.515738843 +0000
+@@ -54,7 +54,7 @@
+ }
+ 
+ // Version is the workflow version; bump it when the step sequence changes.
+-const Version = 1
++const Version = 2
+ 
+ // Refund is the refund workflow.
+ type Refund struct {
+@@ -85,6 +85,14 @@
+ 		if err != nil {
+ 			return Refunded{}, err
+ 		}
++		if d == Approve && r.Amount >= 5_000 {
++			second := review
++			second.Title = "Second approval: " + review.Title
++			d, err = durable.Step(j, "approve again", func() (Decision, error) { return w.Approver.Approve(ctx, second) })
++			if err != nil {
++				return Refunded{}, err
++			}
++		}
+ 		if d == Deny {
+ 			return Refunded{}, ErrDeclined
+ 		}

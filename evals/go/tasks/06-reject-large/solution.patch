@@ -1,0 +1,13 @@
+diff -ruN a/orders/orders.go b/orders/orders.go
+--- a/orders/orders.go	2026-10-20 19:47:10.633468025 +0000
++++ b/orders/orders.go	2026-10-20 19:51:00.499737775 +0000
+@@ -51,6 +51,9 @@
+ 	if m.Total < 0 {
+ 		return &RejectedError{"negative total"}
+ 	}
++	if m.Total > 100_000 {
++		return &RejectedError{"too large"}
++	}
+ 	if _, ok := ix.Counted.Get(m.ID); ok {
+ 		return nil
+ 	}

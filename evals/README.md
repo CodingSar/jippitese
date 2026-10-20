@@ -50,6 +50,32 @@ acceptance scenarios fail, the reference solution applies, and then `jip
 check --write-interfaces` (accepting the declared break) and `jip test` are
 green.
 
+## Go baseline
+
+`go/` holds idiomatic Go versions of the five projects the tasks touch
+(`orders`, `shop`, `sessions`, `rates`, `refunds`), one module each, standard
+library only, each green under `go vet` and `go test`. `go/tasks/<id>/`
+restates each of the twelve tasks against them: `task.md` (header
+`project:` and `package:`, the directory receiving the hidden test),
+`accept_test.go` (hidden acceptance tests, all named `TestAccept…`) and
+`solution.patch`, frozen by `go/tasks/MANIFEST`. `./validate_go.sh` proves
+them as `validate.sh` does: the acceptance tests fail (or do not compile)
+before the patch, and after it `gofmt`, `go vet ./...` and `go test ./...`
+are clean.
+
+The Go side gets the plainest equivalent of each jippitese construct, never
+a framework, so any measured jippitese advantage is understated:
+
+- Behaviours are plain types and methods: the `shop` Worker is
+  `Indexer.Deliver`, the `sessions` Cron is `Store.RunSweeper` on a ticker.
+- The `refunds` Workflow is a method over a small `durable` journal package
+  (record, replay by step name, a version check), not Temporal.
+- Repositories are one in-memory generic `Repo`; preconditions are panics;
+  postconditions and invariants have no Go form, so task 01 drops its
+  postcondition; declared breaks (tasks 02, 04, 10) have no counterpart.
+- Fakes are a `Now` clock field, `httptest` and `testing/quick`. There is
+  no `main`: no task touches `app.jip`.
+
 ## Transcripts
 
 A run is one agent solving one task in a fresh copy of the project, with
@@ -72,6 +98,4 @@ committed until a run is reported).
 - Agent runs: not started. They need model access and the choice of models
   ("run across multiple models", decisions §13); this environment has
   neither.
-- Go baseline: needs idiomatic Go versions of the five example projects
-  (including the choice of how the Workflow example is expressed in Go) and
-  the same twelve tasks restated against them.
+- Go baseline: done (`go/`, `validate_go.sh`).

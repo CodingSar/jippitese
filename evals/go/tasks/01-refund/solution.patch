@@ -1,0 +1,19 @@
+diff -ruN a/billing/billing.go b/billing/billing.go
+--- a/billing/billing.go	2026-10-20 19:46:34.841593773 +0000
++++ b/billing/billing.go	2026-10-20 19:51:00.476985931 +0000
+@@ -89,6 +89,15 @@
+ 	return acc, nil
+ }
+ 
++// Refund adds amt back to the balance. It panics when amt is not positive.
++func Refund(acc Account, amt Money) Account {
++	if amt <= 0 {
++		panic("billing.Refund: amt must be positive")
++	}
++	acc.Balance += amt
++	return acc
++}
++
+ // Charge charges the order through the payment gateway.
+ func Charge(ctx context.Context, o Order, gw Gateway) (Receipt, error) {
+ 	body, err := json.Marshal(ChargeReq{Order: o.ID, Amount: o.Total})

@@ -1,0 +1,17 @@
+diff -ruN a/store/store.go b/store/store.go
+--- a/store/store.go	2026-10-20 19:47:26.821596863 +0000
++++ b/store/store.go	2026-10-20 19:51:00.505908199 +0000
+@@ -26,11 +26,11 @@
+ 	return &Store{Sessions: NewRepo[string, Session](), Now: time.Now}
+ }
+ 
+-// Sweep removes sessions idle for more than an hour.
++// Sweep removes sessions idle for more than 30 minutes.
+ func (s *Store) Sweep() {
+ 	now := s.Now()
+ 	for _, ses := range s.Sessions.All() {
+-		if now.Sub(ses.LastSeen) > time.Hour {
++		if now.Sub(ses.LastSeen) > 30*time.Minute {
+ 			s.Sessions.Delete(ses.ID)
+ 		}
+ 	}

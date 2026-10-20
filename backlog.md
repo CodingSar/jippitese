@@ -345,7 +345,7 @@ fixes under "deferred from v0"; deviations go to `decisions.md`.
 
 ## 12. v1 evaluation and runtimes
 
-- [ ] **F5** Go baseline corpus for the twelve tasks (`evals/go/`), each
+- [x] **F5** Go baseline corpus for the twelve tasks (`evals/go/`), each
       task's Go starting point plus solution, building and testing green.
 - [ ] **F6** Agent runner `evals/run.mjs` against the Anthropic API
       (models configurable, default the current Claude models); records

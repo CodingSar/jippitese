@@ -1,0 +1,16 @@
+diff -ruN a/billing/billing.go b/billing/billing.go
+--- a/billing/billing.go	2026-10-20 19:46:34.841593773 +0000
++++ b/billing/billing.go	2026-10-20 19:51:00.496173169 +0000
+@@ -237,6 +237,12 @@
+ // bump increments a shared counter.
+ func bump(c *atomic.Int64) int64 { return c.Add(1) }
+ 
++// LargestLine is the line with the greatest Price * Qty, false for an
++// order without lines.
++func LargestLine(o Order) (Line, bool) {
++	return MaxBy(o.Lines, func(l Line) Money { return l.Price * Money(l.Qty) })
++}
++
+ // MaxBy is the element of xs with the greatest key, the first on ties;
+ // false when xs is empty.
+ func MaxBy[T any, K cmp.Ordered](xs []T, key func(T) K) (T, bool) {
