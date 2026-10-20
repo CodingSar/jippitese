@@ -175,6 +175,13 @@ func (f *file) emitExternCall(fi *checker.FnInfo) {
 		args = append(args, f.toGo(fi.Type.Params[i], paramGoName(f.p.e.prog, &fi.Decl.Params[i])))
 	}
 	call := f.goImport(fi.Extern.Pkg) + "." + fi.Extern.Ident + "(" + strings.Join(args, ", ") + ")"
+	if typ, meth, ok := strings.Cut(fi.Extern.Ident, "."); ok {
+		// A method: the first parameter converts to the receiver type and
+		// is held in a variable so pointer-receiver methods apply too.
+		// localName never yields an `m_` name.
+		f.printf("\tm_recv := %s.%s(%s)\n", f.goImport(fi.Extern.Pkg), typ, args[0])
+		call = "m_recv." + meth + "(" + strings.Join(args[1:], ", ") + ")"
+	}
 	r, ok := classifyResult(fi.Type.Ret)
 	if !ok {
 		f.p.e.failf("extern `%s` has an unmappable result", fi.Name)
@@ -257,10 +264,6 @@ func CheckExterns(prog *checker.Program, bag *diag.Bag) {
 				dg.Label("extern %d of max %d", count, maxN)
 				dg.Helpf("raise `externs { max: … }` in app.jip")
 			}
-			if strings.Contains(fi.Extern.Ident, ".") {
-				bag.Errorf("E0503", fi.Pos, "extern binds a method").Label("`%s` is a method; v0 binds package-level functions only", ref)
-				continue
-			}
 			first := strings.SplitN(fi.Extern.Pkg, "/", 2)[0]
 			if strings.Contains(first, ".") {
 				dg := bag.Errorf("E0504", fi.Pos, "extern import path is not pinned")
@@ -268,7 +271,20 @@ func CheckExterns(prog *checker.Program, bag *diag.Bag) {
 				dg.Helpf("add a `gomod(...)` entry for its module to `deps {}`")
 				continue
 			}
-			want, ok := wantSignature(fi)
+			typ, meth, isMethod := strings.Cut(fi.Extern.Ident, ".")
+			params := fi.Type.Params
+			if isMethod {
+				if len(params) == 0 {
+					dg := bag.Errorf("E0503", fi.Pos, "method extern without a receiver")
+					dg.Label("`%s` is a method; its receiver is the first parameter", ref)
+					continue
+				}
+				params = params[1:]
+			}
+			want, ok := wantSignature(params, fi.Type.Ret)
+			if ok && isMethod {
+				ok = extType(fi.Type.Params[0]) != ""
+			}
 			if !ok {
 				dg := bag.Errorf("E0505", fi.Pos, "extern type outside the boundary table")
 				dg.Label("only Int, Float, Bool, Str, Bytes, Duration, newtypes over them, List, Map, Option and Result<_, GoError> cross")
@@ -291,11 +307,18 @@ func CheckExterns(prog *checker.Program, bag *diag.Bag) {
 					break
 				}
 			}
-			obj := p.Scope().Lookup(fi.Extern.Ident)
-			fn, isFn := obj.(*types.Func)
-			if !isFn {
-				bag.Errorf("E0506", fi.Pos, "`%s` is not a function", ref)
-				continue
+			var fn *types.Func
+			if isMethod {
+				if fn = lookupMethod(p, typ, meth, fi, ref, bag); fn == nil {
+					continue
+				}
+			} else {
+				obj := p.Scope().Lookup(fi.Extern.Ident)
+				isFn := false
+				if fn, isFn = obj.(*types.Func); !isFn {
+					bag.Errorf("E0506", fi.Pos, "`%s` is not a function", ref)
+					continue
+				}
 			}
 			got := sigString(fn.Type().(*types.Signature))
 			if got != want {
@@ -309,18 +332,53 @@ func CheckExterns(prog *checker.Program, bag *diag.Bag) {
 	}
 }
 
-// wantSignature is the Go signature a declaration maps to, as
+// lookupMethod finds the exported method meth of the named type typ in p
+// and checks that the extern's first parameter converts to typ (E0503).
+func lookupMethod(p *types.Package, typ, meth string, fi *checker.FnInfo, ref string, bag *diag.Bag) *types.Func {
+	tn, ok := p.Scope().Lookup(typ).(*types.TypeName)
+	if !ok || !tn.Exported() || tn.IsAlias() {
+		bag.Errorf("E0503", fi.Pos, "`%s` is not an exported named type of `%s`", typ, fi.Extern.Pkg)
+		return nil
+	}
+	named, ok := tn.Type().(*types.Named)
+	if !ok || named.TypeParams().Len() > 0 {
+		bag.Errorf("E0503", fi.Pos, "`%s.%s` is not a non-generic named type", fi.Extern.Pkg, typ)
+		return nil
+	}
+	obj, _, _ := types.LookupFieldOrMethod(types.NewPointer(named), true, p, meth)
+	fn, ok := obj.(*types.Func)
+	if !ok || !fn.Exported() {
+		bag.Errorf("E0506", fi.Pos, "`%s` is not an exported method", ref)
+		return nil
+	}
+	q := func(p *types.Package) string { return p.Name() }
+	recv := extType(fi.Type.Params[0])
+	if recv != types.TypeString(named, q) && recv != types.TypeString(named.Underlying(), q) {
+		dg := bag.Errorf("E0503", fi.Pos, "extern receiver does not match Go")
+		dg.Label("the first parameter crosses as `%s`", recv)
+		u := types.TypeString(named.Underlying(), q)
+		if _, isStruct := named.Underlying().(*types.Struct); isStruct {
+			u = "struct{…}"
+		}
+		dg.Note("`%s.%s` is `%s`", fi.Extern.Pkg, typ, u)
+		dg.Helpf("bind a function, or a method of a type over the parameter's Go type")
+		return nil
+	}
+	return fn
+}
+
+// wantSignature is the Go signature parameters and result map to, as
 // `(int64, string) ([]byte, error)`.
-func wantSignature(fi *checker.FnInfo) (string, bool) {
+func wantSignature(params []checker.Type, ret checker.Type) (string, bool) {
 	var ps []string
-	for _, t := range fi.Type.Params {
+	for _, t := range params {
 		x := extType(t)
 		if x == "" {
 			return "", false
 		}
 		ps = append(ps, x)
 	}
-	r, ok := classifyResult(fi.Type.Ret)
+	r, ok := classifyResult(ret)
 	if !ok {
 		return "", false
 	}

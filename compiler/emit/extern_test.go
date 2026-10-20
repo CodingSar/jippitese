@@ -15,24 +15,33 @@ import (
 
 const cardRoot = "../checker/testdata/orders"
 
+type edit struct{ file, old, new string }
+
 // mutateCard copies the card, replaces old with new in the given file and
 // returns the extern codes the copy produces.
 func mutateCard(t *testing.T, file, old, new string) []string {
+	t.Helper()
+	return mutateCards(t, []edit{{file, old, new}})
+}
+
+func mutateCards(t *testing.T, edits []edit) []string {
 	t.Helper()
 	dir := t.TempDir()
 	if out, err := exec.Command("cp", "-r", cardRoot+"/.", dir).CombinedOutput(); err != nil {
 		t.Fatalf("cp: %v %s", err, out)
 	}
-	p := filepath.Join(dir, file)
-	b, err := os.ReadFile(p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(b), old) {
-		t.Fatalf("%s does not contain %q", file, old)
-	}
-	if err := os.WriteFile(p, []byte(strings.Replace(string(b), old, new, 1)), 0o644); err != nil {
-		t.Fatal(err)
+	for _, ed := range edits {
+		p := filepath.Join(dir, ed.file)
+		b, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(b), ed.old) {
+			t.Fatalf("%s does not contain %q", ed.file, ed.old)
+		}
+		if err := os.WriteFile(p, []byte(strings.Replace(string(b), ed.old, ed.new, 1)), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return externCodes(t, dir)
 }
@@ -74,7 +83,11 @@ func TestExternRules(t *testing.T) {
 	}{
 		{"floor", billing, decl, `extern fn read_file(p: Path) -> Result<Bytes, IoError> with {nondet} = go "os".ReadFile`, "E0501"},
 		{"allow", "app.jip", "allow: [orders.billing]", "allow: [orders.customers]", "E0502"},
-		{"method", billing, `go "os".ReadFile`, `go "os".File.Read`, "E0503"},
+		{"receiver", billing, `go "os".ReadFile`, `go "os".File.Read`, "E0503"},
+		{"no-receiver", billing, decl, decl + "\n/// Bad.\nextern fn bad() -> Float with {nondet} = go \"time\".Duration.Hours", "E0503"},
+		{"not-a-type", billing, `go "os".ReadFile`, `go "os".ReadFile.Read`, "E0503"},
+		{"no-method", billing, decl, decl + "\n/// Bad.\nextern fn bad(d: Duration) -> Float with {nondet} = go \"time\".Duration.Days", "E0506"},
+		{"method-signature", billing, decl, decl + "\n/// Bad.\nextern fn bad(d: Duration) -> Int with {nondet} = go \"time\".Duration.Hours", "E0506"},
 		{"path", billing, `go "os".ReadFile`, `go "github.com/x/y".ReadFile`, "E0504"},
 		{"type", billing, decl, decl + "\n/// Bad.\nextern fn bad(c: Char) -> Int = go \"strconv\".Itoa", "E0505"},
 		{"signature", billing, decl, decl + "\n/// Bad.\nextern fn bad(n: Str) -> Int = go \"strconv\".Itoa", "E0506"},
@@ -91,5 +104,25 @@ func TestExternRules(t *testing.T) {
 			}
 			t.Errorf("want %s, got %v", c.want, got)
 		})
+	}
+}
+
+// A method extern takes its receiver as the first parameter; the receiver
+// converts to the Go named type (spec 11 rule 1).
+func TestExternMethod(t *testing.T) {
+	const billing = "orders/billing/billing.jip"
+	const decl = `extern fn read_file(p: Path) -> Result<Bytes, IoError> with {io} = go "os".ReadFile`
+	got := mutateCards(t, []edit{
+		{"app.jip", "max: 1", "max: 3"},
+		{billing, decl, decl + "\n/// Hours.\nextern fn hours(d: Duration) -> Float with {nondet} = go \"time\".Duration.Hours" +
+			"\n/// Rounded.\nextern fn round(d: Duration, m: Duration) -> Duration with {nondet} = go \"time\".Duration.Round"},
+	})
+	for _, g := range got {
+		if g != "E0507" {
+			t.Fatalf("method externs check: %v", got)
+		}
+	}
+	if len(got) != 2 {
+		t.Fatalf("both lack only an @extern scenario: %v", got)
 	}
 }

@@ -255,6 +255,10 @@ fixes under "deferred from v0"; deviations go to `decisions.md`.
 - [ ] **L6** Externs on methods (`go "path".Type.Method`, 11 r1) and
       `gomod(...)` Go dependencies: `jip fetch` vendors them, generated
       `go.mod` gets `require`/`replace` lines and `vendor/modules.txt`.
+      - [x] L6a method externs: `emit/extern.go` (`lookupMethod`,
+            receiver conversion), tests `TestExternRules`,
+            `TestExternMethod`, `TestMethodExternRuns`; spec 11 r1,
+            grammar, decisions.
 - [ ] **L7** `models { role = custom(url, model) }` provider (10 r3).
 - [ ] **L8** Persistent collections (08 r15): run the §13 collections
       benchmark; if within budget, structurally shared `List`/`Map`/`Set`

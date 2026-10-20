@@ -79,9 +79,18 @@ here the compiler checks the declared effects against the Go import path.
 
 ## Rules
 
-1. **Form.** `extern fn name(params) -> Ret [with {effects}] = go "<import path>".Ident`.
-   v0 binds package-level functions only; `go "<path>".Type.Method` is a
-   compile error (E0503). The import path is a Go standard-library path or
+1. **Form.** `extern fn name(params) -> Ret [with {effects}] = go "<import path>".Ident`
+   binds a package-level function. `go "<import path>".Type.Method` (v1)
+   binds a method of an exported, non-generic named type: the first
+   parameter is the receiver, and its boundary Go type (rule 3) is either
+   `Type` itself or `Type`'s underlying type, so
+   `extern fn round_to(d: Duration, m: Duration) -> Duration with {nondet} = go "time".Duration.Round`
+   converts `d` to `time.Duration` and calls `Round(m)` on it. The
+   converted receiver is held in a variable, so pointer-receiver methods
+   bind too. A method extern without parameters, over a name that is not
+   such a type, or whose receiver type does not match is E0503; a method
+   that does not exist or whose signature (receiver excluded) does not
+   match is E0506. The floor (rule 5) is that of the type's package. The import path is a Go standard-library path or
    the module path of a `gomod(...)` entry in `deps {}` (E0504 otherwise).
    The path `"rt"` names the toolchain's own runtime package, shipped with
    `jip` and copied into every build: it needs no `gomod` entry, rules 3
@@ -216,13 +225,23 @@ error[E0502]: extern in a module that is not allow-listed
    = help: either add `orders.customers` to `externs { allow: [...] }` in app.jip, or call `fs.read_file` from `std.fs`
 ```
 
+```text
+error[E0503]: extern receiver does not match Go
+  --> orders/billing/billing.jip:120:1
+    |
+120 | extern fn read_file(p: Path) -> Result<Bytes, IoError> with {io} = go "os".File.Read
+    | ^^^^^^ the first parameter crosses as `string`
+    = note: `os.File` is `struct{…}`
+    = help: bind a function, or a method of a type over the parameter's Go type
+```
+
 ## Grammar
 
 ```text
 ExternDecl  ::= DocLine WhyLine? ("unsafe" "pure")? "pub"? "extern" "fn" Ident
                 "(" Params? ")" "->" Type EffectSet? "=" GoTarget NEWLINE
 WhyLine     ::= "///" "why:" Text NEWLINE
-GoTarget    ::= "go" Str "." GoIdent
+GoTarget    ::= "go" Str "." GoIdent ("." GoIdent)?   // Type.Method: v1
 GoIdent     ::= [A-Z] [A-Za-z0-9_]*
 EffectSet   ::= "with" "{" (Effect ("," Effect)*)? "}"
 ```

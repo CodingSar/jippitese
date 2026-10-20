@@ -336,3 +336,33 @@ func TestBinaryConfigOverlay(t *testing.T) {
 		t.Fatalf("unknown variable must abort startup:\n%s", out)
 	}
 }
+
+// A method extern (spec 11 rule 1) compiles and runs: the receiver is the
+// first parameter, converted to the Go named type.
+func TestMethodExternRuns(t *testing.T) {
+	needGo(t)
+	env, out, errb := card(t)
+	edit := func(file, old, new string) {
+		p := filepath.Join(env.Root, file)
+		b, _ := os.ReadFile(p)
+		if !strings.Contains(string(b), old) {
+			t.Fatalf("%s lacks %q", file, old)
+		}
+		os.WriteFile(p, []byte(strings.Replace(string(b), old, new, 1)), 0o644)
+	}
+	edit("app.jip", "max: 1", "max: 2")
+	edit("orders/billing/billing.jip", `= go "os".ReadFile`, `= go "os".ReadFile
+/// Rounds d to a multiple of m.
+extern fn round_to(d: Duration, m: Duration) -> Duration with {nondet} = go "time".Duration.Round`)
+	edit("orders/billing/scenarios.jip", "@extern\n", `@extern
+scenario "round_to rounds half away from zero" {
+  when  r = round_to(1500ms, 1s)
+  then  r == 2s
+}
+
+@extern
+`)
+	if code := env.Test(TestOptions{}); code != ExitOK || !strings.Contains(out.String(), `ok  orders.billing  "round_to rounds half away from zero"`) {
+		t.Fatalf("exit %d\n%s\n%s", code, out.String(), errb.String())
+	}
+}

@@ -227,7 +227,7 @@ ExternDecl  ::= WhyLine? ("unsafe" "pure")? "extern" "fn" Ident "(" Params? ")"
                 ("->" Type)? ("with" EffectSet)? "=" GoTarget NEWLINE
                 /* the Item's DocLine is mandatory for an extern */
 WhyLine     ::= "///" "why:" (any except newline)* NEWLINE
-GoTarget    ::= "go" StrLit "." GoIdent
+GoTarget    ::= "go" StrLit "." GoIdent ("." GoIdent)?   // Type.Method: v1, 11 rule 1
 GoIdent     ::= ("A" … "Z") (letter | digit)*
 ```
 

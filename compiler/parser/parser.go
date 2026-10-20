@@ -495,8 +495,9 @@ func (p *parser) fnDecl(pos ast.Pos, doc string, vis ast.Visibility, top bool) *
 		pkg := p.expect(lexer.Str, "").Text
 		p.expectOp(".")
 		ident := p.ident()
-		// `go "pkg".Type.Method` parses so the checker can reject it with
-		// E0503 instead of a syntax error.
+		// `go "pkg".Type.Method` binds a method (spec 11 rule 1); a longer
+		// path parses so the extern check reports it instead of a syntax
+		// error.
 		for p.acceptOp(".") {
 			ident += "." + p.ident()
 		}
