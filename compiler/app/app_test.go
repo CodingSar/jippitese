@@ -51,3 +51,25 @@ func TestParseWorkflow(t *testing.T) {
 		t.Fatal("temporal accepted")
 	}
 }
+
+func TestParseModels(t *testing.T) {
+	parse := func(body string) (*App, error) {
+		f, err := parser.ParseFile("app.jip", "app {\n  name: \"x\"\n  models { "+body+" }\n}\n")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return Parse(f)
+	}
+	a, err := parse(`fast = ollama("llama3"), local = custom("http://localhost:8000/v1", "qwen")`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m := a.ModelFor("local"); m == nil || m.URL != "http://localhost:8000/v1" || m.Name != "qwen" || a.ModelFor("fast").Name != "llama3" || a.ModelFor("x") != nil {
+		t.Fatalf("models: %+v", a.Models)
+	}
+	for _, bad := range []string{`a = gemini("x")`, `a = custom("x")`, `a = openai("x", "y")`, `a = "gpt"`} {
+		if _, err := parse(bad); err == nil {
+			t.Fatalf("%s accepted", bad)
+		}
+	}
+}

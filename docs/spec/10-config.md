@@ -65,7 +65,7 @@ aborts startup.
      from the overlay (rule 5). An empty or absent block gives `Config` only
      `secrets`.
    - `deps { alias = git(url: Str, commit: Str, hash: Str) | gomod(path: Str, commit: Str, hash: Str) }`.
-   - `models { role = Provider }` with `Provider ::= openai(Str) | anthropic(Str) | jev(Str) | ollama(Str)`. Every role used in code as `llm<role>` or `decide<role>` must be declared (E0307). **Deferred:** a `custom(url, model)` provider is not in v0.
+   - `models { role = Provider }` with `Provider ::= openai(Str) | anthropic(Str) | jev(Str) | ollama(Str) | custom(Str, Str)`. The string is the provider's model name; `custom(url, model)` (v1) also names the base URL of an OpenAI-compatible chat-completions endpoint. Any other provider name or argument count is an `app.jip` error. Every role used in code as `llm<role>`, `decide<role>` or an `Agent`'s `const model = role` must be declared (E0307, once per role).
    - `secrets { name: secret<T> }`, `T` one of `Str`, `Int`, `Url`, `Bytes`. A secret field never carries a literal (E0302); its value comes only from `JIP_SECRETS__<NAME>`.
    - `effects { net { timeout: Duration, retry { max: Int, backoff: exp | const, base: Duration }, ratelimit { per_second: Float } } llm { timeout: Duration, budget: Tokens | Money, ratelimit { per_second: Float } } io { timeout: Duration } decide { timeout: Duration } approve { channel: ModulePath, default_timeout: Duration } }`. `approve.channel` names an app or dependency module implementing `std.approve.Channel` (section 07 rule 7); the stdlib ships `std.approve.http`. Defaults: `net.timeout 5s`, `net.retry { max: 3, backoff: exp, base: 100ms }`, `llm.timeout 60s`, `io.timeout 10s`, `decide.timeout 1s`, `approve.default_timeout 24h`; no ratelimit, no llm budget, retries only on `net`. These are the defaults sections 06 and 07 cite.
    - `telemetry { exporter: otlp | prometheus | none, endpoint: Str, sample: Float }`. Defaults `none`, `""`, `0.1`.
@@ -207,6 +207,7 @@ DepsBlock   ::= "deps" "{" (Ident "=" DepSource NEWLINE)* "}"
 DepSource   ::= ("git" | "gomod") "(" Str "," "commit" ":" Str "," "hash" ":" Str ")"
 ModelsBlock ::= "models" "{" (Ident "=" Provider ("," Ident "=" Provider)*)? "}"
 Provider    ::= ("openai" | "anthropic" | "jev" | "ollama") "(" Str ")"
+              | "custom" "(" Str "," Str ")"                     // v1
 SecretsBlock::= "secrets" "{" (Ident ":" "secret" "<" Type ">" ("," Ident ":" "secret" "<" Type ">")*)? "}"
 ExternsBlock::= "externs" "{" "allow" ":" "[" (ModulePath ("," ModulePath)*)? "]" ("," "max" ":" Int)? "}"
 WorkflowBlock::= "workflow" "{" "mode" ":" "embedded" ("," "store" ":" "default"? Str)? "}"

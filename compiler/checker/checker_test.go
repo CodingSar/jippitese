@@ -419,3 +419,10 @@ func TestAgentRunEffects(t *testing.T) {
 	out := checkSupport(t, src)
 	expectErrors(t, out, []string{"E0412", "E0412", "E0707"}, "`Triage.run` has effect `io`", "`Triage.run` has effect `net`")
 }
+
+func TestUndeclaredRole(t *testing.T) {
+	src := strings.Replace(agentSnippet("const budget = Budget { max_turns: 12, max_cost: Money(200) }"), "const model = smart", "const model = slow", 1)
+	src = strings.ReplaceAll(src, "llm<smart>", "llm<slow>")
+	out := checkSupport(t, src)
+	expectErrors(t, out, []string{"E0307", "E0707"}, "model role `slow` is not declared", "no `slow` in app.jip `models {}`")
+}

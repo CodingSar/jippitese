@@ -2270,6 +2270,7 @@ func (c *Checker) inferLlm(e *ast.LlmExpr, want Type) Type {
 	c.prog.LlmOut[e] = out
 	c.pendingSchema = append(c.pendingSchema, schemaCheck{t: out, pos: e.Pos, what: "llm<" + e.Role + ">"})
 	c.useEffect(ast.Effect{Name: "llm", Role: e.Role}, e.Pos, "llm<"+e.Role+">")
+	c.checkRole(e.Role, e.Pos)
 	return con(c.preludeType("Result"), out, con(c.preludeType("LlmError")))
 }
 
@@ -2282,6 +2283,7 @@ func (c *Checker) inferDecide(e *ast.DecideExpr, want Type) Type {
 	c.prog.DecideOut[e] = out
 	c.pendingSchema = append(c.pendingSchema, schemaCheck{t: out, pos: e.Pos, what: "decide<" + e.Role + ">", decide: true})
 	c.useEffect(ast.Effect{Name: "decide", Role: e.Role}, e.Pos, "decide<"+e.Role+">")
+	c.checkRole(e.Role, e.Pos)
 	return out
 }
 

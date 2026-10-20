@@ -4,6 +4,7 @@ package app
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/codingsar/jippitese/compiler/ast"
@@ -37,13 +38,18 @@ type Dep struct {
 	Hash   string
 }
 
-// Model is one `models { role = provider("name") }` entry.
+// Model is one `models { role = provider("name") }` entry; a
+// `custom(url, model)` entry also sets URL.
 type Model struct {
 	Pos      ast.Pos
 	Role     string
 	Provider string
 	Name     string
+	URL      string
 }
+
+// Providers are the names `models {}` accepts (spec 10 rule 3).
+var Providers = []string{"openai", "anthropic", "jev", "ollama", "custom"}
 
 // Run is one `run Name { … }` line.
 type Run struct {
@@ -173,11 +179,28 @@ func Parse(f *ast.File) (*App, error) {
 			}
 			for _, c := range blk.Entries {
 				m := &Model{Pos: c.Pos, Role: c.Key}
-				if call, ok := c.Value.(*ast.AppCall); ok {
-					m.Provider = call.Name
-					if len(call.Args) > 0 {
-						m.Name, _ = litStr(call.Args[0])
+				call, ok := c.Value.(*ast.AppCall)
+				if !ok || !slices.Contains(Providers, call.Name) {
+					return nil, fmt.Errorf("%s: model `%s` must be one of %s", c.Pos, c.Key, strings.Join(Providers, ", "))
+				}
+				m.Provider = call.Name
+				var args []string
+				for _, x := range call.Args {
+					s, ok := litStr(x)
+					if !ok {
+						return nil, fmt.Errorf("%s: model `%s` takes string literals", c.Pos, c.Key)
 					}
+					args = append(args, s)
+				}
+				switch {
+				case m.Provider == "custom" && len(args) == 2:
+					m.URL, m.Name = args[0], args[1]
+				case m.Provider == "custom":
+					return nil, fmt.Errorf("%s: model `%s` must be `custom(url, model)`", c.Pos, c.Key)
+				case len(args) == 1:
+					m.Name = args[0]
+				default:
+					return nil, fmt.Errorf("%s: model `%s` must be `%s(model)`", c.Pos, c.Key, m.Provider)
 				}
 				a.Models = append(a.Models, m)
 			}
@@ -305,6 +328,16 @@ func (a *App) DepFor(alias string) *Dep {
 	for _, d := range a.Deps {
 		if d.Alias == alias {
 			return d
+		}
+	}
+	return nil
+}
+
+// ModelFor is the `models {}` entry of role, nil when it is not declared.
+func (a *App) ModelFor(role string) *Model {
+	for _, m := range a.Models {
+		if m.Role == role {
+			return m
 		}
 	}
 	return nil

@@ -46,6 +46,9 @@ func (c *Checker) declareAgentTools(m *Module, d *ast.ImplDecl) {
 	}
 	if k := implConst(d, "model"); k != nil {
 		if id, ok := k.Value.(*ast.Ident); ok {
+			if !m.IsStd {
+				c.checkRole(id.Name, id.Pos)
+			}
 			k.Value = &ast.CallExpr{Pos: id.Pos, Fn: &ast.Ident{Pos: id.Pos, Name: "Role"}, Args: []ast.Expr{&ast.StrLit{Pos: id.Pos, Parts: []ast.StrPart{{Lit: id.Name}}}}}
 		}
 	}
@@ -108,6 +111,22 @@ func (c *Checker) agentToolFns(impl *ImplInfo) []*FnInfo {
 		}
 	}
 	return out
+}
+
+// checkRole reports a role that app.jip `models {}` does not declare
+// (E0307), once per role. A program without app.jip is not checked.
+func (c *Checker) checkRole(role string, pos ast.Pos) {
+	a := c.prog.App
+	if a == nil || role == "" || a.ModelFor(role) != nil || c.roleReported[role] {
+		return
+	}
+	if c.roleReported == nil {
+		c.roleReported = map[string]bool{}
+	}
+	c.roleReported[role] = true
+	dg := c.errorf("E0307", pos, "model role `%s` is not declared", role)
+	dg.Label("no `%s` in app.jip `models {}`", role)
+	dg.Helpf("add `%s = openai(\"…\")` (or another provider) to `models {}`", role)
 }
 
 // AgentRole is the role of `const model`, after declareAgentTools rewrote
