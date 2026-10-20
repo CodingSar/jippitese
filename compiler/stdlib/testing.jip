@@ -1,7 +1,7 @@
 module std.testing
 
 /// A request a `FakeHttp` recorded.
-pub type Request { url: Url, body: Bytes }
+pub type Request { method: Str, url: Url, headers: Map<Str, Str>, body: Bytes }
 /// One scripted `Agent` model turn: say text, call a tool with JSON
 /// arguments, or refuse.
 pub enum Reply { Say(Str), Call(Str, Str), Refuse(Str) }
@@ -38,6 +38,9 @@ impl FakeHttp {
   pub extern fn new() -> FakeHttp = go "rt".FakeHttpNew
   /// Append a reply.
   pub extern fn reply(self, status: Int, body: Bytes) -> FakeHttp = go "rt".FakeHttpReply
+  /// Answer `method` ("" for any) to exactly `url` with status and body; routes
+  /// are tried in order before the scripted replies.
+  pub extern fn route(self, method: Str, url: Url, status: Int, body: Bytes) -> FakeHttp = go "rt".FakeHttpRoute
   /// Every request seen so far.
   pub extern fn requests(self) -> List<Request> = go "rt".FakeHttpRequests
 }

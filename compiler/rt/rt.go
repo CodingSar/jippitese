@@ -170,7 +170,7 @@ func NewCtx() *Ctx {
 		Go:      context.Background(),
 		Clock:   RealClock{},
 		Rand:    rand.New(rand.NewSource(time.Now().UnixNano())),
-		Http:    realHttp{},
+		Http:    DefaultHttp(),
 		Llm:     boundaryLlm{},
 		Decide:  boundaryDecide{},
 		Approve: boundaryApprove{},

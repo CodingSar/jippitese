@@ -1,0 +1,27 @@
+module std.http
+
+/// An HTTP response. Every status is a response; only a transport failure
+/// is a `NetError`. Header names are lower-case.
+pub extern type Response = go "rt".HttpResponse
+
+impl Response {
+  /// The status code.
+  pub extern fn status(self) -> Int = go "rt".HttpResponseStatus
+  /// The headers, names lower-case, repeated values joined by ", ".
+  pub extern fn headers(self) -> Map<Str, Str> = go "rt".HttpResponseHeaders
+  /// The body.
+  pub extern fn body(self) -> Bytes = go "rt".HttpResponseBody
+  /// Whether the status is 2xx.
+  pub extern fn ok(self) -> Bool = go "rt".HttpResponseOk
+  /// The body as text; invalid UTF-8 becomes U+FFFD.
+  pub extern fn text(self) -> Str = go "rt".HttpResponseText
+}
+
+/// GETs url.
+pub extern fn get(url: Url) -> Result<Response, NetError> with {net} = go "rt".NetGet
+
+/// POSTs body to url as `application/json`.
+pub extern fn post(url: Url, body: Bytes) -> Result<Response, NetError> with {net} = go "rt".NetPost
+
+/// Sends method to url with headers; an empty body sends none.
+pub extern fn request(method: Str, url: Url, headers: Map<Str, Str>, body: Bytes) -> Result<Response, NetError> with {net} = go "rt".NetRequest

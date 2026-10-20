@@ -149,7 +149,10 @@ func TestWithdrawNeverOverdraws(t *testing.T) {
    (Diagnostics).
 9. **Config.** Effects inside a scenario see the `env test` overlay of
    `app.jip` (cross-reference 10); `JIP_ENV` is ignored under `jip test`.
-10. **Fakes.** `std.testing` provides `FakeHttp` (`net`), `FakeClock` and
+10. **Fakes.** `std.testing` provides `FakeHttp` (`net`: `route(method,
+    url, status, body)` answers one exact URL, `""` for any method; requests
+    that match no route take the scripted `reply` answers, the last one
+    repeating), `FakeClock` and
     `FakeRandom` (`nondet`), `FakeFs` (`io` through `std.fs`), `FakeLlm` (scripted replies per role),
     `FakeDecide` (scripted or constant decisions) and `FakeApprove`
     (scripted `Ok(value)` or `Err(Rejected)` or `Timeout` answers), and the

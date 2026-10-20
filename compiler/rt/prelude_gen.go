@@ -450,8 +450,10 @@ func (v *JsonError) UnmarshalJSON(b []byte) error { return UnmarshalEnum(v, b) }
 
 // TestingRequest is `std.testing.Request`.
 type TestingRequest struct {
-	Url  Url    `json:"url"`
-	Body []byte `json:"body"`
+	Method  string              `json:"method"`
+	Url     Url                 `json:"url"`
+	Headers Map[string, string] `json:"headers"`
+	Body    []byte              `json:"body"`
 }
 
 // TestingReply is `std.testing.Reply`.

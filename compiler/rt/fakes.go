@@ -14,49 +14,100 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
 
 // ---- http ----------------------------------------------------------------
 
-// HttpClient is where the `net` effect of a dependency's http module goes.
-type HttpClient interface {
-	Do(ctx *Ctx, method, url string, body []byte) (status int, resp []byte, err error)
+// HttpReq is one outgoing request of the `net` effect.
+type HttpReq struct {
+	Method string
+	Url    string
+	Header map[string]string
+	Body   []byte // nil sends no body
 }
 
-type realHttp struct{}
+// HttpResp is a response; every status is one.
+type HttpResp struct {
+	Status int
+	Header map[string]string // lower-case names, repeated values joined by ", "
+	Body   []byte
+}
 
-func (realHttp) Do(ctx *Ctx, method, url string, body []byte) (int, []byte, error) {
-	client := &http.Client{Timeout: 5 * time.Second}
+// HttpClient is where the `net` effect goes: std.http and a dependency's
+// http module both call it.
+type HttpClient interface {
+	Do(ctx *Ctx, r HttpReq) (HttpResp, error)
+}
+
+// RealHttp is the production client: each attempt is bounded by Timeout,
+// and a transport failure or a 502/503/504 to an idempotent method is
+// retried by Retry (spec 10 rule 3, `effects.net`).
+type RealHttp struct {
+	Timeout time.Duration
+	Retry   Retry
+}
+
+// DefaultHttp is the client of `effects.net` defaults: 5s, 3 retries,
+// exponential from 100ms.
+func DefaultHttp() RealHttp {
+	return RealHttp{Timeout: 5 * time.Second, Retry: Retry{Max: 3, Backoff: Backoff_Exp(100 * time.Millisecond)}}
+}
+
+func (h RealHttp) Do(ctx *Ctx, r HttpReq) (HttpResp, error) {
+	retries := 0
+	switch r.Method {
+	case http.MethodGet, http.MethodHead, http.MethodPut, http.MethodDelete, http.MethodOptions:
+		retries = int(h.Retry.Max)
+	}
+	for i := 0; ; i++ {
+		resp, err := h.once(ctx, r)
+		again := err != nil || resp.Status == 502 || resp.Status == 503 || resp.Status == 504
+		if !again || i >= retries || ctx.Go.Err() != nil {
+			return resp, err
+		}
+		ctx.Clock.Sleep(ctx, backoffDelay(h.Retry.Backoff, i+1))
+	}
+}
+
+func (h RealHttp) once(ctx *Ctx, r HttpReq) (HttpResp, error) {
+	gctx := ctx.Go
+	if h.Timeout > 0 {
+		var cancel context.CancelFunc
+		gctx, cancel = context.WithTimeout(gctx, h.Timeout)
+		defer cancel()
+	}
 	var rd io.Reader
-	if body != nil {
-		rd = bytes.NewReader(body)
+	if r.Body != nil {
+		rd = bytes.NewReader(r.Body)
 	}
-	req, err := http.NewRequestWithContext(ctx.Go, method, url, rd)
+	req, err := http.NewRequestWithContext(gctx, r.Method, r.Url, rd)
 	if err != nil {
-		return 0, nil, err
+		return HttpResp{}, err
 	}
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
+	for k, v := range r.Header {
+		req.Header.Set(k, v)
 	}
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return 0, nil, err
+		return HttpResp{}, err
 	}
 	defer resp.Body.Close()
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return resp.StatusCode, nil, err
+	out := HttpResp{Status: resp.StatusCode, Header: map[string]string{}}
+	for k, vs := range resp.Header {
+		out.Header[strings.ToLower(k)] = strings.Join(vs, ", ")
 	}
-	return resp.StatusCode, b, nil
+	out.Body, err = io.ReadAll(resp.Body)
+	return out, err
 }
 
 type boundaryHttp struct{}
 
-func (boundaryHttp) Do(ctx *Ctx, method, url string, body []byte) (int, []byte, error) {
+func (boundaryHttp) Do(ctx *Ctx, r HttpReq) (HttpResp, error) {
 	boundary("net")
-	return 0, nil, nil
+	return HttpResp{}, nil
 }
 
 func isTimeout(err error) bool {
@@ -80,7 +131,12 @@ func HttpGet[R, E any](ctx *Ctx, url Url) Result[R, E] {
 }
 
 func httpCall[R, E any](ctx *Ctx, method, url string, body []byte) Result[R, E] {
-	status, resp, err := ctx.Http.Do(ctx, method, url, body)
+	r := HttpReq{Method: method, Url: url, Body: body}
+	if body != nil {
+		r.Header = map[string]string{"Content-Type": "application/json"}
+	}
+	hr, err := ctx.Http.Do(ctx, r)
+	status, resp := hr.Status, hr.Body
 	if err != nil {
 		if isTimeout(err) {
 			return Result_Err[R](makeVariant[E]("Timeout"))
@@ -173,25 +229,43 @@ type fakeReply struct {
 	body   []byte
 }
 
-// FakeHttp is `std.testing.FakeHttp`: scripted replies, recorded requests.
+type fakeRoute struct {
+	method, url string
+	reply       fakeReply
+}
+
+// FakeHttp is `std.testing.FakeHttp`: requests are answered by the first
+// route whose method and URL match, else by the scripted replies in order
+// (the last one sticks); every request is recorded.
 type FakeHttp struct {
 	mu       sync.Mutex
+	routes   []fakeRoute
 	replies  []fakeReply
 	requests []TestingRequest
 }
 
-func (f *FakeHttp) Do(ctx *Ctx, method, url string, body []byte) (int, []byte, error) {
+func (f *FakeHttp) Do(ctx *Ctx, r HttpReq) (HttpResp, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.requests = append(f.requests, TestingRequest{Url: Url(url), Body: append([]byte(nil), body...)})
-	if len(f.replies) == 0 {
-		return 0, nil, errors.New("FakeHttp: no reply scripted for " + method + " " + url)
+	f.requests = append(f.requests, TestingRequest{
+		Method:  r.Method,
+		Url:     Url(r.Url),
+		Headers: MapFromGo(r.Header),
+		Body:    append([]byte(nil), r.Body...),
+	})
+	for _, rt := range f.routes {
+		if (rt.method == "" || rt.method == r.Method) && rt.url == r.Url {
+			return HttpResp{Status: int(rt.reply.status), Header: map[string]string{}, Body: append([]byte(nil), rt.reply.body...)}, nil
+		}
 	}
-	r := f.replies[0]
+	if len(f.replies) == 0 {
+		return HttpResp{}, errors.New("FakeHttp: no reply scripted for " + r.Method + " " + r.Url)
+	}
+	rep := f.replies[0]
 	if len(f.replies) > 1 {
 		f.replies = f.replies[1:]
 	}
-	return int(r.status), append([]byte(nil), r.body...), nil
+	return HttpResp{Status: int(rep.status), Header: map[string]string{}, Body: append([]byte(nil), rep.body...)}, nil
 }
 
 // FakeHttpNew implements `FakeHttp.new()`.
@@ -202,6 +276,15 @@ func FakeHttpReply(ctx *Ctx, f *FakeHttp, status int64, body []byte) *FakeHttp {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.replies = append(f.replies, fakeReply{status: status, body: body})
+	return f
+}
+
+// FakeHttpRoute implements `route(method, url, status, body)`: every
+// request to method and url gets this reply. An empty method matches any.
+func FakeHttpRoute(ctx *Ctx, f *FakeHttp, method string, url Url, status int64, body []byte) *FakeHttp {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.routes = append(f.routes, fakeRoute{method: strings.ToUpper(method), url: string(url), reply: fakeReply{status: status, body: body}})
 	return f
 }
 
@@ -714,14 +797,6 @@ func externError(err error, et reflect.Type) any {
 
 // IoErrorOf maps a Go error to the prelude IoError.
 func IoErrorOf(err error) IoError { return ioError(err) }
-
-// NetErrorOf maps a Go error to the prelude NetError.
-func NetErrorOf(err error) NetError {
-	if isTimeout(err) {
-		return NetError_Timeout()
-	}
-	return NetError_Other(err.Error())
-}
 
 // GoErrorOf maps a Go error to the prelude GoError.
 func GoErrorOf(err error) GoError { return GoError(err.Error()) }

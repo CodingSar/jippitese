@@ -512,3 +512,30 @@ scenario "fs unfaked is the real file system" {
 		t.Fatalf("exit %d\n%s\n%s", code, out.String(), errb.String())
 	}
 }
+
+func TestStdHttp(t *testing.T) {
+	needGo(t)
+	env, out, errb := card(t)
+	p := filepath.Join(env.Root, "orders/billing/scenarios.jip")
+	b, _ := os.ReadFile(p)
+	src := strings.Replace(string(b), "use orders.billing\n", "use orders.billing\nuse std.http as web\n", 1) + `
+scenario "std.http routes to the fake" {
+  given h = FakeHttp.new().route("GET", Url("https://x.test/a"), 200, b"hi").route("", Url("https://x.test/b"), 404, b"").reply(503, b"down")
+  when  r = web.get(Url("https://x.test/a"))
+  then  match r { Ok(resp) => resp.ok() && resp.text() == "hi", Err(_) => false }
+  then  match web.post(Url("https://x.test/b"), b"{}") { Ok(resp) => resp.status() == 404, Err(_) => false }
+  then  match web.request("put", Url("https://x.test/c"), Map.new().insert("x-k", "v"), b"") { Ok(resp) => !resp.ok() && resp.body() == b"down", Err(_) => false }
+  then  h.requests().len() == 3
+  then  match h.requests().get(1) { Some(q) => q.method == "POST" && q.body == b"{}", None => false }
+  then  match h.requests().get(2) { Some(q) => q.method == "PUT" && q.headers.get("x-k") == Some("v"), None => false }
+}
+`
+	os.WriteFile(p, []byte(src), 0o644)
+	code := env.Test(TestOptions{})
+	if !strings.Contains(out.String(), `ok  orders.billing  "std.http routes to the fake"`) {
+		code = -1
+	}
+	if code != ExitOK {
+		t.Fatalf("exit %d\n%s\n%s", code, out.String(), errb.String())
+	}
+}

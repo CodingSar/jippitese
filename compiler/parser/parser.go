@@ -179,7 +179,7 @@ func (p *parser) parseFile() *ast.File {
 		}
 		u := &ast.Use{Pos: p.next().Pos}
 		u.Path = p.dottedPath()
-		if p.acceptKw("as") {
+		if p.accept(lexer.Ident, "as") { // contextual: `as` is not reserved (spec 01)
 			u.Alias = p.ident()
 		}
 		f.Uses = append(f.Uses, u)
