@@ -1,0 +1,13 @@
+module std.log
+
+// Logging is not an effect: a log line changes nothing the program can
+// observe. JIP_LOG sets the lowest level written; the default is info.
+
+/// Write `msg` at debug level.
+pub extern fn debug(msg: Str) -> () = go "rt".LogDebug
+/// Write `msg` at info level.
+pub extern fn info(msg: Str) -> () = go "rt".LogInfo
+/// Write `msg` at warn level.
+pub extern fn warn(msg: Str) -> () = go "rt".LogWarn
+/// Write `msg` at error level.
+pub extern fn error(msg: Str) -> () = go "rt".LogError

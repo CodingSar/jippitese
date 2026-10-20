@@ -557,7 +557,13 @@ func TestStdStrAndNumbers(t *testing.T) {
 	env, out, errb := card(t)
 	p := filepath.Join(env.Root, "orders/billing/scenarios.jip")
 	b, _ := os.ReadFile(p)
-	src := strings.Replace(string(b), "use orders.billing\n", "use orders.billing\nuse std.json\nuse std.math\nuse std.time\n", 1) + `
+	src := strings.Replace(string(b), "use orders.billing\n", "use orders.billing\nuse std.json\nuse std.log\nuse std.math\nuse std.time\n", 1) + `
+scenario "log" {
+  given msg = "hello from std.log"
+  when  _ = log.info(msg)
+  then  log.debug(msg) == ()
+}
+
 scenario "json" {
   given doc = json.parse(b" {\"b\": [1, 2.0, 1e3], \"a\": {\"s\": \"hi\", \"t\": true, \"n\": null}, \"b\": [7]} ").unwrap()
   when  a = doc.get("a").unwrap()
@@ -604,7 +610,7 @@ scenario "str and number methods" {
 `
 	os.WriteFile(p, []byte(src), 0o644)
 	code := env.Test(TestOptions{})
-	for _, name := range []string{"str and number methods", "math", "time", "json"} {
+	for _, name := range []string{"str and number methods", "math", "time", "json", "log"} {
 		if !strings.Contains(out.String(), `ok  orders.billing  "`+name+`"`) {
 			code = -1
 		}

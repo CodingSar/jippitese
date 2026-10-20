@@ -321,7 +321,7 @@ fixes under "deferred from v0"; deviations go to `decisions.md`.
             (today any path but `std.approve.http` is E0301), and pending
             reviews that survive a restart (re-listed from the journal's
             pending entries).
-- [ ] **T4** Stdlib breadth: `std.strings` (replace, index, pad, repeat,
+- [x] **T4** Stdlib breadth: `std.strings` (replace, index, pad, repeat,
       format of floats), `std.math`, `std.time` (Instant arithmetic,
       formatting, parsing), `std.json` (navigating `Json`), `std.log`.
   - [x] **T4a** Str, Int and Float methods in the prelude (replace,
@@ -334,7 +334,7 @@ fixes under "deferred from v0"; deviations go to `decisions.md`.
         format and parse, UTC calendar fields; Duration minutes/hours.
   - [x] **T4d** `Json` navigation (get, at, as_*, items, keys) and
         `json.parse`.
-  - [ ] **T4e** `std.log`.
+  - [x] **T4e** `std.log`.
 - [ ] **T5** Language server `jip lsp` (LSP over stdio): diagnostics on
       change, hover with type and effects, go to definition, document
       symbols, formatting via `jip fmt`.
