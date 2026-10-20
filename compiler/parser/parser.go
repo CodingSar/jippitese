@@ -48,16 +48,21 @@ func ParseFile(path, src string) (f *ast.File, err error) {
 
 // ParseExpr parses a standalone expression (used for interpolation).
 func ParseExpr(pos ast.Pos, src string) (e ast.Expr, err error) {
+	// shift moves a position in src to where src sits in the file.
+	shift := func(q lexer.Pos) lexer.Pos {
+		if q.Line == 1 {
+			q.Col += pos.Col - 1
+		}
+		q.Line += pos.Line - 1
+		return q
+	}
 	toks, lerr := lexer.Lex(pos.File, src)
 	if lerr != nil {
 		le := lerr.(*lexer.Error)
-		return nil, &Error{"E0001", le.Pos, le.Msg}
+		return nil, &Error{"E0001", shift(le.Pos), le.Msg + " in string interpolation; a literal `{` is written `{{`"}
 	}
 	for k := range toks {
-		toks[k].Pos.Line += pos.Line - 1
-		if toks[k].Pos.Line == pos.Line {
-			toks[k].Pos.Col += pos.Col - 1
-		}
+		toks[k].Pos = shift(toks[k].Pos)
 	}
 	p := &parser{toks: toks, file: pos.File}
 	defer func() {

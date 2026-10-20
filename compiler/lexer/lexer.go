@@ -395,7 +395,7 @@ func SplitStr(raw string, p Pos) ([]StrPart, error) {
 		case c == '\\':
 			s, n, err := decodeEscape(raw[i:])
 			if err != nil {
-				return nil, &Error{p, err.Error()}
+				return nil, &Error{Pos{p.File, p.Line, col}, err.Error()}
 			}
 			lit.WriteString(s)
 			i += n
@@ -424,13 +424,13 @@ func SplitStr(raw string, p Pos) ([]StrPart, error) {
 				j++
 			}
 			if depth != 0 {
-				return nil, &Error{p, "unterminated interpolation"}
+				return nil, &Error{Pos{p.File, p.Line, col}, "unterminated interpolation; a literal `{` is written `{{`"}
 			}
 			parts = append(parts, StrPart{Expr: raw[i+1 : j-1], IsExpr: true, Pos: Pos{p.File, p.Line, col + 1}})
 			col += j - i
 			i = j
 		case c == '}':
-			return nil, &Error{p, "unmatched `}` in string; write `}}`"}
+			return nil, &Error{Pos{p.File, p.Line, col}, "unmatched `}` in string; write `}}`"}
 		default:
 			lit.WriteByte(c)
 			i++
