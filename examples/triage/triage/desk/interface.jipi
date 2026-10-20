@@ -1,0 +1,48 @@
+interface triage.desk digest sha256:d0a22955fd5a45d247093c66e78b51d61a4fb2609ca23dce6b354fc81f58817c
+
+/// Runs the desk agent durably: every model turn and tool call is journaled.
+pub type Desk {}
+
+/// What the agent has seen so far.
+pub type Seen { calls: Int, answer: Option<Str> }
+
+/// A support ticket.
+pub type Ticket { id: Int, paid: Int, open: Bool }
+
+/// The support desk: no state of its own.
+pub type Triage {}
+
+/// Why a tool failed.
+pub enum DeskError { NoTicket(Int), TooMuch(Int) }
+
+/// Why a desk run failed.
+pub enum DeskRunError { GaveUp }
+
+/// Looks up a ticket by id.
+pub fn lookup(id: Int) -> Result<Ticket, DeskError>
+
+/// Refunds part of what a ticket paid.
+pub fn refund(id: Int, amount: Int) -> Result<Int, DeskError>
+
+/// Resolves one support ticket with a bounded tool loop.
+impl Agent for Triage
+  type State = Seen
+  type Answer = Str
+  const model = Role("smart")
+  const tools = tools [lookup, refund]
+  const budget = Budget { max_turns: 6, max_cost: Money(200) }
+  fn init(cfg: Config) -> Result<Self, AgentError> with {io}
+  fn begin(self, goal: Str) -> Seen
+  fn observe(self, st: Seen, ev: Event) -> Seen
+  fn stop(self, st: Seen) -> Option<Str>
+  fn gate(self, call: ToolCall) -> Gate with {approve}
+
+/// One ticket, start to finish.
+impl Workflow for Desk
+  type Input = Str
+  type Output = Str
+  type Signal = ()
+  type E = DeskRunError
+  const version = 1
+  fn init(cfg: Config) -> Result<Self, DeskRunError> with {io}
+  fn run(self, goal: Str) -> Result<Str, WorkflowError<DeskRunError>> with {llm<smart>, approve}

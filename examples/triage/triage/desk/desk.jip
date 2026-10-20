@@ -1,0 +1,71 @@
+module triage.desk
+
+/// A support ticket.
+pub type Ticket { id: Int, paid: Int, open: Bool }
+
+/// Why a tool failed.
+pub enum DeskError { NoTicket(Int), TooMuch(Int) }
+
+/// Looks up a ticket by id.
+pub fn lookup(id: Int) -> Result<Ticket, DeskError> {
+  if id == 7 { Ok(Ticket { id, paid: 500, open: true }) } else { Err(DeskError.NoTicket(id)) }
+}
+
+/// Refunds part of what a ticket paid.
+pub fn refund(id: Int, amount: Int) -> Result<Int, DeskError> {
+  if amount > 500 { Err(DeskError.TooMuch(amount)) } else { Ok(amount) }
+}
+
+/// What the agent has seen so far.
+pub type Seen { calls: Int, answer: Option<Str> }
+
+/// The support desk: no state of its own.
+pub type Triage {}
+
+/// Resolves one support ticket with a bounded tool loop.
+impl Agent for Triage {
+  type State = Seen
+  type Answer = Str
+  const model = smart
+  const tools = tools [lookup, refund]
+  const budget = Budget { max_turns: 6, max_cost: Money(200) }
+  fn init(cfg: Config) -> Result<Self, AgentError> with {io} { Ok(Triage {}) }
+  fn begin(self, goal: Str) -> Seen { Seen { calls: 0, answer: None } }
+  fn observe(self, st: Seen, ev: Event) -> Seen {
+    match ev {
+      Event.Returned(_, _) => Seen { ..st, calls: st.calls + 1 },
+      Event.Said(text) => Seen { ..st, answer: Some(text) },
+      Event.Called(_) => st,
+      Event.Compacted => st,
+    }
+  }
+  fn stop(self, st: Seen) -> Option<Str> { st.answer }
+  fn gate(self, call: ToolCall) -> Gate with {approve} {
+    match call.tool {
+      Tools.Refund => Gate.Ask,
+      Tools.Lookup => Gate.Allow,
+    }
+  }
+}
+
+/// Why a desk run failed.
+pub enum DeskRunError { GaveUp }
+
+/// Runs the desk agent durably: every model turn and tool call is journaled.
+pub type Desk {}
+
+/// One ticket, start to finish.
+impl Workflow for Desk {
+  type Input = Str
+  type Output = Str
+  type Signal = ()
+  type E = DeskRunError
+  const version = 1
+  fn init(cfg: Config) -> Result<Self, DeskRunError> with {io} { Ok(Desk {}) }
+  fn run(self, goal: Str) -> Result<Str, WorkflowError<DeskRunError>> with {llm<smart>, approve} {
+    match Triage.run(goal) {
+      Outcome.Finished(text) => Ok(text),
+      _ => Err(WorkflowError.App(DeskRunError.GaveUp)),
+    }
+  }
+}

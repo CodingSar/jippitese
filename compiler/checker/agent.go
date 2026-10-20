@@ -14,9 +14,9 @@ import (
 // isAgent says whether d implements the prelude `Agent`.
 func isAgent(d *ast.ImplDecl) bool { return d.Behaviour == "Agent" && len(d.BehaviourArgs) == 0 }
 
-// toolVariant is the variant of a tool function: `issue_refund` is
+// ToolVariant is the variant of a tool function: `issue_refund` is
 // `IssueRefund`.
-func toolVariant(fn string) string {
+func ToolVariant(fn string) string {
 	var b strings.Builder
 	for _, part := range strings.Split(fn, "_") {
 		if part == "" {
@@ -55,7 +55,7 @@ func (c *Checker) declareAgentTools(m *Module, d *ast.ImplDecl) {
 		ed.Pos = k.Pos
 		if te, ok := k.Value.(*ast.ToolsExpr); ok {
 			for _, f := range te.Fns {
-				ed.Variants = append(ed.Variants, ast.Variant{Pos: f.Pos, Name: toolVariant(f.Name)})
+				ed.Variants = append(ed.Variants, ast.Variant{Pos: f.Pos, Name: ToolVariant(f.Name)})
 			}
 		}
 	}

@@ -484,6 +484,8 @@ func (g *gen) expr(e ast.Expr) string {
 			parts[i] = "F" + strconv.Itoa(i) + ": " + v
 		}
 		return g.f.goType(g.typeOf(e)) + "{" + strings.Join(parts, ", ") + "}"
+	case *ast.ToolsExpr:
+		return g.toolsExpr(x)
 	case *ast.ListLit:
 		vals := g.exprs(x.Elems)
 		return g.f.goType(g.typeOf(e)) + "{" + strings.Join(vals, ", ") + "}"

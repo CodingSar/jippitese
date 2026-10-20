@@ -1,0 +1,39 @@
+module triage.desk.scenarios
+use triage.desk
+
+scenario "a lookup then an answer finishes" {
+  given model = FakeLlm.turns("smart", [Reply.Call("lookup", "{{\"id\": 7}}"), Reply.Say("ticket 7 is open")])
+  when  r = Triage.run("is ticket 7 open?")
+  then  r == Outcome.Finished("ticket 7 is open")
+}
+
+scenario "a refund waits for a reviewer" {
+  given model = FakeLlm.turns("smart", [Reply.Call("refund", "{{\"id\": 7, \"amount\": 100}}"), Reply.Say("refunded")])
+  given approvals = FakeApprove.script::<()>([Ok(())])
+  when  r = Triage.run("refund ticket 7")
+  then  r == Outcome.Finished("refunded")
+  then  approvals.asked().len() == 1
+}
+
+scenario "a model that keeps calling tools runs out of turns" {
+  given model = FakeLlm.turns("smart", [Reply.Call("lookup", "{{\"id\": 1}}")])
+  when  r = Triage.run("loop")
+  then  r == Outcome.Stopped(BudgetExceeded.Turns)
+}
+
+scenario "a refusal ends the run" {
+  given model = FakeLlm.turns("smart", [Reply.Refuse("not allowed")])
+  when  r = Triage.run("anything")
+  then  r == Outcome.Refused("not allowed")
+}
+
+scenario "inside a workflow every turn and tool call is journaled and replays" {
+  given model = FakeLlm.turns("smart", [Reply.Call("refund", "{{\"id\": 7, \"amount\": 50}}"), Reply.Say("refunded")])
+  given approvals = FakeApprove.script::<()>([Ok(())])
+  given rec = record_workflow(Desk, "refund ticket 7")
+  when  again = replay_workflow(Desk, "refund ticket 7", rec.1)
+  then  rec.0 == Ok("refunded")
+  then  rec.1.len() == 5
+  then  again == rec.0
+  then  approvals.asked().len() == 1
+}

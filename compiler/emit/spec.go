@@ -23,6 +23,7 @@ var specShapes = map[string]struct {
 	"Workflow":   {[]string{"assoc:Input", "assoc:Output", "assoc:Signal", "assoc:E"}, [][2]string{{"Run", "run"}, {"OnSignal", "on_signal"}}, [][2]string{{"Version", "version"}}},
 	"Repository": {[]string{"arg:0", "arg:1"}, [][2]string{{"Get", "get"}, {"Put", "put"}, {"Delete", "delete"}, {"Query", "query"}, {"Stop", "stop"}, {"Health", "health"}}, nil},
 	"Cache":      {[]string{"arg:0", "arg:1"}, [][2]string{{"Get", "get"}, {"Set", "set"}, {"Invalidate", "invalidate"}, {"Stop", "stop"}, {"Health", "health"}}, nil},
+	"Agent":      {[]string{"assoc:State", "assoc:Answer", "assoc:Tools"}, [][2]string{{"Begin", "begin"}, {"Observe", "observe"}, {"Stop", "stop"}, {"Gate", "gate"}}, [][2]string{{"Model", "model"}, {"Budget", "budget"}}},
 }
 
 // emitSpec writes `var <Target>_spec = &rt.<B>Spec[…]{…}`: the value the
@@ -75,6 +76,13 @@ func (f *file) emitSpec(impl *checker.ImplInfo) {
 		}
 		f.printf("},\n")
 	}
+	if b == "Agent" {
+		f.printf("\tTools: []%s.AgentTool[%s]{\n", rtp, targs[3])
+		for _, fi := range f.toolFns(impl) {
+			f.printf("\t\t{Tool: %s, Variant: %s_%s(), Call: %s},\n", f.toolDesc(fi), targs[3], checker.ToolVariant(fi.Name), f.toolCall(fi))
+		}
+		f.printf("\t},\n")
+	}
 	// Init: call the impl's init with the program config and turn an Err
 	// into the error rt.Instance reports.
 	initFn := impl.Methods["init"]
@@ -102,6 +110,8 @@ func (f *file) emitSpec(impl *checker.ImplInfo) {
 				extra = ", _ " + targs[1] + ", _ " + targs[2]
 			}
 			f.printf("\t%s: func(ctx *%s.Ctx, _ %s%s) %s.Unit { return %s.U },\n", m[0], rtp, s, extra, rtp, rtp)
+		case "gate":
+			f.printf("\tGate: func(ctx *%s.Ctx, _ %s, _ %s.ToolCall[%s]) %s.Gate { return %s.Gate_Allow() },\n", rtp, s, rtp, targs[3], rtp, rtp)
 		case "health":
 			if b == "Repository" || b == "Cache" {
 				f.printf("\tHealth: func(ctx *%s.Ctx, _ %s) %s.Health { return %s.HealthUp(ctx) },\n", rtp, s, rtp, rtp)

@@ -394,7 +394,8 @@ func (e *emitter) findRunImpl(name string) (*checker.ImplInfo, *pkg) {
 		}
 		for _, impl := range m.Impls {
 			if impl.Behaviour != nil && impl.TargetInfo != nil && impl.TargetInfo.Name == name {
-				if isV0Behaviour(impl.Behaviour.Name) {
+				// An Agent is invoked through `X.run(goal)`, never supervised.
+				if isV0Behaviour(impl.Behaviour.Name) && impl.Behaviour.Name != "Agent" {
 					return impl, e.pkgs[m]
 				}
 			}
@@ -405,7 +406,7 @@ func (e *emitter) findRunImpl(name string) (*checker.ImplInfo, *pkg) {
 
 func isV0Behaviour(name string) bool {
 	switch name {
-	case "Service", "Worker", "Cron", "Workflow", "Repository", "Cache", "Machine":
+	case "Service", "Worker", "Cron", "Workflow", "Repository", "Cache", "Machine", "Agent":
 		return true
 	}
 	return false

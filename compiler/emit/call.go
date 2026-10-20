@@ -17,7 +17,7 @@ func (g *gen) call(x *ast.CallExpr) string {
 		g.e.failf("unresolved call at %s", x.Pos)
 	}
 	v := g.callValue(x, info)
-	if info.Step && !g.dead {
+	if info.Step && !g.dead && info.Builtin != "agent_run" {
 		t := g.typeOf(x)
 		return g.rt() + ".Step[" + g.f.goType(t) + "](ctx, " + strconv.Quote(info.StepKey) + ", func() " + g.f.goType(t) + " {\nreturn " + v + "\n})"
 	}
@@ -136,6 +136,9 @@ func (g *gen) builtin(x *ast.CallExpr, info *checker.CallInfo) string {
 		return g.rt() + ".ReplayWorkflow(ctx, " + spec + ", " + args[0] + ", " + args[1] + ")"
 	case "tick":
 		return g.rt() + ".Tick(ctx, " + spec + ")"
+	case "agent_run":
+		args := g.exprs(x.Args)
+		return g.rt() + ".AgentRun(ctx, " + spec + ", " + strconv.Quote(agentSite(info)) + ", " + args[0] + ")"
 	case "send_signal":
 		args := g.exprs(x.Args[1:])
 		return g.rt() + ".SendSignal(ctx, " + spec + ", " + args[0] + ")"
