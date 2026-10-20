@@ -120,7 +120,7 @@ it is settled in `emit.go` and below.
 - [x] **C6** Deterministic output check: two builds of the card produce
       identical `.jip/gen/`.
 
-- [ ] **C7** (deferred, see decisions "Implementation decisions") The jippitese build cache `.jip/cache/<module>` of spec 13
+- [x] **C7** (superseded by T1) The jippitese build cache `.jip/cache/<module>` of spec 13
       rule 12 (skip typecheck/emit per module on unchanged digests). Not
       needed for correctness; `GOCACHE` already skips unchanged Go.
 
@@ -293,9 +293,11 @@ fixes under "deferred from v0"; deviations go to `decisions.md`.
 
 ## 11. v1 toolchain and stdlib
 
-- [ ] **T1** Build cache `.jip/cache/<module>` (13 r12, was C7): per-module
-      key from source hash, direct dependency digests and module-visible
-      digests; a hit reuses the emitted Go and the checked interface.
+- [x] **T1** Build cache (13 r12, was C7). Measured first: `jip check` was
+      almost all Go-package loading for the extern check, so the cache
+      records clean extern checks under `.jip/cache/externs` instead of
+      per-module typecheck/emit. Orders: `jip check` ~340ms → 15ms, rebuild
+      ~460ms → ~160ms. Spec 13 r12 and 09 r9 rewritten to match.
 - [ ] **T2** Stdlib `std.fs` (read, write, append, list, exists, remove,
       mkdir) over `IoError`, with `FakeFs` in `std.testing`.
 - [ ] **T3** Stdlib `std.http` client (get, post, request with headers)

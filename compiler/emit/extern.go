@@ -291,6 +291,7 @@ func (g *goImporter) Import(path string) (*types.Package, error) {
 // are exempt.
 func CheckExterns(prog *checker.Program, root string, bag *diag.Bag) {
 	imp := newGoImporter(root, prog.App)
+	cache := newExternCache(root, prog.App)
 	pkgs := map[string]*types.Package{}
 	maxN, count := 0, 0
 	allowList := "[]"
@@ -344,9 +345,24 @@ func CheckExterns(prog *checker.Program, root string, bag *diag.Bag) {
 				dg.Label("only Int, Float, Bool, Str, Bytes, Duration, newtypes over them, List, Map, Option and Result<_, GoError> cross")
 				continue
 			}
+			key := ""
+			if cache != nil {
+				recv := ""
+				if isMethod {
+					recv = extType(fi.Type.Params[0])
+				}
+				key = cache.key(fi.Extern.Pkg, fi.Extern.Ident, want, recv)
+				if cache.hit(key) {
+					checkFloor(fi, ref, bag)
+					checkExternScenario(prog, m, fi, bag)
+					continue
+				}
+			}
+			before := len(bag.Diags)
 			p, cached := pkgs[fi.Extern.Pkg]
 			if !cached {
 				var err error
+				externLoads++
 				p, err = imp.Import(fi.Extern.Pkg)
 				if err != nil {
 					bag.Errorf("E0504", fi.Pos, "cannot load Go package `%s`", fi.Extern.Pkg).Note("%v", err)
@@ -379,6 +395,9 @@ func CheckExterns(prog *checker.Program, root string, bag *diag.Bag) {
 				dg := bag.Errorf("E0506", fi.Pos, "extern signature does not match Go")
 				dg.Note("declared maps to `func%s`", want)
 				dg.Note("`%s` is `func%s`", ref, got)
+			}
+			if len(bag.Diags) == before {
+				cache.record(key)
 			}
 			checkFloor(fi, ref, bag)
 			checkExternScenario(prog, m, fi, bag)

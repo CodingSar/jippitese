@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -70,6 +71,7 @@ func externCodes(t *testing.T, dir string) []string {
 }
 
 func TestExternsCardClean(t *testing.T) {
+	t.Setenv("JIP_CACHE", "off")
 	if got := externCodes(t, cardRoot); len(got) != 0 {
 		t.Fatalf("card externs: %v", got)
 	}
@@ -124,5 +126,42 @@ func TestExternMethod(t *testing.T) {
 	}
 	if len(got) != 2 {
 		t.Fatalf("both lack only an @extern scenario: %v", got)
+	}
+}
+
+func TestExternCache(t *testing.T) {
+	t.Setenv("JIP_CACHE", "")
+	dir := t.TempDir()
+	if out, err := exec.Command("cp", "-r", cardRoot+"/.", dir).CombinedOutput(); err != nil {
+		t.Fatalf("cp: %v %s", err, out)
+	}
+	n := externLoads
+	if got := externCodes(t, dir); len(got) != 0 {
+		t.Fatalf("first run: %v", got)
+	}
+	if externLoads == n {
+		t.Fatal("first run loaded no Go package")
+	}
+	n = externLoads
+	if got := externCodes(t, dir); len(got) != 0 || externLoads != n {
+		t.Fatalf("second run: %v, %d loads", got, externLoads-n)
+	}
+	p := filepath.Join(dir, "orders/billing/billing.jip")
+	b, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const decl = `= go "os".ReadFile`
+	src := strings.Replace(string(b), decl, decl+"\n/// Bad.\nextern fn bad(n: Str) -> Int = go \"strconv\".Itoa", 1)
+	if err := os.WriteFile(p, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// A failing extern is never recorded: both runs load and report it.
+	for i := 0; i < 2; i++ {
+		n = externLoads
+		got := externCodes(t, dir)
+		if !slices.Contains(got, "E0506") || externLoads != n+1 {
+			t.Fatalf("bad extern, run %d: %v, %d loads", i, got, externLoads-n)
+		}
 	}
 }

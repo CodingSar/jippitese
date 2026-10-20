@@ -119,11 +119,11 @@ export declare function charge(o: Order, gw: Gateway): Promise<Result<Receipt, B
    exit unless the break is accepted with `jip check --accept-breaking
    <module>` or the commit trailer `jip-breaking: <module>` (R8); either
    makes `jip check` exit 0 and print the classification unchanged.
-9. **Build cache.** A module's cache key is the hash of its sources, the
-   public interface digests of its direct dependencies and the
-   `module-visible` digests of every module under its parent. A change that
-   leaves those digests unchanged (a body edit, a private item) never
-   rebuilds dependents.
+9. **Build cache.** Each module emits its own Go package, deterministically
+   (§13 rule 12), so a body edit or a private item regenerates only that
+   module's Go; `GOCACHE` rebuilds a dependent only when the Go export data
+   it imports changes. The interface digests are the compatibility key of
+   `jip check` (rule 8), not a cache key.
 10. **Context pack.** `jip context <module>` prints tier 1, the module's full
     interface file, then tier 2: for each direct dependency, in the order the
     module first references them (file order, then line order), only the

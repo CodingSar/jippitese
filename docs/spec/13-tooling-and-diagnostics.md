@@ -89,12 +89,15 @@ shows a Go error and `jip fmt` has no configuration.
     toolchain older than the pin; nothing else changes. A distribution may
     ship Go next to `jip` and point `JIP_GO` at it. The emitter never relies on
     generic methods: behaviours lower to dictionaries (§06 rule 15).
-12. **Two caches.** The jippitese cache at `.jip/cache/<module>` is keyed on
-    the module's source hash, its direct dependencies' interface digests and
-    the `module-visible` digests of every module under its parent (§09 rule
-    9): a hit skips typecheck, lower and emit for that module. Below it,
-    `GOCACHE` keys on the emitted Go, so unchanged generated files cost
-    nothing to rebuild.
+12. **Two caches.** The jippitese cache at `.jip/cache/externs` records each
+    extern whose Go side checked clean (§11), keyed on its target, its
+    declared signature, the Go toolchain, every `gomod` pin and the `jip`
+    binary; a hit skips loading and type-checking the Go package, which is
+    nearly all of `jip check`. Only clean results are recorded, so a hit
+    never hides a diagnostic; `JIP_CACHE=off` disables it. Typecheck, lower
+    and emit always rerun: they are whole-program and cheap. Below it,
+    `GOCACHE` keys on the emitted Go, which is deterministic per module, so
+    unchanged generated files cost nothing to rebuild (§09 rule 9).
 13. **Never a Go error.** Every type, effect, contract and exhaustiveness
     error is produced by the jippitese checker before emission. If `go
     build` still fails, the emitter has a bug: the output is
