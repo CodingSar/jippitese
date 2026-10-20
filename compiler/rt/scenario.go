@@ -18,6 +18,7 @@ type ScnOpts struct {
 	Name     string
 	Tags     []string
 	Property bool
+	Derived  bool // a derived check of a `pub fn` (spec 05 rule 14)
 	File     string
 	Line     int
 	Col      int
@@ -37,6 +38,8 @@ type Scn struct {
 	tmp     string
 	// filters counts `where` rejections across runs; nil while shrinking.
 	filters *filterStats
+	// skipped is set when a run ended with errSkipRun.
+	skipped bool
 	// failed collects false `then` lines: each is evaluated and reported,
 	// the first failure does not stop the others (spec 12 rule 6).
 	failed []thenFailure
@@ -119,6 +122,9 @@ func Scenario(t *testing.T, o ScnOpts, body func(*Scn)) {
 	t.Helper()
 	Contracts.Pre, Contracts.Post, Contracts.Inv = true, true, true
 	label := fmt.Sprintf("%s  %q", o.Module, o.Name)
+	if o.Derived {
+		label = o.Module + "  derived " + o.Name
+	}
 	if f := os.Getenv("JIP_SCENARIO_FILTER"); f != "" {
 		if !strings.Contains(o.Name, f) && !strings.Contains(o.Module, f) {
 			t.SkipNow()
@@ -141,7 +147,7 @@ func Scenario(t *testing.T, o ScnOpts, body func(*Scn)) {
 			extern = true
 		}
 	}
-	seed := scnSeed()
+	seed, pinned := scnSeed(), os.Getenv("JIP_SEED") != ""
 	runs := 1
 	if o.Property {
 		runs = envInt("JIP_RUNS", 200)
@@ -151,10 +157,29 @@ func Scenario(t *testing.T, o ScnOpts, body func(*Scn)) {
 	}
 	filters := &filterStats{by: map[string]*filterStat{}}
 	defer filters.warn(label)
-	for run := 0; run < runs; run++ {
-		s := newScn(t, o, seed+int64(run), extern)
+	// A persisted seed is replayed as run 1 (spec 05 rule 16).
+	var saved []int64
+	if o.Property && !pinned {
+		if v, ok := readSeed(seedPath(o)); ok {
+			saved = append(saved, v)
+		}
+	}
+	ran, skippedRuns := 0, 0
+	for run := 0; run < len(saved)+runs; run++ {
+		sd := seed + int64(run-len(saved))
+		if run < len(saved) {
+			sd = saved[run]
+		}
+		s := newScn(t, o, sd, extern)
 		s.filters = filters
 		f := s.attempt(body)
+		ran++
+		if s.skipped {
+			skippedRuns++
+			if skippedRuns == ran && ran >= 3 {
+				break // nothing satisfies `pre`; more runs only burn time
+			}
+		}
 		if f == nil {
 			continue
 		}
@@ -166,6 +191,12 @@ func Scenario(t *testing.T, o ScnOpts, body func(*Scn)) {
 		t.Fail()
 		return
 	}
+	if skippedRuns == ran {
+		filters.warn(label)
+		filters.order = nil
+		fmt.Printf("@jip skip  %s  no candidate satisfies `pre`\n", label)
+		return
+	}
 	fmt.Printf("@jip ok  %s\n", label)
 }
 
@@ -175,6 +206,10 @@ func (s *Scn) attempt(body func(*Scn)) (f *scnFailure) {
 	defer func() {
 		r := recover()
 		if r == nil {
+			return
+		}
+		if r == errSkipRun {
+			s.skipped = true
 			return
 		}
 		f = &scnFailure{pos: s.stepPos, step: s.step, binds: s.binds, seed: s.seed}
@@ -221,13 +256,46 @@ func (s *Scn) shrink(body func(*Scn), f *scnFailure) *scnFailure {
 	return f
 }
 
-func (s *Scn) writeSeed(seed int64) {
+// seedRel is the seed file of a property below the seed directory:
+// `<module dir>/scenarios/<slug>.seed`, or `<module dir>/<fn>.seed` for a
+// derived check.
+func seedRel(o ScnOpts) string {
+	modDir := filepath.Join(strings.Split(o.Module, ".")...)
+	if o.Derived {
+		return filepath.Join(modDir, o.Name+".seed")
+	}
+	return filepath.Join(modDir, "scenarios", slug(o.Name)+".seed")
+}
+
+func seedPath(o ScnOpts) string {
 	dir := os.Getenv("JIP_SEED_DIR")
 	if dir == "" {
+		return ""
+	}
+	return filepath.Join(dir, seedRel(o))
+}
+
+func readSeed(path string) (int64, bool) {
+	if path == "" {
+		return 0, false
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return 0, false
+	}
+	s := strings.TrimSpace(string(b))
+	n, err := strconv.ParseUint(strings.TrimPrefix(strings.TrimPrefix(s, "0x"), "0X"), 16, 64)
+	if err != nil {
+		return 0, false
+	}
+	return int64(n), true
+}
+
+func (s *Scn) writeSeed(seed int64) {
+	path := seedPath(s.Opts)
+	if path == "" {
 		return
 	}
-	modDir := filepath.Join(strings.Split(s.Opts.Module, ".")...)
-	path := filepath.Join(dir, modDir, "scenarios", slug(s.Opts.Name)+".seed")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return
 	}
@@ -268,7 +336,11 @@ func (s *Scn) report(label string, f *scnFailure, property bool) {
 		fmt.Fprintf(&b, "    %s = %s\n", x.name, Show(x.v))
 	}
 	if property {
-		fmt.Fprintf(&b, "    seed 0x%x\n", uint64(f.seed))
+		if seedPath(s.Opts) != "" {
+			fmt.Fprintf(&b, "    seed 0x%x saved to %s\n", uint64(f.seed), filepath.ToSlash(filepath.Join(".jip", "seeds", seedRel(s.Opts))))
+		} else {
+			fmt.Fprintf(&b, "    seed 0x%x\n", uint64(f.seed))
+		}
 		fmt.Fprintf(&b, "    replay: jip test %s --seed 0x%x\n", s.Opts.Module, uint64(f.seed))
 	}
 	fmt.Print(b.String())
@@ -358,7 +430,7 @@ func AnyWhere[T any](s *Scn, pos, clause string, f func(*Ctx, *Gen) T, keep func
 		v := f(s.Ctx, s.gen)
 		ok := keep(s.Ctx, v)
 		if s.filters != nil {
-			s.filters.count(pos, clause, ok)
+			s.filters.count(pos, "where "+clause, ok)
 		}
 		if ok {
 			return v
@@ -367,7 +439,33 @@ func AnyWhere[T any](s *Scn, pos, clause string, f func(*Ctx, *Gen) T, keep func
 	panic(&ScenarioError{Pos: pos, Msg: fmt.Sprintf("`where %s` rejected %d candidates in a row", clause, whereLimit)})
 }
 
-// filterStats counts `where` draws across the runs of one property.
+// errSkipRun ends one run without a verdict: every candidate of a derived
+// check was rejected by its `pre` (W0510 reports it; not a failure).
+var errSkipRun = &ScenarioError{Msg: "skipped run"}
+
+// Pre draws the arguments of a derived check (spec 05 rule 15): draw
+// generates every parameter and reports whether all `pre` clauses hold;
+// a false result redraws. Rejections are counted for W0510; a run whose
+// candidates are all rejected is skipped.
+func Pre(s *Scn, pos, clause string, draw func(*Ctx, *Gen) bool) {
+	s.stepPos = pos
+	for i := 0; i < whereLimit; i++ {
+		ok := draw(s.Ctx, s.gen)
+		if clause == "" {
+			return
+		}
+		if s.filters != nil {
+			s.filters.count(pos, "pre "+clause, ok)
+		}
+		if ok {
+			return
+		}
+	}
+	panic(errSkipRun)
+}
+
+// filterStats counts `where` and `pre` draws across the runs of one
+// property.
 type filterStats struct {
 	order []string
 	by    map[string]*filterStat
@@ -397,7 +495,7 @@ func (fs *filterStats) warn(label string) {
 	for _, pos := range fs.order {
 		st := fs.by[pos]
 		if st.rejected*10 > st.drawn*9 {
-			fmt.Printf("@jip warn W0510  %s  %s  `where %s` rejects too many candidates (%d of %d)\n",
+			fmt.Printf("@jip warn W0510  %s  %s  `%s` rejects too many candidates (%d of %d)\n",
 				label, pos, st.clause, st.rejected, st.drawn)
 		}
 	}

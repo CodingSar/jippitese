@@ -22,7 +22,7 @@ v0 behaviour.
 | `02-types.md` | Primitives, records, enums, newtypes, `Option`/`Result`, collections, generics | all; `Int` traps on overflow (R2) |
 | `03-functions-and-effects.md` | `fn`, signatures, effect sets, `fn` closures, inherent `impl` (R3) | all |
 | `04-expressions-and-control.md` | `let`/`var`, blocks, `if`, `match`, loops, `?`, operators, turbofish | all |
-| `05-contracts.md` | `pre`, `post`, `inv`, levels, generators | contracts, generators, `via`; derived checks deferred (R9) |
+| `05-contracts.md` | `pre`, `post`, `inv`, levels, generators | contracts, generators, `via`, derived function checks; `pre`-derived bounds and derived stateful checks pending |
 | `06-behaviours.md` | `behaviour`, `impl … for`, the six v0 behaviours, child specs | `Service, Worker, Cron, Workflow, Repository, Cache`; `Machine` deferred (R1) |
 | `07-agents-and-workflows.md` | `llm`, `decide`, `approve`, `Workflow`, `WorkflowError<E>` | all but `Agent` and tools, deferred (R1) |
 | `08-concurrency-and-mutation.md` | `spawn`/`task`, `Cell`, `mut`, persistent and mutable collections | all |

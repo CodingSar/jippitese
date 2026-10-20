@@ -90,7 +90,7 @@ func TestBuildTestContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	out.Reset()
-	if code := env.Test(TestOptions{}); code != ExitOK || !strings.Contains(out.String(), "4 scenarios: 4 passed") {
+	if code := env.Test(TestOptions{}); code != ExitOK || !strings.Contains(out.String(), "4 scenarios, 1 derived check: 5 passed") {
 		t.Fatalf("test: exit %d\n%s%s", code, out.String(), errb.String())
 	}
 	out.Reset()
@@ -146,6 +146,43 @@ scenario "an unsatisfiable where fails" {
 		!strings.Contains(s, "warning W0510") || !strings.Contains(s, "`where n > 95` rejects too many candidates") ||
 		strings.Contains(s, "FAIL  orders.billing  \"where keeps") || strings.Contains(s, "FAIL  orders.billing  \"where rejecting") {
 		t.Fatalf("exit %d\n%s%s", code, s, errb.String())
+	}
+}
+
+func TestDerivedCheck(t *testing.T) {
+	needGo(t)
+	env, out, errb := card(t)
+	p := filepath.Join(env.Root, "orders/billing/billing.jip")
+	b, _ := os.ReadFile(p)
+	add := `
+/// Clamps to zero from below.
+pub fn clamp(m: Money) -> Money
+  post ret.0 >= 0
+{
+  if m.0 < -5 { Money(0) } else { m }
+}
+
+/// Only huge amounts.
+pub fn huge(m: Money) -> Money
+  pre  m.0 > 1_000_000
+  post ret.0 > 0
+{
+  m
+}
+`
+	os.WriteFile(p, append(b, add...), 0o644)
+	code := env.Test(TestOptions{})
+	s := out.String()
+	seed := filepath.Join(env.Root, ".jip/seeds/orders/billing/clamp.seed")
+	if _, err := os.Stat(seed); code != ExitFail || err != nil ||
+		!strings.Contains(s, "FAIL  orders.billing  derived clamp") ||
+		!strings.Contains(s, "contract violated: post ret.0 >= 0") ||
+		!strings.Contains(s, "saved to .jip/seeds/orders/billing/clamp.seed") ||
+		!strings.Contains(s, "ok  orders.billing  derived withdraw") ||
+		!strings.Contains(s, "skip  orders.billing  derived huge  no candidate satisfies `pre`") ||
+		!strings.Contains(s, "warning W0510  orders.billing  derived huge") ||
+		!strings.Contains(s, "derived checks:") {
+		t.Fatalf("exit %d seed %v\n%s%s", code, err, s, errb.String())
 	}
 }
 

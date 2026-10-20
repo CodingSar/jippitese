@@ -191,8 +191,10 @@ func TestWithdrawNeverOverdraws(t *testing.T) {
     sets the property run count; `--seed N` replays a persisted or printed
     seed for every property instead of drawing a new one. Lines are `ok`,
     `FAIL`, `skip` or `slow`, then the module, the scenario name and, for
-    properties, the run count. The derived checks of 05 rules 14 and 17 are
-    v1 and not run.
+    properties, the run count. The derived function checks of 05 rule 14
+    run alongside, one line each as `derived <fn>`, and the summary counts
+    them apart: `4 scenarios, 1 derived check: 5 passed, 0 failed, 0
+    skipped`. The derived stateful checks of 05 rule 17 are not run yet.
 14. **No other test forms.** There is no assertion library, no test
     function, no fixture file format. Shared setup is a pure `fn` in the
     module under test or a `given` line.

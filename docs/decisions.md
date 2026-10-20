@@ -141,7 +141,7 @@ File extension: `.jip`. CLI: `jip`.
   a `Result`, never a `pre`.
 - **No frame clause.** Immutability plus effects supply it; the spec states
   this.
-- **Property derivation (deferred from v0; boundary contracts ship first).**
+- **Property derivation (functions in v1; stateful checks pending).**
   For every `pub fn` whose effect set is empty or
   `{mut}` on fresh state, and that has a `post` or whose parameter or return
   types carry `inv`, `jip test` derives one property check: generators from
@@ -415,8 +415,8 @@ File extension: `.jip`. CLI: `jip`.
   quantifies and an example otherwise. `given x = any T via g` names a
   generator explicitly, and the table form `given rows = [ … ]` runs the
   block once per row (R9). BDD-only stays; these are forms of `given`, not
-  a second test kind. `any T where` is in v1; derived checks are deferred
-  from v0.
+  a second test kind. `any T where` and derived function checks are in
+  v1; derived stateful checks are pending.
 - Scenarios see the `pub` and `pub(module)` items of the module under test
   and nothing private.
 - Scenarios run under the default fake clock and seeded random (§4, R14).
@@ -479,6 +479,7 @@ reverse any row; reversing one is a spec change.
 | `any T where` (v1) | The filter sees the candidate under the `given` name; rejected candidates are redrawn from the same generator; 1000 rejections in a row fail the scenario; W0510 is counted per `where` over all runs of the property. |
 | Structural `Int` generator | `Size` bounds the magnitude around zero when the range holds zero, else from the end nearest zero. v0 clamped from `lo`, so `any Int` never drew a positive value. |
 | `jip fmt` | Keeps every comment (trailing ones aligned), literal text (`1_000_000`, `60s`) and schedule sugar (`every 5m`); a body stays on one line only when written so. Refuses to write a result that would not reparse to the same program. Skips `vendor/`. |
+| Derived function checks (v1) | Module-level, non-generic `pub fn`s of app modules only; methods wait for the stateful check. Each emits `TestDerived_<fn>` in the module's `derived_test.go` and prints `derived <fn>`; the summary counts scenarios and derived checks apart. Every `pre` clause is a filter until `pre`-derived bounds land (backlog L2b). A check whose `pre` rejects every candidate of 3 runs is reported `skip` with W0510, never `ok`. A saved seed runs before the N fresh runs unless `--seed` pins the run. |
 | Not in v0 | `gomod(...)` Go dependencies for externs (any non-stdlib Go path is E0504); the per-module `.jip/cache` of 13 rule 12 (needs separate compilation in the checker; `GOCACHE` covers the Go side). |
 
 ## Resolved deferred decisions
@@ -525,5 +526,6 @@ reverse any row; reversing one is a spec change.
 | Approvals library (decision types, visualisations, routing, audit, channels) | v0 gate; design notes in `docs/revision-plan.md` §10 |
 | `temporal` and `restate` workflow runtimes | `embedded` passing the gate |
 | Providers beyond one per role, `custom` provider | ecosystem pressure |
-| Derived property checks | boundary contracts passing the gate |
+| Derived stateful checks (`impl`), stdlib behaviour contracts | backlog L3 |
+| `pre`-derived generator bounds | backlog L2b |
 | Persistent collections as a data structure | §13 collections benchmark |

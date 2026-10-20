@@ -143,20 +143,23 @@ func Push[T any](s Stack[T], x T) Stack[T] {
     interface entry and of context packs; `inv` is part of a `pub type`'s
     entry (cross-reference 09). A stronger `pre` or weaker `post` is a
     `breaking` change under `jip check`.
-14. **Derived property check (functions).** *Status: deferred from v0
-    (revision-plan R9); rules 14, 16 and 17 describe the v1 design and
-    `jip test` v0 runs scenarios only.* `jip test` derives one check for
-    every `pub fn` that (a) has an effect set that is empty, or is exactly
+14. **Derived property check (functions).** `jip test` derives one check
+    for every module-level `pub fn` of an app module that is not generic
+    and (a) has an effect set that is empty, or is exactly
     `{mut}` while no parameter type mentions `Cell` (all cells it touches are
     created inside the function), and (b) has at least one `post`, or has a
     parameter or return type that carries `inv` directly or in a field.
     Functions with `io`, `net`, `llm`, `decide`, `nondet`, `spawn` or
     `approve` get no derived check; scenarios with fakes cover them
-    (cross-reference 12).
+    (cross-reference 12). Generic functions, `impl` methods (rule 17
+    covers them) and `extern` functions get none either, nor does a
+    function with a parameter type that has no structural generator
+    (rule 15).
 15. **Generators.** One generator per parameter, derived structurally from
     the type under a fixed size model: recursive types stop at depth 3 by
     taking the smallest variant, collections at length 8, `Str` at 32
-    bytes. `pre` narrows them: a comparison of a parameter, a field path or
+    bytes. *Status: v1 treats every `pre` clause as a filter; the bounds
+    below are a follow-up (backlog L2b).* `pre` narrows them: a comparison of a parameter, a field path or
     a `.len()` against a constant or another parameter becomes a bound on
     that generator, and a range membership becomes a range generator. Any
     clause not of that shape is a filter. If more than 90% of candidates
@@ -177,7 +180,10 @@ func Push[T any](s Stack[T], x T) Stack[T] {
     example still satisfies `pre`. The shrunk seed is written to
     `.jip/seeds/<module dir>/<fn>.seed` (for `collections.stack`,
     `.jip/seeds/collections/stack/pop.seed`), committed, and replayed as run
-    1 of every later `jip test`.
+    1 of every later `jip test` (not when `--seed` pins the run). If `pre`
+    rejects every candidate of the first 3 runs, the check stops and is
+    reported `skip … no candidate satisfies \`pre\`` with `W0510`; a
+    check whose oracle was never exercised is never reported `ok`.
 17. **Derived stateful check (`impl`).** For an `impl` with `inv` whose
     `init` and at least one other lifecycle method have effect sets within
     `{mut}`, `jip test` derives one check: generate a `Config` (the
@@ -209,14 +215,17 @@ A derived check failing on a `post` (here `pop` was changed to return the
 stack unchanged):
 
 ```text
-FAIL  collections.stack  derived pop  (failed on run 3, shrunk in 9 steps)
-  collections/stack.jip:28:3: post failed
-  post match ret { Some((_, r)) => r.items.len() == s.items.len() - 1, None => s.items.len() == 0 }
-  s   = Stack { items: [0], cap: 1 }
-  ret = Some((0, Stack { items: [0], cap: 1 }))
-  seed 0x1c9e3a7f saved to .jip/seeds/collections/stack/pop.seed
-  replay: jip test collections.stack --seed 0x1c9e3a7f
+FAIL  collections.stack  derived pop
+    at collections/stack.jip:24:1
+    when ret = pop(s)
+    contract violated: post match ret { Some((_, r)) => r.items.len() == s.items.len() - 1, None => s.items.len() == 0 } at collections/stack.jip:28:8
+    s = Stack { items: [0], cap: 1 }
+    seed 0x1c9e3a7f saved to .jip/seeds/collections/stack/pop.seed
+    replay: jip test collections.stack --seed 0x1c9e3a7f
 ```
+
+The bindings are the shrunk example; `ret` is absent because the `post`
+fails inside the call.
 
 The same clause failing in production under `contracts: all` panics:
 

@@ -219,10 +219,15 @@ fixes under "deferred from v0"; deviations go to `decisions.md`.
 
 - [x] **L1** `any T where expr` (12 r4): inline filter on the structural
       generator; W0510 when more than 90% of candidates are rejected.
-- [ ] **L2** Derived property checks for functions (05 r14–16): eligible
-      `pub fn`s, structural generators with `pre`-derived bounds, oracle
-      (`post`, `inv`, no panic), N = 200, integrated shrinking, seeds under
-      `.jip/seeds/`, replayed as run 1.
+- [x] **L2** Derived property checks for functions (05 r14–16): eligible
+      `pub fn`s, structural generators, oracle (`post`, `inv`, no panic),
+      N = 200, integrated shrinking, seeds under `.jip/seeds/`, replayed as
+      run 1. `emit/derived.go`; `driver_test.go` `TestDerivedCheck`.
+- [ ] **L2b** `pre`-derived generator bounds (05 r15): a comparison of a
+      parameter, field path or `.len()` against a constant or another
+      parameter bounds that generator; a range membership becomes a range
+      generator. Today every clause is a filter. Also `Str` at 32 bytes
+      (`GenAnyStr` draws 16).
 - [ ] **L3** Derived stateful check for impls with `inv` (05 r17) and the
       stdlib behaviour contracts (05 r18, 06 r8, r10): `Worker` idempotency,
       `Repository` get-after-put, with `MemRepo`/`MemCache` substitution.

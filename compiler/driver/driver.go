@@ -292,9 +292,12 @@ func (e *Env) Test(o TestOptions) int {
 	if o.Seed != "" {
 		env = append(env, "JIP_SEED="+o.Seed)
 	}
-	passed, failed, skipped := 0, 0, 0
+	passed, failed, skipped, derived := 0, 0, 0, 0
 	inFail := false
 	stream := func(l string) {
+		if !strings.HasPrefix(l, "@jip warn") && strings.HasPrefix(l, "@jip ") && strings.Contains(l, "  derived ") {
+			derived++
+		}
 		switch {
 		case strings.HasPrefix(l, "@jip ok"):
 			passed++
@@ -322,7 +325,14 @@ func (e *Env) Test(o TestOptions) int {
 		e.report(bag, false)
 		return ExitInternal
 	}
-	fmt.Fprintf(e.Stdout, "%d scenarios: %d passed, %d failed, %d skipped\n", passed+failed+skipped, passed, failed, skipped)
+	head := fmt.Sprintf("%d scenarios", passed+failed+skipped-derived)
+	if derived > 0 {
+		head += fmt.Sprintf(", %d derived check", derived)
+		if derived > 1 {
+			head += "s"
+		}
+	}
+	fmt.Fprintf(e.Stdout, "%s: %d passed, %d failed, %d skipped\n", head, passed, failed, skipped)
 	if failed > 0 || err != nil {
 		return ExitFail
 	}

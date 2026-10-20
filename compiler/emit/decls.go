@@ -10,7 +10,7 @@ import (
 
 // emitModule writes one module's package: module.go with every type,
 // function, const and impl, plus scenarios_test.go when the module has a
-// scenario module.
+// scenario module and derived_test.go when a `pub fn` gets a derived check.
 func (e *emitter) emitModule(p *pkg) {
 	m := p.mod
 	f := p.newFile("module.go", false)
@@ -35,6 +35,7 @@ func (e *emitter) emitModule(p *pkg) {
 			e.emitScenarios(p, sm)
 		}
 	}
+	e.emitDerived(p)
 }
 
 func (f *file) doc(d string) {
