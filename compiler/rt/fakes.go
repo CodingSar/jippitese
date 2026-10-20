@@ -3,6 +3,7 @@ package rt
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -221,14 +222,21 @@ func FakeRandomSeeded(ctx *Ctx, n int64) *FakeRandom { return &FakeRandom{Seed: 
 
 // ---- llm -----------------------------------------------------------------
 
-// LlmClient is where `llm<role>(prompt, input)` goes.
+// LlmClient is where `llm<role>(prompt, input)` goes. out is the Go type
+// of the answer; a client returns a value of that type, or a Json document
+// that Llm decodes into it.
 type LlmClient interface {
-	Call(ctx *Ctx, role, prompt string, input any) (any, error)
+	Call(ctx *Ctx, role, prompt string, input any, out reflect.Type) (any, error)
 }
+
+// RefusedError is a client error for a model that declined to answer.
+type RefusedError struct{ Reason string }
+
+func (e *RefusedError) Error() string { return "refused: " + e.Reason }
 
 type boundaryLlm struct{}
 
-func (boundaryLlm) Call(ctx *Ctx, role, prompt string, input any) (any, error) {
+func (boundaryLlm) Call(ctx *Ctx, role, prompt string, input any, out reflect.Type) (any, error) {
 	boundary("llm")
 	return nil, nil
 }
@@ -243,7 +251,7 @@ type FakeLlm struct {
 	calls int64
 }
 
-func (f *FakeLlm) Call(ctx *Ctx, role, prompt string, input any) (any, error) {
+func (f *FakeLlm) Call(ctx *Ctx, role, prompt string, input any, out reflect.Type) (any, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
@@ -297,11 +305,20 @@ func FakeLlmCalls(ctx *Ctx, f *FakeLlm) int64 {
 
 // Llm implements the `llm<role>(prompt, input)` expression.
 func Llm[Out any](ctx *Ctx, role, prompt string, input any) Result[Out, LlmError] {
-	v, err := ctx.Llm.Call(ctx, role, prompt, input)
+	v, err := ctx.Llm.Call(ctx, role, prompt, input, reflect.TypeFor[Out]())
+	if r, ok := err.(*RefusedError); ok {
+		return Result_Err[Out](LlmError_Refused(r.Reason))
+	}
 	if err != nil {
 		return Result_Err[Out](LlmError_Transport(err.Error()))
 	}
 	out, ok := v.(Out)
+	if j, isJson := v.(Json); !ok && isJson {
+		if err := json.Unmarshal(j.Raw, &out); err != nil {
+			return Result_Err[Out](LlmError_Schema(err.Error()))
+		}
+		ok = true
+	}
 	if !ok {
 		var zero Out
 		return Result_Err[Out](LlmError_Schema(fmt.Sprintf("expected %T, got %T", zero, v)))

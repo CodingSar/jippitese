@@ -2,6 +2,7 @@ package rt
 
 import (
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -12,7 +13,7 @@ type scriptClient struct {
 	reqs    []AgentRequest
 }
 
-func (c *scriptClient) Call(ctx *Ctx, role, prompt string, input any) (any, error) {
+func (c *scriptClient) Call(ctx *Ctx, role, prompt string, input any, out reflect.Type) (any, error) {
 	return nil, errors.New("not an llm call")
 }
 
