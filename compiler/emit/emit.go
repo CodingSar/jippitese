@@ -32,6 +32,8 @@ type Options struct {
 // Output is the generated tree, keyed by path relative to `.jip/gen/`.
 type Output struct {
 	Files map[string][]byte
+	// Links are symlinks to create, path → target.
+	Links map[string]string
 	// Packages maps module paths to import paths under `jip/`.
 	Packages map[string]string
 }
@@ -49,7 +51,9 @@ func (o *Output) Write(dir string) error {
 		}
 		rel, _ := filepath.Rel(dir, p)
 		if _, ok := o.Files[filepath.ToSlash(rel)]; !ok {
-			os.Remove(p)
+			if t, err := os.Readlink(p); err != nil || t != o.Links[filepath.ToSlash(rel)] {
+				os.Remove(p)
+			}
 		}
 		return nil
 	})
@@ -62,6 +66,18 @@ func (o *Output) Write(dir string) error {
 			continue
 		}
 		if err := os.WriteFile(p, o.Files[name], 0o644); err != nil {
+			return err
+		}
+	}
+	for name, target := range o.Links {
+		p := filepath.Join(dir, filepath.FromSlash(name))
+		if t, err := os.Readlink(p); err == nil && t == target {
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			return err
+		}
+		if err := os.Symlink(target, p); err != nil {
 			return err
 		}
 	}
@@ -345,7 +361,30 @@ func (e *emitter) emitRuntime() {
 func (e *emitter) emitGoMod() {
 	var b strings.Builder
 	b.WriteString("module " + e.mainPkg + "\n\ngo " + compiler.GoVersion + "\n\ntoolchain " + compiler.GoToolchain + "\n")
+	// A gomod dependency builds from vendor/<alias> (spec 13 rule 10).
+	if e.prog.App != nil {
+		for _, d := range e.prog.App.Deps {
+			if d.Kind == "gomod" {
+				b.WriteString("\nrequire " + d.GoPath + " " + GoModVersion(d.GoPath) + "\n")
+				b.WriteString("\nreplace " + d.GoPath + " => ../../vendor/" + d.Alias + "\n")
+			}
+		}
+	}
 	e.out.Files["go.mod"] = []byte(b.String())
+}
+
+// GoModVersion is the placeholder version a replaced module is required at:
+// v0, or the major version its path ends in (`/v2`, gopkg.in's `.v3`).
+func GoModVersion(path string) string {
+	major := "v0"
+	last := path[strings.LastIndex(path, "/")+1:]
+	isMajor := func(v string) bool { return len(v) > 1 && v[0] == 'v' && strings.Trim(v[1:], "0123456789") == "" }
+	if i := strings.LastIndex(last, ".v"); strings.HasPrefix(path, "gopkg.in/") && i >= 0 && isMajor(last[i+1:]) {
+		major = last[i+1:]
+	} else if isMajor(last) && last != "v0" && last != "v1" && strings.Count(path, "/") > 0 {
+		major = last
+	}
+	return major + ".0.0-00010101000000-000000000000"
 }
 
 // emitMain writes main.go: config load, contract level, runners.

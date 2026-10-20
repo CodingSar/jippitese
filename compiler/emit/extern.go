@@ -1,12 +1,17 @@
 package emit
 
 import (
+	goast "go/ast"
+	"go/build"
 	"go/importer"
+	"go/parser"
 	"go/token"
 	"go/types"
+	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/codingsar/jippitese/compiler/app"
 	"github.com/codingsar/jippitese/compiler/ast"
 	"github.com/codingsar/jippitese/compiler/checker"
 	"github.com/codingsar/jippitese/compiler/diag"
@@ -232,11 +237,60 @@ func effectFloor(path string) []string {
 	return nil
 }
 
+// goImporter loads the Go packages externs name: a gomod dependency's from
+// its tree under root/vendor (spec 10 rule 7), the rest from GOROOT.
+type goImporter struct {
+	root string
+	app  *app.App
+	fset *token.FileSet
+	std  types.Importer
+	pkgs map[string]*types.Package
+}
+
+func newGoImporter(root string, a *app.App) *goImporter {
+	fset := token.NewFileSet()
+	return &goImporter{root: root, app: a, fset: fset, std: importer.ForCompiler(fset, "source", nil), pkgs: map[string]*types.Package{}}
+}
+
+func (g *goImporter) Import(path string) (*types.Package, error) {
+	if p, ok := g.pkgs[path]; ok {
+		return p, nil
+	}
+	var d *app.Dep
+	if g.app != nil {
+		d = g.app.GoModFor(path)
+	}
+	if d == nil {
+		return g.std.Import(path)
+	}
+	dir := filepath.Join(g.root, "vendor", d.Alias, filepath.FromSlash(strings.TrimPrefix(strings.TrimPrefix(path, d.GoPath), "/")))
+	bp, err := build.Default.ImportDir(dir, 0)
+	if err != nil {
+		return nil, err
+	}
+	var files []*goast.File
+	for _, n := range bp.GoFiles {
+		f, err := parser.ParseFile(g.fset, filepath.Join(dir, n), nil, 0)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, f)
+	}
+	conf := types.Config{Importer: g}
+	p, err := conf.Check(path, g.fset, files, nil)
+	if err != nil {
+		return nil, err
+	}
+	g.pkgs[path] = p
+	return p, nil
+}
+
 // CheckExterns applies spec 11 to every app and vendored extern, reporting
-// E0501–E0508 into bag. Externs whose target is the compiler runtime
-// ("rt") belong to the toolchain and are exempt.
-func CheckExterns(prog *checker.Program, bag *diag.Bag) {
-	imp := importer.ForCompiler(token.NewFileSet(), "source", nil)
+// E0501–E0508 into bag; gomod dependencies load from root/vendor. Externs
+// whose target is the compiler runtime ("rt") belong to the toolchain and
+// are exempt.
+func CheckExterns(prog *checker.Program, root string, bag *diag.Bag) {
+	imp := newGoImporter(root, prog.App)
 	pkgs := map[string]*types.Package{}
 	maxN, count := 0, 0
 	allowList := "[]"
@@ -265,9 +319,9 @@ func CheckExterns(prog *checker.Program, bag *diag.Bag) {
 				dg.Helpf("raise `externs { max: … }` in app.jip")
 			}
 			first := strings.SplitN(fi.Extern.Pkg, "/", 2)[0]
-			if strings.Contains(first, ".") {
+			if strings.Contains(first, ".") && (prog.App == nil || prog.App.GoModFor(fi.Extern.Pkg) == nil) {
 				dg := bag.Errorf("E0504", fi.Pos, "extern import path is not pinned")
-				dg.Label("`%s` is not a Go standard-library path", fi.Extern.Pkg)
+				dg.Label("`%s` is neither standard library nor in a `gomod` dependency", fi.Extern.Pkg)
 				dg.Helpf("add a `gomod(...)` entry for its module to `deps {}`")
 				continue
 			}

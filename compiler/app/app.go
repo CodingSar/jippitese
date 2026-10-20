@@ -25,11 +25,14 @@ type Secret struct {
 	Type ast.TypeExpr
 }
 
-// Dep is one `deps { alias = git(url, commit: "…", hash: "…") }` entry.
+// Dep is one `deps { alias = git(url, commit: "…", hash: "…") }` or
+// `alias = gomod("module/path", commit: "…", hash: "…")` entry.
 type Dep struct {
 	Pos    ast.Pos
 	Alias  string
-	URL    string
+	Kind   string // "git" or "gomod"
+	URL    string // what `jip fetch` clones; `https://<GoPath>` for gomod
+	GoPath string // the Go module path of a gomod entry
 	Commit string
 	Hash   string
 }
@@ -144,9 +147,13 @@ func Parse(f *ast.File) (*App, error) {
 			}
 			for _, c := range blk.Entries {
 				d := &Dep{Pos: c.Pos, Alias: c.Key}
-				if call, ok := c.Value.(*ast.AppCall); ok && call.Name == "git" {
+				if call, ok := c.Value.(*ast.AppCall); ok && (call.Name == "git" || call.Name == "gomod") {
+					d.Kind = call.Name
 					if len(call.Args) > 0 {
 						d.URL, _ = litStr(call.Args[0])
+					}
+					if d.Kind == "gomod" {
+						d.GoPath, d.URL = d.URL, "https://"+d.URL
 					}
 					for _, kw := range call.Kw {
 						switch kw.Key {
@@ -301,6 +308,20 @@ func (a *App) DepFor(alias string) *Dep {
 		}
 	}
 	return nil
+}
+
+// GoModFor is the gomod entry whose module holds the Go import path, if any.
+// The longest module path wins, as in Go.
+func (a *App) GoModFor(path string) *Dep {
+	var best *Dep
+	for _, d := range a.Deps {
+		if d.Kind == "gomod" && d.GoPath != "" && (path == d.GoPath || strings.HasPrefix(path, d.GoPath+"/")) {
+			if best == nil || len(d.GoPath) > len(best.GoPath) {
+				best = d
+			}
+		}
+	}
+	return best
 }
 
 // ExternAllowed reports whether a module may declare `extern fn`.

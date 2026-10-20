@@ -74,6 +74,7 @@ func Load(root string, bag *diag.Bag) (*checker.Input, error) {
 	}
 	sort.Strings(files)
 	rootAliases := map[string]ast.Pos{}
+	goMods := map[string]bool{} // aliases of gomod deps: Go trees, no modules
 	for _, p := range files {
 		src, err := os.ReadFile(p)
 		if err != nil {
@@ -89,6 +90,9 @@ func Load(root string, bag *diag.Bag) (*checker.Input, error) {
 		if parts[0] == "vendor" {
 			dep = true
 			parts = parts[1:]
+			if len(parts) > 0 && goMods[parts[0]] {
+				continue
+			}
 		}
 		if base == "app.jip" {
 			if rel == "app.jip" {
@@ -106,6 +110,7 @@ func Load(root string, bag *diag.Bag) (*checker.Input, error) {
 				in.App = a
 				for _, d := range a.Deps {
 					rootAliases[d.Alias] = d.Pos
+					goMods[d.Alias] = d.Kind == "gomod"
 				}
 			}
 			// A dependency's own app.jip only names its root module.

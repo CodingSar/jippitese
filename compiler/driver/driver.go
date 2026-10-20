@@ -103,13 +103,19 @@ func (e *Env) generate(bag *diag.Bag, opts emit.Options) *checker.Program {
 	if prog == nil {
 		return nil
 	}
-	emit.CheckExterns(prog, bag)
+	emit.CheckExterns(prog, e.Root, bag)
+	if prog.App != nil {
+		e.checkGoMods(prog.App, bag)
+	}
 	if bag.HasErrors() {
 		return nil
 	}
 	out, err := emit.Emit(prog, opts)
 	if err != nil {
 		bag.Errorf("E9999", ast.Pos{}, "internal: %v", err).Helpf("report this with `jip build --go-positions` output")
+		return nil
+	}
+	if e.vendorGo(prog, bag, out); bag.HasErrors() {
 		return nil
 	}
 	if err := out.Write(e.genDir()); err != nil {

@@ -38,7 +38,7 @@ func (e *Env) Check(o CheckOptions) int {
 		e.report(bag, true)
 		return exitFor(bag)
 	}
-	emit.CheckExterns(prog, bag)
+	emit.CheckExterns(prog, e.Root, bag)
 	e.checkVendor(prog, bag)
 	breaking := e.checkInterfaces(prog, bag, o)
 	e.externReport(prog)
@@ -284,4 +284,5 @@ func (e *Env) checkVendor(prog *checker.Program, bag *diag.Bag) {
 			dg.Helpf("run `jip fetch` to restore it, or `jip fetch --save` after a deliberate update")
 		}
 	}
+	e.checkGoMods(prog.App, bag)
 }

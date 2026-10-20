@@ -60,7 +60,7 @@ func externCodes(t *testing.T, dir string) []string {
 		t.Fatalf("does not check:\n%s", b.String())
 	}
 	eb := diag.NewBag()
-	CheckExterns(prog, eb)
+	CheckExterns(prog, dir, eb)
 	var codes []string
 	for _, d := range eb.Diags {
 		codes = append(codes, d.Code)

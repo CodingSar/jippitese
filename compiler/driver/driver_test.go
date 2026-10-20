@@ -2,6 +2,7 @@ package driver
 
 import (
 	"bytes"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -364,5 +365,104 @@ scenario "round_to rounds half away from zero" {
 `)
 	if code := env.Test(TestOptions{}); code != ExitOK || !strings.Contains(out.String(), `ok  orders.billing  "round_to rounds half away from zero"`) {
 		t.Fatalf("exit %d\n%s\n%s", code, out.String(), errb.String())
+	}
+}
+
+// TestGoModDependency fetches two Go modules (one requiring the other)
+// through git's insteadOf, binds an extern into one and runs its scenario
+// against the vendored code (spec 10 rule 7, spec 13 rule 10).
+func TestGoModDependency(t *testing.T) {
+	needGo(t)
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("no git")
+	}
+	env, out, errb := card(t)
+	repo := func(files map[string]string) string {
+		dir := t.TempDir()
+		for n, src := range files {
+			os.MkdirAll(filepath.Dir(filepath.Join(dir, n)), 0o755)
+			os.WriteFile(filepath.Join(dir, n), []byte(src), 0o644)
+		}
+		for _, args := range [][]string{{"init", "-q"}, {"add", "-A"}, {"commit", "-q", "-m", "init"}} {
+			if b, err := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@t"}, args...)...).CombinedOutput(); err != nil {
+				t.Fatalf("git %v: %v %s", args, err, b)
+			}
+		}
+		return dir
+	}
+	shout := repo(map[string]string{
+		"go.mod":        "module example.com/shout\n\ngo 1.21\n",
+		"shout.go":      "package shout\n\nimport \"strings\"\n\nfunc Up(s string) string { return strings.ToUpper(s) }\n",
+		"internal/x.go": "package x\n",
+		"testdata/t.go": "package broken(\n",
+	})
+	greet := repo(map[string]string{
+		"go.mod":   "module example.com/greet\n\ngo 1.21\n\nrequire example.com/shout v1.2.3\n",
+		"greet.go": "package greet\n\nimport \"example.com/shout\"\n\n// Hi greets n loudly.\nfunc Hi(n string) string { return \"hi \" + shout.Up(n) }\n",
+	})
+	http := map[string]string{}
+	filepath.WalkDir(filepath.Join(env.Root, "vendor/http"), func(p string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			b, _ := os.ReadFile(p)
+			rel, _ := filepath.Rel(filepath.Join(env.Root, "vendor/http"), p)
+			http[rel] = string(b)
+		}
+		return nil
+	})
+	t.Setenv("GIT_CONFIG_COUNT", "3")
+	t.Setenv("GIT_CONFIG_KEY_2", "url."+repo(http)+".insteadOf")
+	t.Setenv("GIT_CONFIG_VALUE_2", "https://github.com/acme/jip-http")
+	t.Setenv("GIT_CONFIG_KEY_0", "url."+greet+".insteadOf")
+	t.Setenv("GIT_CONFIG_VALUE_0", "https://example.com/greet")
+	t.Setenv("GIT_CONFIG_KEY_1", "url."+shout+".insteadOf")
+	t.Setenv("GIT_CONFIG_VALUE_1", "https://example.com/shout")
+
+	edit := func(file, old, new string) {
+		p := filepath.Join(env.Root, file)
+		b, _ := os.ReadFile(p)
+		if !strings.Contains(string(b), old) {
+			t.Fatalf("%s lacks %q", file, old)
+		}
+		os.WriteFile(p, []byte(strings.Replace(string(b), old, new, 1)), 0o644)
+	}
+	edit("app.jip", "deps { http", "deps {\n    greet = gomod(\"example.com/greet\", commit: \"HEAD\", hash: \"sha256-g\"),\n    http")
+	edit("app.jip", `commit: "8f1c2a7"`, `commit: "HEAD"`)
+	edit("app.jip", "max: 1", "max: 2")
+	edit("orders/billing/billing.jip", `= go "os".ReadFile`, `= go "os".ReadFile
+/// Greets n.
+/// why: Hi only concatenates strings.
+unsafe pure extern fn hi(n: Str) -> Str = go "example.com/greet".Hi`)
+	edit("orders/billing/scenarios.jip", "@extern\n", `@extern
+scenario "hi greets loudly" {
+  when  r = hi("bob")
+  then  r == "hi BOB"
+}
+
+@extern
+`)
+	// shout is required by greet but has no gomod entry yet.
+	if code := env.Fetch(true); code != ExitOK {
+		t.Fatalf("fetch: exit %d\n%s%s", code, out.String(), errb.String())
+	}
+	errb.Reset()
+	if code := env.Check(CheckOptions{}); code == ExitOK || !strings.Contains(errb.String(), "`example.com/greet` requires `example.com/shout`, which has no gomod entry") {
+		t.Fatalf("missing require must fail: exit %d\n%s", code, errb.String())
+	}
+	edit("app.jip", "    http", "    shout = gomod(\"example.com/shout\", commit: \"HEAD\", hash: \"sha256-s\"),\n    http")
+	errb.Reset()
+	if code := env.Fetch(true); code != ExitOK {
+		t.Fatalf("fetch: exit %d\n%s%s", code, out.String(), errb.String())
+	}
+	out.Reset()
+	if code := env.Test(TestOptions{}); code != ExitOK || !strings.Contains(out.String(), `ok  orders.billing  "hi greets loudly"`) {
+		t.Fatalf("exit %d\n%s\n%s", code, out.String(), errb.String())
+	}
+	b, _ := os.ReadFile(filepath.Join(env.genDir(), "vendor", "modules.txt"))
+	if !strings.Contains(string(b), "example.com/shout/internal\n") || strings.Contains(string(b), "testdata") {
+		t.Fatalf("modules.txt:\n%s", b)
+	}
+	// A second build keeps the links.
+	if code := env.Test(TestOptions{}); code != ExitOK {
+		t.Fatalf("rebuild: exit %d\n%s", code, errb.String())
 	}
 }
