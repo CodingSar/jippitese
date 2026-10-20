@@ -2,6 +2,9 @@ module std.testing
 
 /// A request a `FakeHttp` recorded.
 pub type Request { url: Url, body: Bytes }
+/// One scripted `Agent` model turn: say text, call a tool with JSON
+/// arguments, or refuse.
+pub enum Reply { Say(Str), Call(Str, Str), Refuse(Str) }
 /// Fake for `net`.
 pub extern type FakeHttp = go "rt".FakeHttp
 /// Fake clock for `nondet`.
@@ -52,6 +55,8 @@ impl FakeRandom {
 impl FakeLlm {
   /// Reply `v` to every call of `role`.
   pub extern fn constant<T>(role: Str, v: T) -> FakeLlm = go "rt".FakeLlmConstant
+  /// Answer the `Agent` turns of `role` in order; the last reply sticks.
+  pub extern fn turns(role: Str, rs: List<Reply>) -> FakeLlm = go "rt".FakeLlmTurns
   /// Number of calls seen.
   pub extern fn calls(self) -> Int = go "rt".FakeLlmCalls
 }

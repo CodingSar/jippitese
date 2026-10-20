@@ -453,3 +453,31 @@ type TestingRequest struct {
 	Url  Url    `json:"url"`
 	Body []byte `json:"body"`
 }
+
+// TestingReply is `std.testing.Reply`.
+type TestingReply struct {
+	Tag      uint8
+	Say_0    string
+	Call_0   string
+	Call_1   string
+	Refuse_0 string
+}
+
+const (
+	TestingReplyTag_Say uint8 = iota
+	TestingReplyTag_Call
+	TestingReplyTag_Refuse
+)
+
+func TestingReply_Say(a0 string) TestingReply {
+	return TestingReply{Tag: TestingReplyTag_Say, Say_0: a0}
+}
+func TestingReply_Call(a0 string, a1 string) TestingReply {
+	return TestingReply{Tag: TestingReplyTag_Call, Call_0: a0, Call_1: a1}
+}
+func TestingReply_Refuse(a0 string) TestingReply {
+	return TestingReply{Tag: TestingReplyTag_Refuse, Refuse_0: a0}
+}
+func (TestingReply) JipVariants() []string           { return []string{"Say", "Call", "Refuse"} }
+func (v TestingReply) MarshalJSON() ([]byte, error)  { return MarshalEnum(v) }
+func (v *TestingReply) UnmarshalJSON(b []byte) error { return UnmarshalEnum(v, b) }

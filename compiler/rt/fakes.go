@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -232,10 +233,13 @@ func (boundaryLlm) Call(ctx *Ctx, role, prompt string, input any) (any, error) {
 	return nil, nil
 }
 
-// FakeLlm is `std.testing.FakeLlm`: one constant answer per role.
+// FakeLlm is `std.testing.FakeLlm`: one constant answer per role, and
+// scripted `Agent` turns per role.
 type FakeLlm struct {
 	mu    sync.Mutex
 	vals  map[string]any
+	turns map[string][]TestingReply
+	next  map[string]int
 	calls int64
 }
 
@@ -250,9 +254,38 @@ func (f *FakeLlm) Call(ctx *Ctx, role, prompt string, input any) (any, error) {
 	return v, nil
 }
 
+// Turn answers one Agent turn from the script of role.
+func (f *FakeLlm) Turn(ctx *Ctx, role string, req AgentRequest) (AgentReply, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls++
+	rs := f.turns[role]
+	if len(rs) == 0 {
+		return AgentReply{}, fmt.Errorf("FakeLlm: no turns scripted for role %s", role)
+	}
+	i := f.next[role]
+	if i < len(rs)-1 {
+		f.next[role] = i + 1
+	}
+	switch r := rs[i]; r.Tag {
+	case TestingReplyTag_Call:
+		id := "call_" + strconv.FormatInt(f.calls, 10)
+		return AgentReply{Calls: []AgentCallReq{{ID: id, Name: r.Call_0, Args: Json{Raw: []byte(r.Call_1)}}}}, nil
+	case TestingReplyTag_Refuse:
+		return AgentReply{Text: r.Refuse_0, Refused: true}, nil
+	default:
+		return AgentReply{Text: r.Say_0}, nil
+	}
+}
+
+// FakeLlmTurns implements `FakeLlm.turns(role, rs)`.
+func FakeLlmTurns(ctx *Ctx, role string, rs []TestingReply) *FakeLlm {
+	return &FakeLlm{vals: map[string]any{}, turns: map[string][]TestingReply{role: rs}, next: map[string]int{}}
+}
+
 // FakeLlmConstant implements `FakeLlm.constant(role, v)`.
 func FakeLlmConstant[T any](ctx *Ctx, role string, v T) *FakeLlm {
-	return &FakeLlm{vals: map[string]any{role: v}}
+	return &FakeLlm{vals: map[string]any{role: v}, turns: map[string][]TestingReply{}, next: map[string]int{}}
 }
 
 // FakeLlmCalls implements `calls()`.

@@ -385,6 +385,10 @@ func (s *Scn) Install(v any) {
 			for k, x := range f.vals {
 				cur.vals[k] = x
 			}
+			for k, x := range f.turns {
+				cur.turns[k] = x
+				cur.next[k] = 0
+			}
 			f.mu.Unlock()
 			cur.mu.Unlock()
 		} else {
