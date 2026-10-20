@@ -1,6 +1,9 @@
 # Backlog
 
-Remaining work to pass the Phase E gate (`docs/revision-plan.md` §5) and
+v0 (sections 1–8) passed the Phase E gate at commit `35c602c`. Sections
+9–12 are the v0 follow-ups and the v1 work, in the order they are done.
+
+v0 history: remaining work to pass the Phase E gate (`docs/revision-plan.md` §5) and
 run Phase F (§6). Ordered by dependency; items inside a group are in the
 order they should be done. State as of commit `9ff4224`: lexer, parser,
 AST, diagnostics, app parser, module loader, checker, embedded stdlib and
@@ -211,3 +214,74 @@ default fakes.
   `gomod` dep. The compiler treats `rt` as the toolchain's own package and
   exempts it from rules 1–7; a `Result<R, E>` result instantiates rt's
   generic `R, E`. The spec should say so or the fixture should change.
+
+## 9. v0 follow-ups
+
+- [ ] **V1** Settle the four spec bugs above in the spec, record each in
+      `decisions.md` (owner may reverse): 11 r3 any extern may return
+      `IoError`/`NetError`; 11 r5 floor from the target package itself;
+      13 r11 "pins" instead of "embeds"; 11 r1 `rt` is the toolchain's own
+      package. Plus the journal store: spec 07 r16 and 10 say SQLite, the
+      runtime writes one JSON-lines file per run; the spec follows the
+      runtime.
+- [ ] **V2** Ratify D1 (`mut` in `init` budgets) in `decisions.md`.
+
+## 10. v1 language
+
+Each item: spec banner removed, checker, emitter, runtime, one example or
+scenario that passes, then commit. Designs are the ones the spec already
+fixes under "deferred from v0"; deviations go to `decisions.md`.
+
+- [ ] **L1** `any T where expr` (12 r4): inline filter on the structural
+      generator; W0510 when more than 90% of candidates are rejected.
+- [ ] **L2** Derived property checks for functions (05 r14–16): eligible
+      `pub fn`s, structural generators with `pre`-derived bounds, oracle
+      (`post`, `inv`, no panic), N = 200, integrated shrinking, seeds under
+      `.jip/seeds/`, replayed as run 1.
+- [ ] **L3** Derived stateful check for impls with `inv` (05 r17) and the
+      stdlib behaviour contracts (05 r18, 06 r8, r10): `Worker` idempotency,
+      `Repository` get-after-put, with `MemRepo`/`MemCache` substitution.
+- [ ] **L4** `Machine` behaviour (06): `Key`, `State`, `Event`, `Action`;
+      exhaustive `on`; one turn per key; `Name.send`; `deactivate` on idle;
+      `run` line; example `examples/doors` (or similar).
+- [ ] **L5** `Agent` behaviour and `tools [...]` (07 r17–23): tool schemas
+      from `pub fn`s, generated `Tools` enum, `Event`, `Gate`, `Outcome`,
+      budget, loop in `rt` against the `llm` fake, journaled inside a
+      `Workflow`; example `examples/triage`.
+- [ ] **L6** Externs on methods (`go "path".Type.Method`, 11 r1) and
+      `gomod(...)` Go dependencies: `jip fetch` vendors them, generated
+      `go.mod` gets `require`/`replace` lines and `vendor/modules.txt`.
+- [ ] **L7** `models { role = custom(url, model) }` provider (10 r3).
+- [ ] **L8** Persistent collections (08 r15): run the §13 collections
+      benchmark; if within budget, structurally shared `List`/`Map`/`Set`
+      in `rt` behind the same API; record the numbers.
+
+## 11. v1 toolchain and stdlib
+
+- [ ] **T1** Build cache `.jip/cache/<module>` (13 r12, was C7): per-module
+      key from source hash, direct dependency digests and module-visible
+      digests; a hit reuses the emitted Go and the checked interface.
+- [ ] **T2** Stdlib `std.fs` (read, write, append, list, exists, remove,
+      mkdir) over `IoError`, with `FakeFs` in `std.testing`.
+- [ ] **T3** Stdlib `std.http` client (get, post, request with headers)
+      over `NetError`, `FakeHttp` routing, and `std.approve.http` channel
+      (10 r3).
+- [ ] **T4** Stdlib breadth: `std.strings` (replace, index, pad, repeat,
+      format of floats), `std.math`, `std.time` (Instant arithmetic,
+      formatting, parsing), `std.json` (navigating `Json`), `std.log`.
+- [ ] **T5** Language server `jip lsp` (LSP over stdio): diagnostics on
+      change, hover with type and effects, go to definition, document
+      symbols, formatting via `jip fmt`.
+
+## 12. v1 evaluation and runtimes
+
+- [ ] **F5** Go baseline corpus for the twelve tasks (`evals/go/`), each
+      task's Go starting point plus solution, building and testing green.
+- [ ] **F6** Agent runner `evals/run.mjs` against the Anthropic API
+      (models configurable, default the current Claude models); records
+      tokens and iterations per task per language. Running it needs
+      `ANTHROPIC_API_KEY`; F3/F4 then use its output.
+- [ ] **W1** `workflow { mode: temporal | restate }` (07 r16): runtime
+      adapter interface in `rt`, embedded as the first adapter; the
+      Temporal and Restate adapters need their Go SDKs vendored and a
+      server to test against, so they come last.
