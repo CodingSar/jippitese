@@ -406,10 +406,12 @@ type QuantExpr struct {
 	Coll   Expr
 	Body   Expr
 }
-type AnyExpr struct { // scenario `any T [via g]`
-	Pos  Pos
-	Type TypeExpr
-	Via  Expr
+type AnyExpr struct { // scenario `any T [via g] [where expr]`
+	Pos   Pos
+	Type  TypeExpr
+	Via   Expr
+	Where Expr   // inline filter; sees the candidate under Name
+	Name  string // the `given` binding, set by the parser
 }
 type SelfExpr struct{ Pos Pos }
 

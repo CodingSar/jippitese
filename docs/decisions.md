@@ -415,7 +415,8 @@ File extension: `.jip`. CLI: `jip`.
   quantifies and an example otherwise. `given x = any T via g` names a
   generator explicitly, and the table form `given rows = [ … ]` runs the
   block once per row (R9). BDD-only stays; these are forms of `given`, not
-  a second test kind. `any T where` and derived checks are deferred from v0.
+  a second test kind. `any T where` is in v1; derived checks are deferred
+  from v0.
 - Scenarios see the `pub` and `pub(module)` items of the module under test
   and nothing private.
 - Scenarios run under the default fake clock and seeded random (§4, R14).
@@ -475,6 +476,8 @@ reverse any row; reversing one is a spec change.
 | API classification of const values | Changing a `const` value, including a workflow `version` bump, is `compatible`: a value is not a signature, and spec 09 rule 8 lists no such break. |
 | Dependency tree hash | SHA-256 over the sorted lines `<path> <sha256 of content>` of every regular file, `.git` excluded, written `sha256-<base64>`. |
 | Toolchain | `compiler/toolchain.go` pins Go 1.24 (`toolchain go1.24.0` in the generated `go.mod`); `jip` uses `JIP_GO` or `go` on `PATH` at or above the pin. A binary cannot embed a Go toolchain; a distribution may ship one next to `jip` (spec 13 rule 11 updated). |
+| `any T where` (v1) | The filter sees the candidate under the `given` name; rejected candidates are redrawn from the same generator; 1000 rejections in a row fail the scenario; W0510 is counted per `where` over all runs of the property. |
+| Structural `Int` generator | `Size` bounds the magnitude around zero when the range holds zero, else from the end nearest zero. v0 clamped from `lo`, so `any Int` never drew a positive value. |
 | `jip fmt` | Keeps every comment (trailing ones aligned), literal text (`1_000_000`, `60s`) and schedule sugar (`every 5m`); a body stays on one line only when written so. Refuses to write a result that would not reparse to the same program. Skips `vendor/`. |
 | Not in v0 | `gomod(...)` Go dependencies for externs (any non-stdlib Go path is E0504); the per-module `.jip/cache` of 13 rule 12 (needs separate compilation in the checker; `GOCACHE` covers the Go side). |
 
@@ -522,5 +525,5 @@ reverse any row; reversing one is a spec change.
 | Approvals library (decision types, visualisations, routing, audit, channels) | v0 gate; design notes in `docs/revision-plan.md` §10 |
 | `temporal` and `restate` workflow runtimes | `embedded` passing the gate |
 | Providers beyond one per role, `custom` provider | ecosystem pressure |
-| `any T where` and derived property checks | boundary contracts passing the gate |
+| Derived property checks | boundary contracts passing the gate |
 | Persistent collections as a data structure | §13 collections benchmark |

@@ -121,8 +121,15 @@ func TestWithdrawNeverOverdraws(t *testing.T) {
    (x, y, z) in rows` runs the rest of the block once per row with the tuple
    destructured; the pattern must match the tuple arity (E0803), and a
    table scenario is an example, not a property (rule 7).
-   *Deferred from v0 (R9):* `any T where expr`, the inline filter, is v1;
-   write a `via` generator instead.
+   `given name = any T where expr` (with or without `via g`) filters the
+   draw: `expr` is a `Bool` that sees the candidate as `name` and every
+   earlier binding; a rejected candidate is redrawn from the same
+   generator, so shrinking and seed replay apply unchanged. After 1000
+   rejections in a row the scenario fails (`` `where expr` rejected 1000
+   candidates in a row ``). If a filter rejects more than 90% of its
+   candidates over the runs of a property, `jip test` prints warning
+   `W0510` with the clause and continues (05 rule 15). A filter that
+   rejects most candidates is the cue to write a `via` generator.
 5. **`when name = expr`.** The action under test, exactly one per scenario.
    `expr` may have any effect set; no `with` is written because the scenario
    block is the boundary that declares nothing. `when _ = expr` discards the

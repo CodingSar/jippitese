@@ -81,11 +81,11 @@ type App struct {
 		Mode  string // "embedded"
 		Store string // journal directory
 	}
-	Runs      []*Run
-	Topics    []*Topic
-	Envs      []*Env
-	Entries   []*ast.AppEntry // every top-level entry, in order
-	Block     *ast.AppBlock
+	Runs    []*Run
+	Topics  []*Topic
+	Envs    []*Env
+	Entries []*ast.AppEntry // every top-level entry, in order
+	Block   *ast.AppBlock
 }
 
 // Parse builds the model from a parsed app.jip.

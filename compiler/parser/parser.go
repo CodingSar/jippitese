@@ -1161,6 +1161,9 @@ func (p *parser) primary(nr bool) ast.Expr {
 			if p.acceptKw("via") {
 				a.Via = p.expr()
 			}
+			if p.acceptKw("where") {
+				a.Where = p.expr()
+			}
 			return a
 		}
 	}
@@ -1328,6 +1331,7 @@ func (p *parser) scenario() *ast.Scenario {
 				if p.isKw("any") {
 					g.Kind = ast.GivenAny
 					g.Any = p.primary(false).(*ast.AnyExpr)
+					g.Any.Name = g.Name
 				} else {
 					g.Kind = ast.GivenExpr
 					g.Expr = p.expr()

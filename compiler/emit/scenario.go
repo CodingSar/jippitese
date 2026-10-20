@@ -132,7 +132,15 @@ func (g *gen) anyExpr(x *ast.AnyExpr) string {
 	} else {
 		gen = g.genFor(t)
 	}
-	return g.rt() + ".Any[" + g.f.goType(t) + "](scn, " + strconv.Quote(x.Pos.String()) + ", " + gen + ")"
+	gt := g.f.goType(t)
+	if x.Where != nil {
+		l := g.prog.AnyLocals[x]
+		s := g.sub(nil)
+		v := s.expr(x.Where)
+		keep := "func(ctx *" + g.rt() + ".Ctx, " + g.localGo(l, x.Name) + " " + gt + ") bool {\n" + s.w.String() + "return " + v + "\n}"
+		return g.rt() + ".AnyWhere[" + gt + "](scn, " + strconv.Quote(x.Pos.String()) + ", " + strconv.Quote(checker.ExprString(x.Where)) + ", " + gen + ", " + keep + ")"
+	}
+	return g.rt() + ".Any[" + gt + "](scn, " + strconv.Quote(x.Pos.String()) + ", " + gen + ")"
 }
 
 // genFor is the structural generator of t (05 rule 15) as a Go function

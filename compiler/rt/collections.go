@@ -478,8 +478,18 @@ func GenInt(ctx *Ctx, g *Gen, lo, hi int64) int64 {
 	if span <= 0 {
 		return lo
 	}
-	if int64(g.Size) < span && g.Size > 0 {
-		span = int64(g.Size)
+	if n := int64(g.Size); n > 0 && n < span {
+		// Size bounds the magnitude: around zero when the range holds it,
+		// else from the end nearest zero.
+		switch {
+		case lo <= 0 && hi >= 0:
+			lo, hi = max(lo, -n), min(hi, n)
+		case hi < 0:
+			lo = hi - n
+		default:
+			hi = lo + n
+		}
+		span = hi - lo
 	}
 	return lo + g.R.Int63n(span+1)
 }

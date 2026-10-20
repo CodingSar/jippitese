@@ -319,6 +319,7 @@ type Program struct {
 	DecideOut     map[*ast.DecideExpr]Type
 	ApproveOut    map[*ast.ApproveExpr]Type
 	AnyTypes      map[*ast.AnyExpr]Type
+	AnyLocals     map[*ast.AnyExpr]*Local      // the candidate a `where` filter sees
 	FnEffects     map[*ast.FnDecl][]ast.Effect // effects actually used in the body
 	UnsafeExterns []*FnInfo
 }
@@ -348,6 +349,7 @@ func newProgram() *Program {
 		DecideOut:   map[*ast.DecideExpr]Type{},
 		ApproveOut:  map[*ast.ApproveExpr]Type{},
 		AnyTypes:    map[*ast.AnyExpr]Type{},
+		AnyLocals:   map[*ast.AnyExpr]*Local{},
 		FnEffects:   map[*ast.FnDecl][]ast.Effect{},
 	}
 }

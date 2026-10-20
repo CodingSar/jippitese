@@ -35,6 +35,8 @@ type Scn struct {
 	seed    int64
 	gen     *Gen
 	tmp     string
+	// filters counts `where` rejections across runs; nil while shrinking.
+	filters *filterStats
 	// failed collects false `then` lines: each is evaluated and reported,
 	// the first failure does not stop the others (spec 12 rule 6).
 	failed []thenFailure
@@ -147,8 +149,11 @@ func Scenario(t *testing.T, o ScnOpts, body func(*Scn)) {
 			runs = 1
 		}
 	}
+	filters := &filterStats{by: map[string]*filterStat{}}
+	defer filters.warn(label)
 	for run := 0; run < runs; run++ {
 		s := newScn(t, o, seed+int64(run), extern)
+		s.filters = filters
 		f := s.attempt(body)
 		if f == nil {
 			continue
@@ -338,6 +343,64 @@ func (s *Scn) Gen() *Gen { return s.gen }
 func Any[T any](s *Scn, pos string, f func(*Ctx, *Gen) T) T {
 	s.stepPos = pos
 	return f(s.Ctx, s.gen)
+}
+
+// whereLimit is how many candidates in a row a `where` filter may reject
+// before the scenario fails: the filter is then unsatisfiable in practice.
+const whereLimit = 1000
+
+// AnyWhere draws for `any T where expr` (spec 12 rule 4): candidates the
+// filter rejects are redrawn from the same generator, so shrinking and seed
+// replay apply unchanged. Rejections are counted per step for W0510.
+func AnyWhere[T any](s *Scn, pos, clause string, f func(*Ctx, *Gen) T, keep func(*Ctx, T) bool) T {
+	s.stepPos = pos
+	for i := 0; i < whereLimit; i++ {
+		v := f(s.Ctx, s.gen)
+		ok := keep(s.Ctx, v)
+		if s.filters != nil {
+			s.filters.count(pos, clause, ok)
+		}
+		if ok {
+			return v
+		}
+	}
+	panic(&ScenarioError{Pos: pos, Msg: fmt.Sprintf("`where %s` rejected %d candidates in a row", clause, whereLimit)})
+}
+
+// filterStats counts `where` draws across the runs of one property.
+type filterStats struct {
+	order []string
+	by    map[string]*filterStat
+}
+
+type filterStat struct {
+	clause          string
+	drawn, rejected int
+}
+
+func (fs *filterStats) count(pos, clause string, kept bool) {
+	st := fs.by[pos]
+	if st == nil {
+		st = &filterStat{clause: clause}
+		fs.by[pos] = st
+		fs.order = append(fs.order, pos)
+	}
+	st.drawn++
+	if !kept {
+		st.rejected++
+	}
+}
+
+// warn prints W0510 for every filter that rejected more than 90% of its
+// candidates; it is a warning, not a failure (spec 05 rule 15).
+func (fs *filterStats) warn(label string) {
+	for _, pos := range fs.order {
+		st := fs.by[pos]
+		if st.rejected*10 > st.drawn*9 {
+			fmt.Printf("@jip warn W0510  %s  %s  `where %s` rejects too many candidates (%d of %d)\n",
+				label, pos, st.clause, st.rejected, st.drawn)
+		}
+	}
 }
 
 // failf fails the enclosing scenario, or panics outside one.

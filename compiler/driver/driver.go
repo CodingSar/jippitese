@@ -308,6 +308,8 @@ func (e *Env) Test(o TestOptions) int {
 			skipped++
 			inFail = false
 			fmt.Fprintln(e.Stdout, strings.TrimPrefix(l, "@jip "))
+		case strings.HasPrefix(l, "@jip warn"):
+			fmt.Fprintln(e.Stdout, "warning "+strings.TrimPrefix(l, "@jip warn "))
 		case inFail && strings.HasPrefix(l, "    "):
 			fmt.Fprintln(e.Stdout, l)
 		default:

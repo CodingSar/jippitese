@@ -292,7 +292,7 @@ ScenarioDecl ::= "scenario" StrLit "{" GivenStep* WhenStep ThenStep+ "}"
 GivenStep    ::= "given" Ident "=" (Expr | AnyExpr) NEWLINE
                 | "given" "(" Ident ("," Ident)+ ")" "in" Ident NEWLINE /* table rows */
                 | "given" "real_time" NEWLINE
-AnyExpr      ::= "any" Type ("via" Ident)? /* `via` resolves in the module under test; `where` is deferred (R9) */
+AnyExpr      ::= "any" Type ("via" Ident)? ("where" Expr)? /* `via` resolves in the module under test; `where` sees the candidate under the `given` name */
 WhenStep     ::= "when" (Ident | "_") "=" Expr NEWLINE
 ThenStep     ::= "then" Expr NEWLINE
 Tag          ::= "@extern" NEWLINE | "@slow" NEWLINE | "@skip" "(" StrLit ")" NEWLINE

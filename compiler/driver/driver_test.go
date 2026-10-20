@@ -114,6 +114,41 @@ func TestTestReportsFailure(t *testing.T) {
 	}
 }
 
+func TestAnyWhere(t *testing.T) {
+	needGo(t)
+	env, out, errb := card(t)
+	p := filepath.Join(env.Root, "orders/billing/scenarios.jip")
+	b, _ := os.ReadFile(p)
+	add := `
+scenario "where keeps only matching candidates" {
+  given n = any Int where n > 0
+  when  m = n * 2
+  then  m > n
+}
+
+scenario "where rejecting most candidates warns" {
+  given n = any Int where n > 95
+  when  m = n
+  then  m > 95
+}
+
+scenario "an unsatisfiable where fails" {
+  given n = any Int where n > 1_000_000
+  when  m = n
+  then  m > 0
+}
+`
+	os.WriteFile(p, append(b, add...), 0o644)
+	code := env.Test(TestOptions{})
+	s := out.String()
+	if code != ExitFail || !strings.Contains(s, "FAIL  orders.billing  \"an unsatisfiable where fails\"") ||
+		!strings.Contains(s, "rejected 1000 candidates in a row") ||
+		!strings.Contains(s, "warning W0510") || !strings.Contains(s, "`where n > 95` rejects too many candidates") ||
+		strings.Contains(s, "FAIL  orders.billing  \"where keeps") || strings.Contains(s, "FAIL  orders.billing  \"where rejecting") {
+		t.Fatalf("exit %d\n%s%s", code, s, errb.String())
+	}
+}
+
 func TestFmtCheckAndWrite(t *testing.T) {
 	env, out, _ := card(t)
 	if code := env.Fmt(true); code != ExitFail || !strings.Contains(out.String(), "billing.jip") {

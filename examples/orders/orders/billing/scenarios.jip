@@ -11,6 +11,15 @@ scenario "withdraw never overdraws" {
   }
 }
 
+scenario "withdrawing the whole balance empties the account" {
+  given acc = any Account where acc.balance.0 > 0  // inline filter: redraws rejected candidates
+  when  r = withdraw(acc, acc.balance)
+  then  match r {
+    Ok(a) => a.balance.0 == 0,
+    Err(_) => false,
+  }
+}
+
 scenario "charge sends the order total" {
   given http = FakeHttp.new().reply(200, b"{\"id\":\"r1\",\"amount\":500}")  // binds `net`
   given o = Order { id: OrderId(1), lines: [], total: Money(500) }

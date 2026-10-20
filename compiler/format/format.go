@@ -251,6 +251,9 @@ func (p printer) expr(e ast.Expr) string {
 		if e.Via != nil {
 			s += " via " + p.expr(e.Via)
 		}
+		if e.Where != nil {
+			s += " where " + p.expr(e.Where)
+		}
 		return s
 	}
 	return fmt.Sprintf("<%T>", e)

@@ -82,6 +82,7 @@ func WalkExpr(e Expr, f func(Expr)) {
 		WalkExpr(x.Body, f)
 	case *AnyExpr:
 		WalkExpr(x.Via, f)
+		WalkExpr(x.Where, f)
 	}
 }
 

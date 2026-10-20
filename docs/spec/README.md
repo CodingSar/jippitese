@@ -29,7 +29,7 @@ v0 behaviour.
 | `09-modules-and-context.md` | `module`, `use`, `pub`, interface files, `jip check`, context packs | all; two digests (R7), `--accept-breaking` (R8) |
 | `10-config.md` | `app.jip` schema, `config {}`, overlays, dependencies, child specs | all; `custom` provider and non-embedded workflow runtimes deferred |
 | `11-extern.md` | Go interop, allowlist, effect floor | all; direct-import floor only (R13) |
-| `12-testing.md` | `scenarios.jip`, Given/When/Then, `any T`, `any T via g`, table rows, fakes by default (R14) | all; `any T where` deferred (R9) |
+| `12-testing.md` | `scenarios.jip`, Given/When/Then, `any T`, `any T via g`, `any T where`, table rows, fakes by default (R14) | all |
 | `13-tooling-and-diagnostics.md` | `jip` CLI, diagnostics format, build pipeline | `build`, `test`, `check`, `fmt`, `context`; Go 1.24 (R10) |
 | `grammar.md` | Consolidated grammar | v0 grammar; deferred forms marked |
 

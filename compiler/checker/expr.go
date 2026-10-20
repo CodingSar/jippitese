@@ -2389,5 +2389,17 @@ func (c *Checker) inferAny(e *ast.AnyExpr) Type {
 			dg.Note("the generator after `via` takes a `Gen` and returns `%s`", TypeString(t))
 		}
 	}
+	if e.Where != nil {
+		if e.Name == "" || e.Name == "_" {
+			dg := c.errorf("E0402", e.Where.ExprPos(), "`where` needs a named candidate")
+			dg.Label("`any %s where …` outside `given name = …`", TypeString(t))
+			dg.Helpf("write `given x = any %s where …` and refer to the candidate as `x`", TypeString(t))
+		}
+		c.pushScope()
+		c.prog.AnyLocals[e] = c.declareLocal(&Local{Name: e.Name, Type: t, Pos: e.Pos})
+		wt := c.infer(e.Where, con(tBool))
+		c.expect(e.Where, wt, con(tBool), "`where` filter must be `Bool`")
+		c.popScope()
+	}
 	return t
 }

@@ -217,7 +217,7 @@ Each item: spec banner removed, checker, emitter, runtime, one example or
 scenario that passes, then commit. Designs are the ones the spec already
 fixes under "deferred from v0"; deviations go to `decisions.md`.
 
-- [ ] **L1** `any T where expr` (12 r4): inline filter on the structural
+- [x] **L1** `any T where expr` (12 r4): inline filter on the structural
       generator; W0510 when more than 90% of candidates are rejected.
 - [ ] **L2** Derived property checks for functions (05 r14–16): eligible
       `pub fn`s, structural generators with `pre`-derived bounds, oracle
