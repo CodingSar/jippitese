@@ -172,6 +172,10 @@ func (g *gen) genForB(t checker.Type, b *bound) string {
 				m[p] = x.Args[i]
 			}
 		}
+		if ti == g.e.prog.Secrets {
+			// Secrets are never drawn: a generated Config holds `Secrets.fake()`.
+			return head + "return " + g.f.cfgRef("SecretsFake") + "(ctx)\n}"
+		}
 		switch ti.Kind {
 		case checker.Prim:
 			switch {

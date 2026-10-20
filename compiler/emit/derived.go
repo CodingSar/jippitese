@@ -179,8 +179,8 @@ func (e *emitter) emitDerived(p *pkg) {
 			}
 		}
 	}
-	repos, workers := behaviourChecks(m, "Repository"), behaviourChecks(m, "Worker")
-	if len(fns) == 0 && len(repos) == 0 && len(workers) == 0 {
+	repos, workers, states := behaviourChecks(m, "Repository"), behaviourChecks(m, "Worker"), statefulImpls(m)
+	if len(fns) == 0 && len(repos) == 0 && len(workers) == 0 && len(states) == 0 {
 		return
 	}
 	f := p.newFile("derived_test.go", true)
@@ -239,6 +239,167 @@ func (e *emitter) emitDerived(p *pkg) {
 	for _, impl := range workers {
 		emitIdempotent(f, impl)
 	}
+	for _, st := range states {
+		emitStateful(f, st)
+	}
+}
+
+// stateful is an impl that gets the derived stateful check (spec 05 rule
+// 17) with the methods it draws.
+type stateful struct {
+	impl  *checker.ImplInfo
+	init  *checker.FnInfo
+	steps []*checker.FnInfo
+	stop  *checker.FnInfo // nil when `stop` is defaulted or has effects beyond `{mut}`
+}
+
+// statefulImpls are the module's non-generic impls with `inv` whose `init`
+// and at least one other method on self have effects within `{mut}` and
+// parameters that generate. `stop` is called last, never drawn.
+func statefulImpls(m *checker.Module) []stateful {
+	var out []stateful
+	for _, impl := range m.Impls {
+		if len(impl.Inv) == 0 || len(impl.TypeParams) > 0 || impl.Decl == nil {
+			continue
+		}
+		st := stateful{impl: impl, init: impl.Methods["init"]}
+		if st.init == nil || st.init.HasSelf || !hasMethod(impl, "init") || !drawable(st.init) ||
+			stateSubject(st.init) != "ok" && stateSubject(st.init) != "ret" {
+			continue
+		}
+		for _, n := range impl.MethodOrder {
+			fi := impl.Methods[n]
+			if fi == nil || !fi.HasSelf || !hasMethod(impl, n) || !drawable(fi) {
+				continue
+			}
+			if n == "stop" {
+				st.stop = fi
+			} else {
+				st.steps = append(st.steps, fi)
+			}
+		}
+		if len(st.steps) > 0 {
+			out = append(out, st)
+		}
+	}
+	return out
+}
+
+// drawable says whether a method can be called with drawn arguments in a
+// stateful check: not generic, effects within `{mut}`, every parameter
+// but self generable.
+func drawable(fi *checker.FnInfo) bool {
+	if fi.Decl == nil || fi.Extern != nil || len(fi.TypeParams) > 0 {
+		return false
+	}
+	for _, e := range fi.Type.Effects {
+		if e.Name != "mut" {
+			return false
+		}
+	}
+	for i, p := range fi.Type.Params {
+		if (i > 0 || !fi.HasSelf) && !generable(p, map[*checker.TypeInfo]bool{}) {
+			return false
+		}
+	}
+	return true
+}
+
+// drawCall writes into s the draw of fi's arguments, narrowed by its `pre`
+// bounds, and the `pre` check, running reject when a clause is false; it
+// returns the Go names of the arguments, self excluded.
+func drawCall(s *gen, fi *checker.FnInfo, reject string) []string {
+	d := fi.Decl
+	bs := preBounds(s, fi)
+	var names []string
+	for i := range d.Params {
+		if i == 0 && fi.HasSelf {
+			continue
+		}
+		n := paramGoName(s.prog, &d.Params[i])
+		s.printf("var %s %s = (%s)(ctx, gn)\n_ = %s\n", n, s.f.goType(fi.Type.Params[i]), s.genForB(fi.Type.Params[i], bs[i]), n)
+		names = append(names, n)
+	}
+	for _, c := range d.Pre {
+		stmts, v, _ := s.capture(func() string { return s.expr(c) })
+		s.printf("%sif !(%s) {\n%s\n}\n", stmts, v, reject)
+	}
+	return names
+}
+
+// showCall is the Go expression rendering `name(a, b)` with the drawn
+// arguments shown.
+func showCall(rtp, name string, args []string) string {
+	if len(args) == 0 {
+		return strconv.Quote(name + "()")
+	}
+	parts := make([]string, len(args))
+	for i, a := range args {
+		parts[i] = rtp + ".Show(" + a + ")"
+	}
+	return strconv.Quote(name+"(") + " + " + strings.Join(parts, " + \", \" + ") + " + \")\""
+}
+
+// emitStateful writes the derived stateful check of an impl (spec 05 rule
+// 17): draw `init`'s arguments (a `Config` with `Secrets.fake()`) until
+// `init` is `Ok`, then up to 50 calls of the drawn methods with drawn
+// arguments, skipping a call whose `pre` fails, then `stop`. The impl's
+// `inv` is checked after `init` and every call by the method wrappers.
+func emitStateful(f *file, st stateful) {
+	rtp := f.rt()
+	impl := st.impl
+	g, at := behaviourScenario(f, impl, "")
+	g.printf("var self %s\nvar trace string\n", f.goType(impl.Target))
+	var sig []string
+	for i, p := range st.init.Decl.Params {
+		sig = append(sig, p.Name+": "+checker.TypeString(st.init.Type.Params[i]))
+	}
+	g.printf("scn.Given(%s, %q)\n", at, "any "+strings.Join(sig, ", ")+" for which init is Ok")
+	s := g.sub(nil)
+	s.fn = st.init
+	args := drawCall(s, st.init, "return false")
+	if len(st.init.Decl.Params) > 0 && isConfig(f, st.init.Type.Params[0]) {
+		s.printf("ctx.Config = %s\n", args[0])
+	}
+	s.printf("trace = %s\n", showCall(rtp, impl.Name+".init", args))
+	call := f.fnRef(st.init) + "(ctx" + prefixEach(", ", args) + ")"
+	switch stateSubject(st.init) {
+	case "ok":
+		s.printf("r := %s\nif r.Tag != %s.ResultTag_Ok {\nreturn false\n}\nself = r.Ok_0\n", call, rtp)
+	default:
+		s.printf("self = %s\n", call)
+	}
+	s.printf("return true\n")
+	g.printf("%s.Pre(scn, %s, %q, func(ctx *%s.Ctx, gn *%s.Gen) bool {\n%s})\n", rtp, at, "init is Ok", rtp, rtp, s.w.String())
+	g.printf("gn := scn.Gen()\nn := gn.GenLen(50)\n")
+	g.printf("for i := 0; i < n; i++ {\nswitch %s.GenInt(ctx, gn, 0, %d) {\n", rtp, len(st.steps)-1)
+	for i, fi := range st.steps {
+		if i == len(st.steps)-1 {
+			g.printf("default:\n")
+		} else {
+			g.printf("case %d:\n", i)
+		}
+		s := g.sub(nil)
+		s.fn = fi
+		s.selfName = "self"
+		args := drawCall(s, fi, "continue")
+		s.printf("trace += \"; \" + %s\nscn.When(%s, trace)\n", showCall(rtp, fi.Name, args), at)
+		s.printf("%s(ctx, self%s)\n", f.fnRef(fi), prefixEach(", ", args))
+		g.printf("%s", s.w.String())
+	}
+	g.printf("}\n}\n")
+	if st.stop != nil {
+		g.printf("trace += \"; stop()\"\nscn.When(%s, trace)\n%s(ctx, self)\n", at, f.fnRef(st.stop))
+	}
+	g.printf("scn.Then(%s, %q, true)\n", at, "inv holds after init and every call")
+	f.body.WriteString(g.w.String())
+	f.printf("})\n}\n")
+}
+
+// isConfig says whether t is the app's `Config`.
+func isConfig(f *file, t checker.Type) bool {
+	c, ok := checker.Zonk(t).(*checker.TCon)
+	return ok && c.Info == f.p.e.prog.Config
 }
 
 // behaviourChecks are the module's non-generic impls of std behaviour b
@@ -271,14 +432,19 @@ func behaviourChecks(m *checker.Module, b string) []*checker.ImplInfo {
 	return out
 }
 
-// behaviourScenario opens the derived scenario `<Impl>.<check>` of an impl.
+// behaviourScenario opens the derived scenario `<Impl>.<check>` of an impl,
+// or `<Impl>` for the stateful check (check "").
 func behaviourScenario(f *file, impl *checker.ImplInfo, check string) (*gen, string) {
 	rtp := f.rt()
 	m, pos := impl.Module, impl.Decl.Pos
-	f.printf("\nfunc TestDerived_%s_%s(t *%s.T) {\n", sanitize(impl.Name), check, f.use("testing", "testing"))
+	test, name := sanitize(impl.Name), impl.Name
+	if check != "" {
+		test, name = test+"_"+check, name+"."+check
+	}
+	f.printf("\nfunc TestDerived_%s(t *%s.T) {\n", test, f.use("testing", "testing"))
 	f.line(pos)
 	f.printf("%s.Scenario(t, %s.ScnOpts{Module: %q, Name: %q, Derived: true, Property: true, File: %q, Line: %d, Col: %d}, func(scn *%s.Scn) {\n",
-		rtp, rtp, m.Path, impl.Name+"."+check, pos.File, pos.Line, pos.Col, rtp)
+		rtp, rtp, m.Path, name, pos.File, pos.Line, pos.Col, rtp)
 	f.printf("ctx := scn.Ctx\nctx.Config = %s\n", f.cfgRef("TestConfig()"))
 	return newGen(f, nil), strconv.Quote(pos.String())
 }

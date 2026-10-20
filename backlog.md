@@ -228,9 +228,11 @@ fixes under "deferred from v0"; deviations go to `decisions.md`.
       parameter bounds that generator; a range membership becomes a range
       generator; `Range.contains`; `any Str` at 32 bytes. `preBounds` in
       `emit/derived.go`; `TestDerivedCheck` covers `pct`, `above`.
-- [ ] **L3** Derived stateful check for impls with `inv` (05 r17) and the
+- [x] **L3** Derived stateful check for impls with `inv` (05 r17) and the
       stdlib behaviour contracts (05 r18, 06 r8, r10): `Worker` idempotency,
       `Repository` get-after-put, with `MemRepo`/`MemCache` substitution.
+      `emitStateful`, `emitRoundTrip`, `emitIdempotent` in
+      `emit/derived.go`; `rt/substitute.go`; `driver/behaviour_test.go`.
 - [ ] **L4** `Machine` behaviour (06): `Key`, `State`, `Event`, `Action`;
       exhaustive `on`; one turn per key; `Name.send`; `deactivate` on idle;
       `run` line; example `examples/doors` (or similar).

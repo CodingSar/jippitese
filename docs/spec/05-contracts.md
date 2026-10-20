@@ -186,18 +186,25 @@ func Push[T any](s Stack[T], x T) Stack[T] {
     rejects every candidate of the first 3 runs, the check stops and is
     reported `skip … no candidate satisfies \`pre\`` with `W0510`; a
     check whose oracle was never exercised is never reported `ok`.
-17. **Derived stateful check (`impl`).** For an `impl` with `inv` whose
-    `init` and at least one other lifecycle method have effect sets within
-    `{mut}`, `jip test` derives one check: generate a `Config` (the
-    `config {}` record of `app.jip` plus `secrets`, every field by its type
-    under rule 15, secrets as `Secrets.fake()`), call `init`,
-    draw a sequence of up to 50 calls to the qualifying methods with
-    generated arguments, skip a step whose `pre` fails, check `inv` after
-    every step, call `stop` last. Runs, shrinking and seeds are as rule 16
-    under `<impl name>.seed`. Methods with any other effect are never drawn.
-18. **Stdlib behaviour contracts.** `Worker` idempotency and `Repository`
-    get-after-put are `post` and `inv` clauses written in the stdlib
-    behaviour; they derive checks by the same rules (cross-reference 06).
+17. **Derived stateful check (`impl`).** For a non-generic `impl` with
+    `inv` that declares an `init` returning `Ok(self)` (or `Self`) and at
+    least one other method on `self`, each with an effect set within
+    `{mut}` and every parameter generable (rule 15), `jip test` derives one
+    check, `derived <Impl>`: generate a `Config` (the `config {}` record of
+    `app.jip` plus `secrets`, every field by its type under rule 15,
+    secrets as `Secrets.fake()`) and the other `init` arguments, redrawing
+    until `init` returns `Ok` (counted under `W0510` as clause `init is
+    Ok`); then draw up to 50 calls to those methods with generated
+    arguments, redrawing a call whose `pre` fails; check `inv` after `init`
+    and every call; call `stop` last when it is declared within `{mut}`.
+    Methods with any other effect are never drawn. Runs, shrinking and
+    seeds are as rule 16, the seed under `<module dir>/<Impl>.seed`. A
+    failure shows the call sequence as its `when` line: `when
+    Totals.init(cfg); put(3, 1); delete(3)`.
+18. **Stdlib behaviour contracts.** `Repository` get-after-put and `Worker`
+    idempotency are not `post` or `inv` clauses: they are the derived
+    checks `<Impl>.round_trip` and `<Impl>.idempotent` of `06-behaviours.md`
+    rules 8 and 10, run, shrunk and seeded as rule 16.
 
 ## Diagnostics
 

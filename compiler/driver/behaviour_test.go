@@ -83,3 +83,30 @@ func TestWorkerIdempotent(t *testing.T) {
 		t.Fatalf("exit %d\n%s%s", code, s, errb.String())
 	}
 }
+
+func TestStatefulImplCheck(t *testing.T) {
+	needGo(t)
+	env, out, errb := example(t, "shop")
+	edit(t, env, "shop/orders/orders.jip", "pub type Totals { by_customer: MutMap<Int, Int> }",
+		"pub type Totals { by_customer: MutMap<Int, Int>, puts: Cell<Int> }")
+	edit(t, env, "shop/orders/orders.jip", "  fn init(cfg: Config) -> Result<Self, RepoError> with {io, mut} {\n    Ok(Totals { by_customer: MutMap.new() })",
+		"  inv puts >= 0\n  fn init(cfg: Config) -> Result<Self, RepoError> with {mut} {\n    Ok(Totals { by_customer: MutMap.new(), puts: Cell.new(0) })")
+	edit(t, env, "shop/orders/orders.jip", "    self.by_customer.insert(k, v)\n",
+		"    self.by_customer.insert(k, v)\n    self.puts.update(fn(n) => n + 1)\n")
+	code := env.Test(TestOptions{})
+	s := out.String()
+	if code != ExitOK || !strings.Contains(s, "ok  shop.orders  derived Totals\n") {
+		t.Fatalf("exit %d\n%s%s", code, s, errb.String())
+	}
+	out.Reset()
+	edit(t, env, "shop/orders/orders.jip", "inv puts >= 0", "inv puts <= 2")
+	code = env.Test(TestOptions{})
+	s = out.String()
+	if code != ExitFail ||
+		!strings.Contains(s, "FAIL  shop.orders  derived Totals\n") ||
+		!strings.Contains(s, "contract violated: inv puts <= 2") ||
+		!strings.Contains(s, "when Totals.init(") ||
+		!strings.Contains(s, "; put(") {
+		t.Fatalf("exit %d\n%s%s", code, s, errb.String())
+	}
+}

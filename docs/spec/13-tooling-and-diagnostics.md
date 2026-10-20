@@ -45,9 +45,8 @@ shows a Go error and `jip fmt` has no configuration.
    fake clock and seeded generator installed (R14). `--filter <substring>`
    matches scenario names or module paths; `--runs <int>` sets the property
    run count; `--seed <int>` fixes the generator seed and is printed on
-   every failure. It also runs the derived function checks of §05 rule 14
-   (`derived <fn>` lines); the derived stateful checks of rule 17 are not
-   run yet.
+   every failure. It also runs the derived checks of §05 rules 14, 17 and 18
+   (`derived …` lines).
 4. `jip check` type-checks without emitting Go, then: extracts interfaces
    and reports drift and API classification (§09); prints warnings (rule 9);
    prints the extern report (§11); verifies vendored hashes (§10).

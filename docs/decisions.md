@@ -141,14 +141,14 @@ File extension: `.jip`. CLI: `jip`.
   a `Result`, never a `pre`.
 - **No frame clause.** Immutability plus effects supply it; the spec states
   this.
-- **Property derivation (functions in v1; stateful checks pending).**
+- **Property derivation (v1).**
   For every `pub fn` whose effect set is empty or
   `{mut}` on fresh state, and that has a `post` or whose parameter or return
   types carry `inv`, `jip test` derives one property check: generators from
   types narrowed by `pre`, N runs under `contracts: all`, oracle is `post`,
   every `inv` and no panic, integrated shrinking, shrunk seed persisted as a
-  regression case. For an `impl` with `inv`, a stateful check draws method
-  sequences. Functions with `io`, `net`, `llm` or `decide` get no derived
+  regression case. For an `impl` with `inv`, a stateful check calls `init`,
+  then draws method sequences and checks `inv` after every call. Functions with `io`, `net`, `llm` or `decide` get no derived
   check; scenarios with fakes cover them.
 - **Generation size model.** Structural generators stop at depth 3,
   collections at length 8, `Str` at 32 bytes; a `pre` clause the generator
@@ -180,7 +180,8 @@ File extension: `.jip`. CLI: `jip`.
   turn per key, state persisted per turn; side effects only through returned
   `Action`s.
 - **Stdlib-provided contracts** for behaviours (`Worker` idempotency,
-  `Repository` get-after-put round-trip) auto-generate property checks.
+  `Repository` get-after-put round-trip) are derived checks
+  (`<Impl>.idempotent`, `<Impl>.round_trip`), not `post` clauses.
 - **Schedules and retry policies are compile-time literals.**
 - **One `impl` construct** implements any behaviour. No per-pattern syntax.
 - Applications are composed from behaviours; the compiler checks that an
@@ -415,8 +416,8 @@ File extension: `.jip`. CLI: `jip`.
   quantifies and an example otherwise. `given x = any T via g` names a
   generator explicitly, and the table form `given rows = [ … ]` runs the
   block once per row (R9). BDD-only stays; these are forms of `given`, not
-  a second test kind. `any T where` and derived function checks are in
-  v1; derived stateful checks are pending.
+  a second test kind. `any T where`, derived function checks and derived
+  stateful checks are in v1.
 - Scenarios see the `pub` and `pub(module)` items of the module under test
   and nothing private.
 - Scenarios run under the default fake clock and seeded random (§4, R14).
@@ -479,11 +480,12 @@ reverse any row; reversing one is a spec change.
 | `any T where` (v1) | The filter sees the candidate under the `given` name; rejected candidates are redrawn from the same generator; 1000 rejections in a row fail the scenario; W0510 is counted per `where` over all runs of the property. |
 | Structural `Int` generator | `Size` bounds the magnitude around zero when the range holds zero, else from the end nearest zero. v0 clamped from `lo`, so `any Int` never drew a positive value. |
 | `jip fmt` | Keeps every comment (trailing ones aligned), literal text (`1_000_000`, `60s`) and schedule sugar (`every 5m`); a body stays on one line only when written so. Refuses to write a result that would not reparse to the same program. Skips `vendor/`. |
-| Derived function checks (v1) | Module-level, non-generic `pub fn`s of app modules only; methods wait for the stateful check. Each emits `TestDerived_<fn>` in the module's `derived_test.go` and prints `derived <fn>`; the summary counts scenarios and derived checks apart. A check whose `pre` rejects every candidate of 3 runs is reported `skip` with W0510, never `ok`. A saved seed runs before the N fresh runs unless `--seed` pins the run. |
+| Derived function checks (v1) | Module-level, non-generic `pub fn`s of app modules only; methods are covered by the stateful check. Each emits `TestDerived_<fn>` in the module's `derived_test.go` and prints `derived <fn>`; the summary counts scenarios and derived checks apart. A check whose `pre` rejects every candidate of 3 runs is reported `skip` with W0510, never `ok`. A saved seed runs before the N fresh runs unless `--seed` pins the run. |
 | `pre`-derived bounds | Only `&&` conjuncts are split; a bound side may mention parameters declared earlier, never later, and must lower without statements. An open end is ±2^61, so Size, not the end, bounds the draw; a length bound draws at most 8 above its minimum. Every clause still runs as a filter. `Range<T>` is a prelude extern type with `contains`; a literal range receiver lowers to `rt.InRange`. `any Str` draws up to 32 bytes (was 16). |
 | `impl` `inv` at run time | v0 parsed and type-checked an `impl` `inv` but never evaluated it. Each impl with `inv` now gets `<Target>_stateInv`; `init` (on `Ok`) and every method on `self` call it after the body under `contracts: all`. A `Cell` field is read once per check. Under `contracts: pre` and `none` the wrapper skips the call. |
 | Repository round-trip | Spec 06 rule 10 is now a derived property, `<Impl>.round_trip`, for each non-generic `Repository` impl whose `K` and `T` generate. It runs on a fresh instance per run with the module's test `Config`. `any Instant` now generates too, within a day of the fake clock's epoch, so records with timestamps qualify. |
 | Worker idempotency | Spec 06 rule 8 is now a derived property, `<Impl>.idempotent`, for each non-generic `Worker` impl whose `Msg` generates. Calls to a `Repository` or `Cache` impl go through `rt.RepoGet`, `rt.CacheSet` and siblings, which use the impl's instance unless the ctx substitutes fakes; the check runs `perform` once and twice on two such ctxs and compares the fakes' entries and the final results. The check found `shop` double-counting a redelivered order, so `Placed` gained an `id` and the `Indexer` records counted ids in a `Counted` repository; eval tasks 06 and 07 were re-frozen with the new `Placed` literals before any measurement was taken. |
+| Derived stateful checks (v1) | Spec 05 rule 17 for each non-generic `impl` with `inv` whose declared `init` (returning `Ok(self)` or `Self`) and at least one method on `self` are within `{mut}` with generable parameters; any other method is never drawn. `init` is redrawn until `Ok` under the `W0510` count; a step whose `pre` fails is redrawn; `stop` is called last when it qualifies. The check is `derived <Impl>`, seed `<module dir>/<Impl>.seed`, and its `when` line is the call sequence. A generated `Config` always holds `Secrets.fake()`. Shrinking halves the size as rule 16, so a failing sequence is shorter but not minimal. Rule 18 is the dedicated `round_trip` and `idempotent` checks of spec 06, not stdlib `post` clauses. No example `impl` carries `inv` yet, so the check is covered by a driver test that adds one to `shop`. |
 | Not in v0 | `gomod(...)` Go dependencies for externs (any non-stdlib Go path is E0504); the per-module `.jip/cache` of 13 rule 12 (needs separate compilation in the checker; `GOCACHE` covers the Go side). |
 
 ## Resolved deferred decisions
@@ -530,5 +532,4 @@ reverse any row; reversing one is a spec change.
 | Approvals library (decision types, visualisations, routing, audit, channels) | v0 gate; design notes in `docs/revision-plan.md` §10 |
 | `temporal` and `restate` workflow runtimes | `embedded` passing the gate |
 | Providers beyond one per role, `custom` provider | ecosystem pressure |
-| Derived stateful checks (`impl`), stdlib behaviour contracts | backlog L3 |
 | Persistent collections as a data structure | §13 collections benchmark |
