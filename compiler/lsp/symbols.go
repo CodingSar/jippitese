@@ -178,17 +178,8 @@ func (s *Server) outline(lines []string, ss []span, limit int) []documentSymbol 
 func (s *Server) selection(lines []string, sp span, end int) Range {
 	col := sp.from.Col
 	for n := sp.from.Line; n <= end && sp.word != ""; n++ {
-		l := line(lines, n)
-		for off := col - 1; off >= 0 && off <= len(l); {
-			k := strings.Index(l[off:], sp.word)
-			if k < 0 {
-				break
-			}
-			a, b := off+k, off+k+len(sp.word)
-			if (a == 0 || !wordByte(l[a-1])) && (b == len(l) || !wordByte(l[b])) {
-				return Range{s.at(lines, n, a+1), s.at(lines, n, b+1)}
-			}
-			off = b
+		if c := wordCol(line(lines, n), col, sp.word); c > 0 {
+			return Range{s.at(lines, n, c), s.at(lines, n, c+len(sp.word))}
 		}
 		col = 1
 	}

@@ -335,13 +335,13 @@ fixes under "deferred from v0"; deviations go to `decisions.md`.
   - [x] **T4d** `Json` navigation (get, at, as_*, items, keys) and
         `json.parse`.
   - [x] **T4e** `std.log`.
-- [ ] **T5** Language server `jip lsp` (LSP over stdio): diagnostics on
+- [x] **T5** Language server `jip lsp` (LSP over stdio): diagnostics on
       change, hover with type and effects, go to definition, document
       symbols, formatting via `jip fmt`.
   - [x] **T5a** Open-buffer overlay over the module loader, diagnostics on
         open/change/save/close, whole-document formatting, `jip lsp`.
   - [x] **T5b** Document symbols.
-  - [ ] **T5c** Hover (type, effects, doc) and go to definition.
+  - [x] **T5c** Hover (type, effects, doc) and go to definition.
 
 ## 12. v1 evaluation and runtimes
 

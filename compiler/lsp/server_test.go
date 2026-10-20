@@ -255,3 +255,76 @@ scenario "size is one" {
 		t.Errorf("field: %+v", f)
 	}
 }
+
+// at is the LSP position of the n-th byte of needle on the first line of
+// text containing needle (ASCII lines only).
+func at(t *testing.T, text, needle string, n int) Position {
+	t.Helper()
+	for i, l := range strings.Split(text, "\n") {
+		if k := strings.Index(l, needle); k >= 0 {
+			return Position{i, k + n}
+		}
+	}
+	t.Fatalf("%q not found", needle)
+	return Position{}
+}
+
+func TestHoverAndDefinition(t *testing.T) {
+	root := card(t)
+	path := filepath.Join(root, "orders/billing/billing.jip")
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := string(b)
+	uri := pathURI(path)
+	spath := filepath.Join(root, "orders/billing/scenarios.jip")
+	sb, err := os.ReadFile(spath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	suri := pathURI(spath)
+	pos := func(u string, p Position) map[string]any {
+		return map[string]any{"textDocument": map[string]any{"uri": u}, "position": p}
+	}
+	_, msgs := session(t,
+		req(1, "initialize", map[string]any{"capabilities": map[string]any{}}),
+		note("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "jip", "version": 1, "text": src}}),
+		req(2, "textDocument/hover", pos(uri, at(t, src, "let r = charge(", 9))),          // charge
+		req(3, "textDocument/hover", pos(uri, at(t, src, "let r = charge(", 4))),          // r
+		req(4, "textDocument/hover", pos(uri, at(t, src, "Tier.High", 6))),                // High
+		req(5, "textDocument/hover", pos(uri, at(t, src, "self.lines.len()", 6))),         // lines
+		req(6, "textDocument/definition", pos(suri, at(t, string(sb), "= withdraw(", 3))), // unopened file
+		req(7, "textDocument/definition", pos(uri, at(t, src, "if risk(o)", 8))),          // o
+		req(8, "textDocument/hover", pos(uri, at(t, src, "/// Money in minor", 0))),       // nothing
+	)
+	res := map[string]string{}
+	for _, m := range msgs {
+		if len(m.ID) > 0 {
+			res[string(m.ID)] = string(m.Result)
+		}
+	}
+	hover := func(id, want string) {
+		t.Helper()
+		var h hoverResult
+		if err := json.Unmarshal([]byte(res[id]), &h); err != nil || !strings.Contains(h.Contents.Value, want) {
+			t.Errorf("hover %s: got %s, want %q", id, res[id], want)
+		}
+	}
+	hover("2", "fn charge(o: Order, gw: Gateway) -> Result<Receipt, BillError> with {net, nondet}")
+	hover("2", "Charges the order through the payment gateway.")
+	hover("3", "let r: Receipt")
+	hover("4", "Tier.High")
+	hover("5", "lines: List<Line>")
+	var loc location
+	if err := json.Unmarshal([]byte(res["6"]), &loc); err != nil || loc.URI != uri || loc.Range.Start != at(t, src, "pub fn withdraw(", 7) {
+		t.Errorf("definition of withdraw: %s", res["6"])
+	}
+	loc = location{}
+	if err := json.Unmarshal([]byte(res["7"]), &loc); err != nil || loc.URI != uri || loc.Range.Start != at(t, src, "fn run(self, o: Order)", 13) {
+		t.Errorf("definition of o: %s", res["7"])
+	}
+	if res["8"] != "null" {
+		t.Errorf("hover on a comment: %s", res["8"])
+	}
+}

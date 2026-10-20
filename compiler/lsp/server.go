@@ -28,14 +28,15 @@ type Server struct {
 	log       io.Writer
 	utf8      bool
 	shutdown  bool
-	docs      map[string]string          // URI → text of open buffers
-	published map[string]map[string]bool // analysis root → URIs holding diagnostics
+	docs      map[string]string           // URI → text of open buffers
+	published map[string]map[string]bool  // analysis root → URIs holding diagnostics
+	progs     map[string]*checker.Program // analysis root → last check, nil when it did not load
 }
 
 // Run serves one client on in and out until `exit` or end of input, and
 // returns the process exit code: 0 after `shutdown`, 1 otherwise.
 func Run(in io.Reader, out, log io.Writer) int {
-	s := &Server{out: out, log: log, docs: map[string]string{}, published: map[string]map[string]bool{}}
+	s := &Server{out: out, log: log, docs: map[string]string{}, published: map[string]map[string]bool{}, progs: map[string]*checker.Program{}}
 	r := bufio.NewReader(in)
 	for {
 		m, err := readMessage(r)
@@ -147,6 +148,10 @@ func (s *Server) dispatch(m *message) (any, *rpcError) {
 		return s.formatting(uri), nil
 	case "textDocument/documentSymbol":
 		return s.documentSymbols(uri), nil
+	case "textDocument/hover":
+		return s.hover(uri, p.Position), nil
+	case "textDocument/definition":
+		return s.definition(uri, p.Position), nil
 	default:
 		if len(m.ID) > 0 {
 			return nil, &rpcError{codeMethodNotFound, "unsupported method " + m.Method}
@@ -178,6 +183,8 @@ func (s *Server) initialize(params json.RawMessage) any {
 			},
 			"documentFormattingProvider": true,
 			"documentSymbolProvider":     true,
+			"hoverProvider":              true,
+			"definitionProvider":         true,
 		},
 		"serverInfo": map[string]any{"name": "jip"},
 	}
@@ -231,7 +238,7 @@ func (s *Server) analyze(uri string) {
 			}
 		}
 	}
-	s.check(root, overlay, bag)
+	s.progs[root] = s.check(root, overlay, bag)
 	s.publish(root, root, bag)
 }
 
