@@ -207,12 +207,11 @@ state lives in the process: a restart activates every key afresh. `act`
 has no `mut`, so it reaches an in-process `Repository` through a topic and
 a `Worker`.
 
-### Deferred from v0
+### Agent (v1)
 
-*Status: deferred from v0 (revision-plan R1).* `Agent` keeps its
-declaration here so that the v1 shape is fixed, but no compiler accepts an
-`impl` of it yet (E0706) and the `run` list of section 10 does not admit
-it. Its semantics are in section 07 under the same banner.
+*Status: v1 (backlog L5).* An `Agent` is invoked through `Name.run(goal)`;
+the `run` list of section 10 does not admit it. Its semantics are in
+section 07, rules 17 to 23.
 
 ```jip
 pub behaviour Agent {                      // semantics in section 07
@@ -358,15 +357,15 @@ error[E0702]: effect `spawn` exceeds the budget of `Worker.perform`
    = help: remove `spawn`, or implement `Service`, whose `handle` budget includes it
 ```
 
-A deferred behaviour:
+A tool that is not `pub` (section 07, rule 18):
 
 ```text
-error[E0706]: `Agent` is not available yet
-  --> orders/triage.jip:8:1
+error[E0706]: `refund` cannot be a tool
+  --> triage/desk.jip:20:32
    |
- 8 | impl Agent for Triage {
-   | ^^^^^^^^^^^^^^^^^^^^^ `Agent` is deferred (revision-plan R1)
-   = help: call `llm` and `decide` from a `Workflow` step instead
+20 |   const tools = tools [lookup, refund]
+   |                                ^^^^^^ not `pub`
+   = help: declare it `pub fn refund`
 ```
 
 ## Grammar

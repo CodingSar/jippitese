@@ -3,9 +3,8 @@
 Three primitives in v0: `llm` (structured model call), `decide` (System One
 classifier) and `approve` (durable human promise); one behaviour that hosts
 them: `Workflow` (journaled, replayable). Tools derived from functions and the
-`Agent` behaviour (runtime-owned model loop) are specified at the end under a
-deferral banner (revision-plan R1). Declarations are in section 06; semantics
-are here.
+`Agent` behaviour (runtime-owned model loop) are v1 and specified at the end.
+Declarations are in section 06; semantics are here.
 
 ## Example
 
@@ -113,7 +112,7 @@ func Escalation(ctx workflow.Context, id TicketID) (Summary, error) {
    to it and it is reserved for the approvals library (revision-plan §10).
    `Rejected { reason: Option<Str>, timed_out: Bool }`.
 6. **Admission (revision-plan R4).** `approve` is allowed only in
-   `Workflow.run`, in `Agent.gate` once `Agent` ships, and in functions
+   `Workflow.run`, in `Agent.gate`, and in functions
    reachable only from those (the effect check of section 03 makes any other
    caller carry `approve` and fail its budget, E0702; a plain `pub fn` with
    `approve` that nothing in a `run` calls is E0707). There is no blocking
@@ -194,8 +193,8 @@ func Escalation(ctx workflow.Context, id TicketID) (Summary, error) {
 
 ### Tools and `Agent`
 
-*Status: deferred from v0 (revision-plan R1).* Rules 17 to 23 fix the v1
-design; a v0 compiler rejects `impl Agent` (E0706) and `tools [...]`.
+*Status: v1 (backlog L5).* An `Agent` is invoked through `Name.run(goal)`;
+it is not admitted in the `run` list of `app.jip`.
 
 17. `tools [f, g]` is a `List<Tool>` built from `pub fn` values. For each
     function the tool takes its name, its `///` line as the description, its
@@ -213,8 +212,9 @@ design; a v0 compiler rejects `impl Agent` (E0706) and `tools [...]`.
     with {decide, approve}`. `Event = Said(Str) | Called(ToolCall) |
     Returned(ToolCall, Str) | Compacted`; `ToolCall { tool: Tools, args:
     Json }` where `Tools` is a closed enum generated per impl with one
-    variant per entry of `tools`, so `gate` matches exhaustively and a
-    misspelt tool name is a compile error; `Gate = Allow | Deny(Str) |
+    variant per entry of `tools` (`lookup` becomes `Lookup`), so `gate`
+    matches exhaustively and a misspelt tool name is a compile error;
+    inside the impl it is `Tools`, outside `<Target>Tools`; `Gate = Allow | Deny(Str) |
     Ask`; `Answer` must be schema-derivable, since the model is asked to
     produce it.
 20. **Loop.** `Name.run(goal: Str) -> Outcome<Answer>` (effects per rule 18)
@@ -228,12 +228,18 @@ design; a v0 compiler rejects `impl Agent` (E0706) and `tools [...]`.
     Stopped(BudgetExceeded), Refused(Str) }` with `BudgetExceeded = Turns |
     Cost`. `max_cost` is checked before each model call and may be exceeded
     by at most one call.
-22. **Inside a `Workflow`.** `Name.run(task)` called from `run` is journaled
+22. **Inside a `Workflow`.** `Name.run(goal)` called from `run` is journaled
     as one step per model call (`Triage.run@<site>#1/turn#k`) plus one per
-    tool execution and gate decision, so a crashed agent resumes mid-loop.
+    gate decision (`/gate#k`), reviewer answer (`/approve#k`) and tool
+    execution (`/tool#k`), so a crashed agent resumes mid-loop.
 23. **Example (v1).**
 
 ```jip
+use std.json
+
+/// What the agent has seen so far; `TriageTools` is generated (rule 19).
+pub type TriageState { goal: Str, seen: List<TriageTools>, answer: Option<Summary> }
+
 /// Resolves one support ticket with a bounded tool loop.
 impl Agent for Triage {
   type State = TriageState
@@ -245,16 +251,16 @@ impl Agent for Triage {
   fn begin(self, goal: Str) -> TriageState { TriageState { goal, seen: [], answer: None } }
   fn observe(self, st: TriageState, ev: Event) -> TriageState {
     match ev {
-      Returned(call, out) => TriageState { ..st, seen: st.seen.push(call.tool) },
-      Said(text) => TriageState { ..st, answer: json.decode::<Summary>(text).ok() },
-      Called(_) | Compacted => st,
+      Event.Returned(call, _) => TriageState { ..st, seen: st.seen.push(call.tool) },
+      Event.Said(text) => TriageState { ..st, answer: json.decode::<Summary>(text.bytes()).ok() },
+      Event.Called(_) | Event.Compacted => st,
     }
   }
   fn stop(self, st: TriageState) -> Option<Summary> { st.answer }
   fn gate(self, call: ToolCall) -> Gate with {approve} {
     match call.tool {
-      Tools.Refund => Ask,                   // routed through approve
-      Tools.Lookup => Allow,
+      Tools.Refund => Gate.Ask,              // routed through approve
+      Tools.Lookup => Gate.Allow,
     }
   }
 }

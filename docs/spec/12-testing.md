@@ -178,6 +178,12 @@ func TestWithdrawNeverOverdraws(t *testing.T) {
     advance the fake clock instead of waiting; `approve` answers come from the bound
     `FakeApprove` script in order, and an exhausted script is a failure.
     `send_signal(run, signal)` delivers a `Signal` to a running workflow.
+    An `Agent` is run with `Name.run(goal)` against `FakeLlm.turns(role,
+    replies)`, where `Reply { Say(Str), Call(Str, Str), Refuse(Str) }`
+    scripts one model turn each: text, a call of the named tool with its
+    arguments as JSON text, or a refusal; the last reply repeats once the
+    script is exhausted. A gate's `Ask` is answered by the bound
+    `FakeApprove`.
 12. **Tags.** A tag line immediately precedes `scenario`. `@extern` marks a
     scenario that exercises an `extern`; every `extern` needs at least one
     and `jip check` reports the ones without (cross-reference 11). `@slow`

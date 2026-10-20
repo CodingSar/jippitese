@@ -210,6 +210,12 @@ decisions".
       runtime writes one JSON-lines file per run; the spec follows the
       runtime.
 - [x] **V2** Ratify D1 (`mut` in `init` budgets) in `decisions.md`.
+- [ ] **V3** A `run` line in `app.jip` naming an unknown item, or one that
+      is not runnable (an `Agent`, a `Workflow`), is silently ignored;
+      report it (spec 10, section on `run`).
+- [ ] **V4** A lexer error inside a string literal (`"{\"id\": 7}"`, an
+      unclosed interpolation) is reported at 1:1 instead of at the
+      literal.
 
 ## 10. v1 language
 
@@ -238,10 +244,14 @@ fixes under "deferred from v0"; deviations go to `decisions.md`.
       `run` line; example `examples/doors`. `rt/machine.go`
       (`TestMachineTurnsAndIdle`); `machine_send` in `checker/expr.go` and
       `emit/call.go`; multi-line docs in `iface` (`TestMultiLineDocRoundTrip`).
-- [ ] **L5** `Agent` behaviour and `tools [...]` (07 r17–23): tool schemas
+- [x] **L5** `Agent` behaviour and `tools [...]` (07 r17–23): tool schemas
       from `pub fn`s, generated `Tools` enum, `Event`, `Gate`, `Outcome`,
       budget, loop in `rt` against the `llm` fake, journaled inside a
-      `Workflow`; example `examples/triage`.
+      `Workflow`; example `examples/triage`. `rt/agent.go` (`TestAgent*`,
+      `TestFakeLlmTurns`); `checker/agent.go` (`TestAgentChecks`,
+      `TestAgentToolNotPub`, `TestToolsOutsideAgent`,
+      `TestAgentToolsNamedByUser`, `TestAgentRunEffects`);
+      `emit/agent.go`; spec 06, 07, 12 and grammar updated.
 - [ ] **L6** Externs on methods (`go "path".Type.Method`, 11 r1) and
       `gomod(...)` Go dependencies: `jip fetch` vendors them, generated
       `go.mod` gets `require`/`replace` lines and `vendor/modules.txt`.

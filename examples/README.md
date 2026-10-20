@@ -1,7 +1,7 @@
 # examples
 
 The Phase E corpus (`docs/revision-plan.md` §5): the language card's app and
-one app per remaining v0 behaviour, plus `doors/` for the v1 `Machine`. Each is a complete project with its
+one app per remaining v0 behaviour, plus `doors/` for the v1 `Machine` and `triage/` for the v1 `Agent`. Each is a complete project with its
 `app.jip`, modules, committed `interface.jipi` files and scenarios that
 pass under the default fakes.
 
@@ -13,6 +13,7 @@ pass under the default fakes.
 | `rates/` | A `Cache` with per-entry ttl | an entry served before and gone after its ttl under the fake clock |
 | `doors/` | A `Machine` with one `Position` per door id, recording each move through the `moved` topic to a `Worker` | turns run by `Door.send`, an action's events fed back as later turns, keys kept apart; the derived `Positions.round_trip` and `Recorder.idempotent` |
 | `refunds/` | A `Workflow` with one `approve` step | `record_workflow`, then `replay_workflow` from the journal; a mismatched history is `Replay` |
+| `triage/` | An `Agent` with `tools [lookup, refund]` whose `gate` asks a reviewer before a refund, run alone and from a `Workflow` | scripted turns with `FakeLlm.turns`, a gated refund answered by `FakeApprove`, the turn budget, a refusal, and a journaled run replayed |
 
 Run any of them from its directory with the `jip` command built from
 `compiler/`:

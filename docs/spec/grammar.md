@@ -182,6 +182,7 @@ Primary     ::= Literal
                 | TaskExpr
                 | "panic" "(" Expr ")"
                 | LlmCall | DecideCall | ApproveCall | AwaitSignal
+                | ToolsExpr /* v1, only as the `const tools` of an Agent, 07 */
                 | ContractExpr /* contracts only */
 RecordExpr  ::= TypePath "{" (".." Expr ",")? (FieldInit ("," FieldInit)* ","?)? "}"
 FieldInit   ::= Ident (":" Expr)?
@@ -198,12 +199,13 @@ LlmCall     ::= "llm" "<" RoleLit ("," Type)? ">" "(" Expr "," Expr ")"
 DecideCall  ::= "decide" "<" RoleLit ("," Type)? ">" "(" Expr ")"
 ApproveCall ::= "approve" ("::" TypeArgs)? "(" Expr ")" /* only inside Workflow.run, 07 */
 AwaitSignal ::= "await_signal" ("::" TypeArgs)? "(" Expr ")"
+ToolsExpr   ::= "tools" "[" (Ident ("," Ident)* ","?)? "]"
 ```
 
 `<` in an expression is always less-than; an explicit type argument is the
 turbofish `::<…>` (01 rule 15). `llm`, `decide`, `approve` and `via` are
-keywords. `tools […]` and `Agent` are deferred from v0 (R1) and have no
-grammar here.
+keywords. `tools` is contextual: it starts a `ToolsExpr` only when `[`
+follows, and is an ordinary identifier otherwise.
 
 ## Patterns (04)
 
