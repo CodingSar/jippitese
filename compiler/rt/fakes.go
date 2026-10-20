@@ -481,12 +481,13 @@ func Decide[Out any](ctx *Ctx, role string, input any) Out {
 
 // ApproveClient answers `approve::<D>(review)` outside a journal.
 type ApproveClient interface {
-	Ask(ctx *Ctx, review Review) any
+	// Ask answers with a value of type out, a Result[D, Rejected].
+	Ask(ctx *Ctx, review Review, out reflect.Type) any
 }
 
 type boundaryApprove struct{}
 
-func (boundaryApprove) Ask(ctx *Ctx, review Review) any {
+func (boundaryApprove) Ask(ctx *Ctx, review Review, out reflect.Type) any {
 	boundary("approve")
 	return nil
 }
@@ -499,7 +500,7 @@ type FakeApprove struct {
 	asked   []Review
 }
 
-func (f *FakeApprove) Ask(ctx *Ctx, review Review) any {
+func (f *FakeApprove) Ask(ctx *Ctx, review Review, out reflect.Type) any {
 	f.mu.Lock()
 	f.asked = append(f.asked, review)
 	if f.i >= len(f.answers) {

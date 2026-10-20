@@ -21,7 +21,7 @@ app {
     llm  { timeout: default 60s, budget: default 2_000_000 tokens }
     io   { timeout: default 10s }
     decide { timeout: default 500ms }
-    approve { channel: orders.review_inbox, default_timeout: default 48h }
+    approve { channel: std.approve.http, default_timeout: default 48h }
   }
   telemetry { exporter: otlp, endpoint: default "http://localhost:4317", sample: default 0.1 }
   externs { allow: [orders.pdf], max: 10 }
@@ -67,7 +67,7 @@ aborts startup.
    - `deps { alias = git(url: Str, commit: Str, hash: Str) | gomod(path: Str, commit: Str, hash: Str) }`.
    - `models { role = Provider }` with `Provider ::= openai(Str) | anthropic(Str) | jev(Str) | ollama(Str) | custom(Str, Str)`. The string is the provider's model name; `custom(url, model)` (v1) also names the base URL of an OpenAI-compatible chat-completions endpoint. Any other provider name or argument count is an `app.jip` error. Every role used in code as `llm<role>`, `decide<role>` or an `Agent`'s `const model = role` must be declared (E0307, once per role). The runtime speaks the OpenAI chat-completions protocol (v1): `openai` at `https://api.openai.com/v1`, `ollama` at `http://localhost:11434/v1`, `custom` at its URL; an `llm<role>` call asks for structured output under the JSON Schema of its output type and an `Agent` turn sends its tools as functions. The API key of a role comes from `JIP_MODELS__<ROLE>__KEY` (role upper-cased; `openai` falls back to `OPENAI_API_KEY`) and is sent as a bearer token when set. `anthropic` and `jev` roles, and `decide<role>`, still reach the boundary in a build.
    - `secrets { name: secret<T> }`, `T` one of `Str`, `Int`, `Url`, `Bytes`. A secret field never carries a literal (E0302); its value comes only from `JIP_SECRETS__<NAME>`.
-   - `effects { net { timeout: Duration, retry { max: Int, backoff: exp | const, base: Duration }, ratelimit { per_second: Float } } llm { timeout: Duration, budget: Tokens | Money, ratelimit { per_second: Float } } io { timeout: Duration } decide { timeout: Duration } approve { channel: ModulePath, default_timeout: Duration } }`. `approve.channel` names an app or dependency module implementing `std.approve.Channel` (section 07 rule 7); the stdlib ships `std.approve.http`. Defaults: `net.timeout 5s`, `net.retry { max: 3, backoff: exp, base: 100ms }`, `llm.timeout 60s`, `io.timeout 10s`, `decide.timeout 1s`, `approve.default_timeout 24h`; no ratelimit, no llm budget, retries only on `net`. These are the defaults sections 06 and 07 cite. A `default` before a record marks every leaf below it. In v1 the runtime applies `net.timeout` and `net.retry` (to every `std.http` call and the `http` dependency), `llm.timeout` (per provider request) and `approve.*`; `net.ratelimit`, `llm.budget`, `llm.ratelimit`, `io.timeout` and `decide.timeout` are checked and resolved (`jip check --effective` prints them) but not yet enforced.
+   - `effects { net { timeout: Duration, retry { max: Int, backoff: exp | const, base: Duration }, ratelimit { per_second: Float } } llm { timeout: Duration, budget: Tokens | Money, ratelimit { per_second: Float } } io { timeout: Duration } decide { timeout: Duration } approve { channel: ModulePath, default_timeout: Duration } }`. `approve.channel` names the module that delivers reviews (section 07 rule 7); v1 ships only `std.approve.http`, and any other path is an `app.jip` error (E0301) until user channels (`std.approve.Channel`) land. Defaults: `net.timeout 5s`, `net.retry { max: 3, backoff: exp, base: 100ms }`, `llm.timeout 60s`, `io.timeout 10s`, `decide.timeout 1s`, `approve.default_timeout 24h`; no ratelimit, no llm budget, retries only on `net`. These are the defaults sections 06 and 07 cite. A `default` before a record marks every leaf below it. In v1 the runtime applies `net.timeout` and `net.retry` (to every `std.http` call and the `http` dependency), `llm.timeout` (per provider request) and `approve.*`; `net.ratelimit`, `llm.budget`, `llm.ratelimit`, `io.timeout` and `decide.timeout` are checked and resolved (`jip check --effective` prints them) but not yet enforced.
    - `telemetry { exporter: otlp | prometheus | none, endpoint: Str, sample: Float }`. Defaults `none`, `""`, `0.1`.
    - `externs { allow: List<ModulePath>, max: Int }`, module paths unquoted. Defaults `[]`, `0` (§11).
    - `contracts: all | pre | none`, default `pre` (`jip test` forces `all`).
@@ -89,7 +89,9 @@ aborts startup.
    variable touching one aborts startup. An unknown `JIP_*` variable, or one
    that fails to parse by the declared type, aborts startup before the first
    effect runs, with the variable name and expected type. A declared model role's
-   key variable `JIP_MODELS__<ROLE>__KEY` counts as a field. `JIP_ENV` unset
+   key variable `JIP_MODELS__<ROLE>__KEY` counts as a field, and `JIP_APPROVE_ADDR`
+   (the `std.approve.http` listen address, section 07 rule 7) is no field
+   and never aborts startup. `JIP_ENV` unset
    means no `env` block applies; `JIP_ENV` naming no block aborts startup.
 6. **Effective config.** `jip check --effective --env <name>` resolves all
    three layers (reading the current process environment for layer three)

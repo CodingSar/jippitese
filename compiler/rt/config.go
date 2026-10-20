@@ -264,7 +264,7 @@ func (l *ConfigLoader) Accept(keys ...string) {
 // exemptVars are JIP_* variables that never name a field.
 var exemptVars = map[string]bool{
 	"JIP_ENV": true, "JIP_GO": true, "JIP_SCENARIO_FILTER": true, "JIP_SEED": true,
-	"JIP_RUNS": true, "JIP_SLOW": true, "JIP_SEED_DIR": true,
+	"JIP_RUNS": true, "JIP_SLOW": true, "JIP_SEED_DIR": true, "JIP_APPROVE_ADDR": true,
 }
 
 // Finish reports unknown JIP_* variables and returns the joined errors.

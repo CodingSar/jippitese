@@ -201,9 +201,10 @@ func (p *parser) parseFile() *ast.File {
 
 func (p *parser) dottedPath() []string {
 	path := []string{p.ident()}
-	for p.isOp(".") && p.peekN(1).Kind == lexer.Ident {
+	// a keyword may follow a dot: `std.approve.http`
+	for p.isOp(".") && (p.peekN(1).Kind == lexer.Ident || p.peekN(1).Kind == lexer.Keyword) {
 		p.next()
-		path = append(path, p.ident())
+		path = append(path, p.next().Text)
 	}
 	return path
 }

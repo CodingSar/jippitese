@@ -1,6 +1,8 @@
 package rt
 
 import (
+	"fmt"
+	"os"
 	"strconv"
 	"time"
 )
@@ -103,8 +105,25 @@ func LoadEffects(l *ConfigLoader, set map[string]EffectSet) Effects {
 }
 
 // ApplyEffects installs the resolved effects: the real HTTP client takes
-// net.timeout and net.retry.
-func (c *Ctx) ApplyEffects(e Effects) {
+// net.timeout and net.retry, and approve.channel starts its endpoint.
+func (c *Ctx) ApplyEffects(e Effects) error {
 	c.Effects = e
 	c.Http = RealHttp{Timeout: e.NetTimeout, Retry: e.NetRetry}
+	switch e.ApproveChannel {
+	case "":
+	case ApproveHttpChannel:
+		addr, err := approveAddr()
+		if err != nil {
+			return err
+		}
+		a, err := NewApproveHttp(addr)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "jip: approvals at http://%s/reviews\n", a.Addr)
+		c.Approve = a
+	default:
+		return fmt.Errorf("effects.approve.channel `%s`: v1 ships only `%s`", e.ApproveChannel, ApproveHttpChannel)
+	}
+	return nil
 }

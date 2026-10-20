@@ -27,7 +27,9 @@ func TestLoadEffects(t *testing.T) {
 		t.Fatalf("effects: %+v", e)
 	}
 	c := NewCtx()
-	c.ApplyEffects(e)
+	if err := c.ApplyEffects(e); err != nil {
+		t.Fatal(err)
+	}
 	if h := c.Http.(RealHttp); h.Timeout != 2*time.Second || h.Retry.Max != 5 {
 		t.Fatalf("http: %+v", h)
 	}

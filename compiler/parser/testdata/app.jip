@@ -6,7 +6,7 @@ app {
   secrets { gateway_key: secret<Str> }           // JIP_SECRETS__GATEWAY_KEY; cfg.secrets.gateway_key
   effects {
     net { timeout: default 5s, retry: default { max: 3, backoff: exp } }
-    approve { channel: orders.review_inbox, default_timeout: default 48h }
+    approve { channel: std.approve.http, default_timeout: default 48h }
   }
   externs { allow: [orders.billing], max: 1 }    // modules that may declare `extern`
   telemetry { exporter: otlp, endpoint: default "http://localhost:4317", sample: default 0.1 }

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -728,6 +729,7 @@ func (j *Journal) resolve(key string, ans any) {
 type suspend struct {
 	key    string
 	review Review
+	out    reflect.Type
 }
 
 type replayMismatch struct{ expected, found int64 }
@@ -782,8 +784,9 @@ func Step[T any](ctx *Ctx, site string, f func() T) T {
 // recorded and replays from the top.
 func Approve[D any](ctx *Ctx, site string, review Review) Result[D, Rejected] {
 	j := ctx.Journal
+	out := reflect.TypeOf(Result[D, Rejected]{})
 	if j == nil {
-		v := ctx.Approve.Ask(ctx, review)
+		v := ctx.Approve.Ask(ctx, review, out)
 		r, ok := v.(Result[D, Rejected])
 		if !ok {
 			ctx.failf("approve: expected %T, got %T", r, v)
@@ -798,7 +801,7 @@ func Approve[D any](ctx *Ctx, site string, review Review) Result[D, Rejected] {
 			panic(&replayMismatch{expected: int64(e.Seq), found: 0})
 		}
 		if e.Kind == "pending" {
-			panic(&suspend{key: key, review: review})
+			panic(&suspend{key: key, review: review, out: out})
 		}
 		j.cursor++
 		var r Result[D, Rejected]
@@ -810,7 +813,7 @@ func Approve[D any](ctx *Ctx, site string, review Review) Result[D, Rejected] {
 	b, _ := json.Marshal(review)
 	j.append(JournalEntry{Key: key, Kind: "pending", Nested: nested, Value: b})
 	j.cursor = len(j.Entries)
-	panic(&suspend{key: key, review: review})
+	panic(&suspend{key: key, review: review, out: out})
 }
 
 // RunWorkflow implements the scenario builtin `run_workflow(Impl, input)`:
@@ -868,7 +871,7 @@ func runJournaled[S, In, Out, Sig, E any](ctx *Ctx, spec *WorkflowSpec[S, In, Ou
 		if pend == nil {
 			return res
 		}
-		ans := ctx.Approve.Ask(ctx, pend.review)
+		ans := ctx.Approve.Ask(ctx, pend.review, pend.out)
 		j.resolve(pend.key, ans)
 	}
 }

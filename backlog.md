@@ -303,7 +303,7 @@ fixes under "deferred from v0"; deviations go to `decisions.md`.
       `std.testing` and `Path.of/join/to_str/name/parent` in the prelude.
       `exists` is the contract quantifier keyword, so the check is
       `present`. 12 r10 updated.
-- [ ] **T3** Stdlib `std.http` client (get, post, request with headers)
+- [x] **T3** Stdlib `std.http` client (get, post, request with headers)
       over `NetError`, `FakeHttp` routing, and `std.approve.http` channel
       (10 r3).
       - [x] T3a `std.http` (get, post, request; `Response` with status,
@@ -312,7 +312,15 @@ fixes under "deferred from v0"; deviations go to `decisions.md`.
       - [x] T3b `effects {}` in `app.jip` (net timeout and retry, approve
             channel and default timeout) wired into the generated main.
             Model key variables accepted; E0303 on env blocks.
-      - [ ] T3c `std.approve.http` channel.
+      - [x] T3c `std.approve.http` channel: loopback HTTP endpoint
+            (`JIP_APPROVE_ADDR`) listing pending reviews, approve with a
+            `T` body, reject with an optional reason, timeout from the
+            review or `approve.default_timeout`. 07 r7 lists the routes.
+      - [ ] T3d User approval channels: a module implementing
+            `std.approve.Channel` named by `effects.approve.channel`
+            (today any path but `std.approve.http` is E0301), and pending
+            reviews that survive a restart (re-listed from the journal's
+            pending entries).
 - [ ] **T4** Stdlib breadth: `std.strings` (replace, index, pad, repeat,
       format of floats), `std.math`, `std.time` (Instant arithmetic,
       formatting, parsing), `std.json` (navigating `Json`), `std.log`.

@@ -119,11 +119,20 @@ func Escalation(ctx workflow.Context, id TicketID) (Summary, error) {
    form: an approval is always a durable suspension of a journaled run.
 7. **Delivery.** An `approve` call is a durable promise keyed `approve@<site>#<n>`
    like a step (rule 9). The runtime delivers the review to the channel
-   named by `effects.approve.channel` in `app.jip`, a module path whose
-   module implements `std.approve.Channel` (the stdlib ships
-   `std.approve.http`, a local HTTP endpoint that lists pending reviews and
-   accepts one `T` value each), and suspends the run; a reply resolves it,
-   the timeout rejects it with `timed_out: true`.
+   named by `effects.approve.channel` in `app.jip` and suspends the run; a
+   reply resolves it, the timeout rejects it with `timed_out: true`. v1
+   ships one channel, `std.approve.http`: an HTTP endpoint without
+   authentication, so it listens only on a loopback address,
+   `JIP_APPROVE_ADDR` (default `127.0.0.1:8089`, any other host aborts
+   startup). `GET /reviews` lists pending reviews oldest first as
+   `{id, title, body, data, deadline}`, `GET /reviews/{id}` shows one,
+   `POST /reviews/{id}/approve` takes the `T` value as its JSON body (empty
+   when `T` is `Unit`; a body that does not decode as `T` is a 400 and the
+   review stays pending) and `POST /reviews/{id}/reject` takes an optional
+   `{"reason": Str}`; answering an id that is not pending is a 404. Pending
+   reviews live in memory: a restart loses them, and the run's journal
+   keeps its pending entry. User channels implementing
+   `std.approve.Channel` come later.
 
 ### `Workflow`
 

@@ -86,7 +86,7 @@ func TestParseEffects(t *testing.T) {
     llm  { timeout: default 60s, budget: default 2_000_000 tokens }
     io   { timeout: 10s }
     decide { timeout: default 500ms }
-    approve { channel: orders.review_inbox, default_timeout: default 48h }`)
+    approve { channel: std.approve.http, default_timeout: default 48h }`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,6 +107,7 @@ func TestParseEffects(t *testing.T) {
 		`net { retry: 3 }`,
 		`llm { budget: 2_000_000 }`,
 		`net { timeout: 1s, timeout: 2s }`,
+		`approve { channel: orders.review_inbox }`,
 	} {
 		if _, err := parse(bad); err == nil {
 			t.Fatalf("%s accepted", bad)
