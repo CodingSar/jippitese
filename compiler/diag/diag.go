@@ -290,6 +290,10 @@ func (b *Bag) sourceLine(file string, line int) string {
 }
 
 // tokenWidth guesses the width of the token starting at col (1-based).
+// TokenWidth is the width in bytes of the token at byte column col of line,
+// the span a diagnostic without an End highlights.
+func TokenWidth(line string, col int) int { return tokenWidth(line, col) }
+
 func tokenWidth(line string, col int) int {
 	if col < 1 || col > len(line) {
 		return 1

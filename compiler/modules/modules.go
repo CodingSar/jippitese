@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -36,6 +37,13 @@ func FindRoot(dir string) (string, error) {
 // mismatches are added to bag; the returned Input is complete only when
 // bag has no errors. Files under .jip/ and hidden directories are skipped.
 func Load(root string, bag *diag.Bag) (*checker.Input, error) {
+	return LoadOverlay(root, nil, bag)
+}
+
+// LoadOverlay is Load with overlay texts read in place of the files on
+// disk. Its keys are root-relative slash paths; a key with no file on disk
+// adds one (an editor buffer not yet saved).
+func LoadOverlay(root string, overlay map[string]string, bag *diag.Bag) (*checker.Input, error) {
 	in := &checker.Input{}
 	byPath := map[string]*checker.ModuleSrc{}
 	var order []string
@@ -72,16 +80,26 @@ func Load(root string, bag *diag.Bag) (*checker.Input, error) {
 	if err != nil {
 		return nil, err
 	}
+	for rel := range overlay {
+		p := filepath.Join(root, filepath.FromSlash(rel))
+		if strings.HasSuffix(rel, ".jip") && !skipped(rel) && !slices.Contains(files, p) {
+			files = append(files, p)
+		}
+	}
 	sort.Strings(files)
 	rootAliases := map[string]ast.Pos{}
 	goMods := map[string]bool{} // aliases of gomod deps: Go trees, no modules
 	for _, p := range files {
-		src, err := os.ReadFile(p)
-		if err != nil {
-			return nil, err
-		}
 		rel, _ := filepath.Rel(root, p)
 		rel = filepath.ToSlash(rel)
+		src, ok := overlay[rel]
+		if !ok {
+			b, err := os.ReadFile(p)
+			if err != nil {
+				return nil, err
+			}
+			src = string(b)
+		}
 		bag.AddSource(rel, string(src))
 		dir := filepath.ToSlash(filepath.Dir(rel))
 		base := filepath.Base(rel)
@@ -166,6 +184,17 @@ func Load(root string, bag *diag.Bag) (*checker.Input, error) {
 		in.Modules = append(in.Modules, m)
 	}
 	return in, nil
+}
+
+// skipped reports whether a root-relative path lies in a skipped directory.
+func skipped(rel string) bool {
+	parts := strings.Split(rel, "/")
+	for _, d := range parts[:len(parts)-1] {
+		if strings.HasPrefix(d, ".") || d == "node_modules" {
+			return true
+		}
+	}
+	return false
 }
 
 func addParseError(bag *diag.Bag, rel string, err error) {

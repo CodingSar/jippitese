@@ -1,5 +1,5 @@
 // Command jip is the jippitese toolchain (spec 13): new, build, test,
-// check, fmt, context and fetch.
+// check, fmt, context, fetch and lsp.
 package main
 
 import (
@@ -11,6 +11,7 @@ import (
 
 	"github.com/codingsar/jippitese/compiler/driver"
 	"github.com/codingsar/jippitese/compiler/iface"
+	"github.com/codingsar/jippitese/compiler/lsp"
 )
 
 const usage = `usage: jip <command> [flags]
@@ -23,6 +24,7 @@ commands:
   fmt               format every .jip file  [--check]
   context <module>  print the context pack  [--short] [--for file]
   fetch             vendor dependencies     [--save]
+  lsp               language server on stdin and stdout
 `
 
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
@@ -150,6 +152,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return code
 		}
 		return e.Fetch(*save)
+	case "lsp":
+		fs.Bool("stdio", true, "serve over stdin and stdout (the only transport)")
+		if !parse() {
+			return driver.ExitUsage
+		}
+		return lsp.Run(os.Stdin, stdout, stderr)
 	case "help", "-h", "--help":
 		fmt.Fprint(stdout, usage)
 		return driver.ExitOK
