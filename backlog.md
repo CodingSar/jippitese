@@ -316,11 +316,10 @@ fixes under "deferred from v0"; deviations go to `decisions.md`.
             (`JIP_APPROVE_ADDR`) listing pending reviews, approve with a
             `T` body, reject with an optional reason, timeout from the
             review or `approve.default_timeout`. 07 r7 lists the routes.
-      - [ ] T3d User approval channels: a module implementing
-            `std.approve.Channel` named by `effects.approve.channel`
-            (today any path but `std.approve.http` is E0301), and pending
-            reviews that survive a restart (re-listed from the journal's
-            pending entries).
+      - [x] T3d User approval channels: a module declaring
+            `pub fn ask(id: Str, review: Review) -> ReviewAnswer` named by
+            `effects.approve.channel` (E0301 otherwise), and suspended
+            embedded runs resumed on restart from their journals.
 - [x] **T4** Stdlib breadth: `std.strings` (replace, index, pad, repeat,
       format of floats), `std.math`, `std.time` (Instant arithmetic,
       formatting, parsing), `std.json` (navigating `Json`), `std.log`.

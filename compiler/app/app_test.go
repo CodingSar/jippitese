@@ -114,7 +114,6 @@ func TestParseEffects(t *testing.T) {
 		`net { retry: 3 }`,
 		`llm { budget: 2_000_000 }`,
 		`net { timeout: 1s, timeout: 2s }`,
-		`approve { channel: orders.review_inbox }`,
 	} {
 		if _, err := parse(bad); err == nil {
 			t.Fatalf("%s accepted", bad)

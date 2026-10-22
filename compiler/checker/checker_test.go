@@ -275,15 +275,27 @@ func checkSupport(t *testing.T, src string) string {
 // checkSupportApp is checkSupport with extra entries at the end of app.jip.
 func checkSupportApp(t *testing.T, src, appExtra string) string {
 	t.Helper()
+	_, out := checkSupportWith(t, src, func(b []byte) []byte {
+		if appExtra == "" {
+			return b
+		}
+		i := bytes.LastIndexByte(b, '}')
+		return append(append(append([]byte{}, b[:i]...), appExtra...), b[i:]...)
+	})
+	return out
+}
+
+// checkSupportWith is checkSupport with app.jip rewritten by edit.
+func checkSupportWith(t *testing.T, src string, edit func([]byte) []byte) (*Program, string) {
+	t.Helper()
 	dir := t.TempDir()
 	for _, f := range []string{"app.jip", "vendor/http/http.jip", "orders/billing/types.jip", "orders/billing/billing.jip", "orders/customers/customers.jip"} {
 		b, err := os.ReadFile(filepath.Join("testdata/orders", f))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if f == "app.jip" && appExtra != "" {
-			i := bytes.LastIndexByte(b, '}')
-			b = append(append(append([]byte{}, b[:i]...), appExtra...), b[i:]...)
+		if f == "app.jip" {
+			b = edit(b)
 		}
 		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, f)), 0o755); err != nil {
 			t.Fatal(err)
@@ -298,8 +310,8 @@ func checkSupportApp(t *testing.T, src, appExtra string) string {
 	if err := os.WriteFile(filepath.Join(dir, "orders/support/support.jip"), []byte("module orders.support\n"+src), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, _, out := checkDir(t, dir)
-	return out
+	p, _, out := checkDir(t, dir)
+	return p, out
 }
 
 // expectErrors is expectDiag over error codes only.
@@ -455,4 +467,35 @@ func TestRunLines(t *testing.T) {
 		"`run Triage` names an `impl Agent`, which is not runnable",
 		"`topic` is a `Worker` field; `Billing` is a Workflow",
 		"unknown `run` field `colour`")
+}
+
+func TestApproveChannel(t *testing.T) {
+	channel := func(src, path string) (string, *Program) {
+		p, out := checkSupportWith(t, src, func(b []byte) []byte {
+			return bytes.Replace(b, []byte("    llm {"), []byte("    approve { channel: "+path+" }\n    llm {"), 1)
+		})
+		return out, p
+	}
+	ok := `
+/// Delivers reviews to the support inbox.
+pub fn ask(id: Str, review: Review) -> ReviewAnswer { Reject(Some(id)) }
+`
+	out, p := channel(ok, "orders.support")
+	expectErrors(t, out, nil)
+	if fi := p.ApproveChannel; fi == nil || fi.Name != "ask" || fi.Module.Path != "orders.support" {
+		t.Fatalf("ApproveChannel = %+v", fi)
+	}
+	out, p = channel(ok, "std.approve.http")
+	expectErrors(t, out, nil)
+	if p.ApproveChannel != nil {
+		t.Fatal("std.approve.http resolved to a user channel")
+	}
+	out, _ = channel(ok, "orders.inbox")
+	expectErrors(t, out, []string{"E0301"}, "`effects.approve.channel` names `orders.inbox`, which is not a module of this project")
+	out, _ = channel("\n/// Not a channel.\npub fn send(id: Str) -> Str { id }\n", "orders.support")
+	expectErrors(t, out, []string{"E0301"}, "approval channel `orders.support` declares no `ask`")
+	out, _ = channel("\n/// Private.\nfn ask(id: Str, review: Review) -> ReviewAnswer { Reject(None) }\n", "orders.support")
+	expectErrors(t, out, []string{"E0301"}, "the `ask` of approval channel `orders.support` is not `pub`")
+	out, _ = channel("\n/// Wrong.\npub fn ask(id: Str) -> Bool { true }\n", "orders.support")
+	expectErrors(t, out, []string{"E0301"}, "the `ask` of approval channel `orders.support` has type `fn(Str) -> Bool`")
 }

@@ -437,11 +437,6 @@ func (a *App) effects(prefix string, entries []*ast.AppEntry, isDefault bool) er
 		if !effectValueOk(fd.Kind, c.Value) {
 			return errAt(c.Pos, "`effects.%s` must be %s", path, effectKindText[fd.Kind])
 		}
-		// v1 has no user channels: a module implementing
-		// std.approve.Channel waits on a design for module-valued config.
-		if p, ok := c.Value.(*ast.AppPath); ok && path == "approve.channel" && strings.Join(p.Path, ".") != "std.approve.http" {
-			return errAt(c.Pos, "`effects.approve.channel`: v1 ships only `std.approve.http`")
-		}
 		a.Effects[path] = &EffectLeaf{Pos: c.Pos, Path: path, Value: c.Value, IsDefault: def}
 	}
 	return nil

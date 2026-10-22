@@ -115,6 +115,7 @@ func Check(in *Input, bag *diag.Bag) *Program {
 	}
 	c.postChecks()
 	c.checkRuns()
+	c.checkApproveChannel()
 	curMod = nil
 	return p
 }

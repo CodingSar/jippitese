@@ -199,3 +199,74 @@ func TestApproveHttpEndToEnd(t *testing.T) {
 		t.Fatalf("result: %s", b)
 	}
 }
+
+// TestApproveUserChannel runs the refunds binary with a module as its
+// approval channel: its `ask` approves order 9 and rejects the rest.
+func TestApproveUserChannel(t *testing.T) {
+	needGo(t)
+	env, _, errb := example(t, "refunds")
+	port := freePort(t)
+	edit(t, env, "app.jip", "  run Refund\n", fmt.Sprintf("  effects { approve { channel: refunds.inbox } }\n  run Refund { port: %d }\n", port))
+	if err := os.MkdirAll(filepath.Join(env.Root, "refunds/inbox"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	inbox := `module refunds.inbox
+use std.json
+
+/// Approves the refunds of order 9 and rejects the rest.
+pub fn ask(id: Str, review: Review) -> ReviewAnswer {
+  if review.title != "Refund for order 9" { return ReviewAnswer.Reject(Some("no budget for {id}")) }
+  match json.parse("\"Approve\"".bytes()) {
+    Ok(j) => ReviewAnswer.Approve(j),
+    Err(_) => ReviewAnswer.Reject(None),
+  }
+}
+`
+	if err := os.WriteFile(filepath.Join(env.Root, "refunds/inbox/inbox.jip"), []byte(inbox), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code := env.Build(BuildOptions{}); code != ExitOK {
+		t.Fatalf("build: exit %d\n%s", code, errb.String())
+	}
+	if b, _ := os.ReadFile(filepath.Join(env.Root, ".jip", "gen", "main.go")); !strings.Contains(string(b), `ctx.AddApproveChannel("refunds.inbox", `) {
+		t.Fatalf("main.go:\n%s", b)
+	}
+	var logs bytes.Buffer
+	cmd := exec.Command(filepath.Join(env.Root, ".jip/bin/refunds"))
+	cmd.Dir = env.Root
+	cmd.Env = []string{"PATH=" + os.Getenv("PATH")}
+	cmd.Stdout, cmd.Stderr = &logs, &logs
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { cmd.Process.Kill(); cmd.Wait() }()
+	app := fmt.Sprintf("http://127.0.0.1:%d/Refund", port)
+	poll := func(what string, do func() (*http.Response, error)) []byte {
+		for i := 0; i < 200; i++ {
+			if resp, err := do(); err == nil {
+				b, _ := io.ReadAll(resp.Body)
+				resp.Body.Close()
+				if resp.StatusCode/100 == 2 {
+					return b
+				}
+			}
+			time.Sleep(25 * time.Millisecond)
+		}
+		t.Fatalf("%s: gave up\n%s", what, logs.String())
+		return nil
+	}
+	refund := func(order int) string {
+		b := poll("start", func() (*http.Response, error) {
+			return http.Post(app+"/start", "application/json", strings.NewReader(fmt.Sprintf(`{"order": %d, "amount": 900}`, order)))
+		})
+		var run struct{ Id string }
+		json.Unmarshal(b, &run)
+		return string(poll("result", func() (*http.Response, error) { return http.Get(app + "/result/" + run.Id) }))
+	}
+	if b := refund(9); !strings.Contains(b, `"Ok"`) || !strings.Contains(b, `"amount":900`) {
+		t.Fatalf("order 9: %s", b)
+	}
+	if b := refund(8); !strings.Contains(b, `"Approval"`) || !strings.Contains(b, `no budget for `) {
+		t.Fatalf("order 8: %s", b)
+	}
+}

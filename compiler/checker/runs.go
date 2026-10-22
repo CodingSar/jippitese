@@ -135,3 +135,68 @@ func appValueName(en *ast.AppEntry) string {
 	s, _ := app.LitString(en.Value)
 	return s
 }
+
+// checkApproveChannel resolves `effects { approve { channel } }` when it
+// names a module rather than `std.approve.http`: the module must declare
+// `pub fn ask(id: Str, review: Review) -> ReviewAnswer` (E0301), which
+// becomes Program.ApproveChannel.
+func (c *Checker) checkApproveChannel() {
+	a := c.prog.App
+	if a == nil {
+		return
+	}
+	lf := a.Effects["approve.channel"]
+	if lf == nil {
+		return
+	}
+	p, ok := lf.Value.(*ast.AppPath)
+	if !ok {
+		return
+	}
+	path := strings.Join(p.Path, ".")
+	if path == "std.approve.http" {
+		return
+	}
+	curMod = nil
+	const want = "pub fn ask(id: Str, review: Review) -> ReviewAnswer"
+	m := c.prog.ByPath[path]
+	if m == nil || m.IsStd || m.IsScenarios {
+		d := c.bag.Errorf("E0301", p.Pos, "`effects.approve.channel` names `%s`, which is not a module of this project", path)
+		d.Label("no module `%s`", path)
+		d.Helpf("use `std.approve.http`, or a module declaring `%s`", want)
+		return
+	}
+	fi := m.Fns["ask"]
+	if fi == nil || fi.HasSelf || fi.Builtin != "" {
+		d := c.bag.Errorf("E0301", p.Pos, "approval channel `%s` declares no `ask`", path)
+		d.Label("not an approval channel")
+		d.Helpf("declare `%s` in `%s`", want, path)
+		return
+	}
+	if fi.Vis != ast.Pub {
+		d := c.bag.Errorf("E0301", fi.Pos, "the `ask` of approval channel `%s` is not `pub`", path)
+		d.Label("private")
+		d.Helpf("declare it `pub fn ask`")
+		return
+	}
+	t := fi.Type
+	if len(fi.TypeParams) > 0 || t == nil || len(t.Params) != 2 ||
+		!isPreludeCon(t.Params[0], "Str") || !isPreludeCon(t.Params[1], "Review") || !isPreludeCon(t.Ret, "ReviewAnswer") {
+		got := "?"
+		if t != nil {
+			got = TypeStringNoEffects(t)
+		}
+		d := c.bag.Errorf("E0301", fi.Pos, "the `ask` of approval channel `%s` has type `%s`", path, got)
+		d.Label("expected `fn(Str, Review) -> ReviewAnswer`")
+		d.Note("the runtime calls `ask` with the review's id and the `Review`, and decodes `Approve`'s JSON as the `approve` call's type")
+		d.Helpf("declare `%s`", want)
+		return
+	}
+	c.prog.ApproveChannel = fi
+}
+
+// isPreludeCon reports whether t is the prelude type name.
+func isPreludeCon(t Type, name string) bool {
+	tc, ok := Resolve(t).(*TCon)
+	return ok && tc.Info != nil && tc.Info.Mod == "prelude" && tc.Info.Name == name && len(tc.Args) == 0
+}

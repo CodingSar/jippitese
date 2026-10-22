@@ -130,9 +130,25 @@ func Escalation(ctx workflow.Context, id TicketID) (Summary, error) {
    when `T` is `Unit`; a body that does not decode as `T` is a 400 and the
    review stays pending) and `POST /reviews/{id}/reject` takes an optional
    `{"reason": Str}`; answering an id that is not pending is a 404. Pending
-   reviews live in memory: a restart loses them, and the run's journal
-   keeps its pending entry. User channels implementing
-   `std.approve.Channel` come later.
+   reviews live in memory; see the restart rule below for what survives.
+   Any other `effects.approve.channel` names a module of the project that
+   declares `pub fn ask(id: Str, review: Review) -> ReviewAnswer` (anything
+   else is E0301), with the prelude's `enum ReviewAnswer { Approve(Json),
+   Reject(Option<Str>) }`. The runtime calls `ask` once per pending
+   review, on its own task, with the review's id `<run>/approve@<site>#<n>`
+   (stable across restarts, so a channel can deduplicate on it); `ask` may
+   block until a reviewer answers. `Approve(j)` resolves the review with
+   `j` decoded as `T` (a value that does not decode rejects it, with a
+   reason saying so); `Reject(r)` rejects it with reason `r`; the timeout
+   rejects it with `timed_out: true` and cancels `ask`'s task. A panic in
+   `ask` fails the run as a panic in the workflow would. **Restart.** Under
+   `workflow { mode: embedded }` with a store, a run's journal header keeps
+   its id and input; on start every `Workflow` runner resumes the runs of
+   its workflow whose journal ends suspended on an `approve`, replaying
+   their recorded steps and asking the channel again. The review keeps its
+   id for a user channel and gets a new one, with a fresh deadline, under
+   `std.approve.http`. Runs under `temporal` and `restate` are not resumed
+   in v1.
 
 ### `Workflow`
 

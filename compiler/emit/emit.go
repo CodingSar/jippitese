@@ -407,6 +407,9 @@ func (e *emitter) emitMain() {
 	f.printf("\tcfg, runs, fx, err := %s.Load()\n", cfg)
 	f.printf("\tif err != nil {\n\t\tfmt.Fprintln(os.Stderr, \"error: \"+err.Error())\n\t\tos.Exit(2)\n\t}\n")
 	f.printf("\tctx.Config = cfg\n\t_ = runs\n")
+	if ch := e.prog.ApproveChannel; ch != nil {
+		f.printf("\tctx.AddApproveChannel(%q, %s)\n", ch.Module.Path, f.ref(e.pkgs[ch.Module], e.fnNames[ch]))
+	}
 	f.printf("\tif err := ctx.ApplyEffects(fx); err != nil {\n\t\tfmt.Fprintln(os.Stderr, \"error: \"+err.Error())\n\t\tos.Exit(2)\n\t}\n")
 	if app != nil {
 		f.printf("\tif err := ctx.UseWorkflowRuntime(%q, %q); err != nil {\n\t\tfmt.Fprintln(os.Stderr, \"error: \"+err.Error())\n\t\tos.Exit(2)\n\t}\n", app.Workflow.Mode, app.Workflow.Store)

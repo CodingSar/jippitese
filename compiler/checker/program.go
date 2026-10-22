@@ -323,6 +323,9 @@ type Program struct {
 	AnyLocals     map[*ast.AnyExpr]*Local      // the candidate a `where` filter sees
 	FnEffects     map[*ast.FnDecl][]ast.Effect // effects actually used in the body
 	UnsafeExterns []*FnInfo
+	// ApproveChannel is the `ask` of the module `effects.approve.channel`
+	// names; nil for `std.approve.http`.
+	ApproveChannel *FnInfo
 }
 
 func newProgram() *Program {
