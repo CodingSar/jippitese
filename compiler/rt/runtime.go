@@ -9,7 +9,7 @@ import (
 
 // WorkflowRuntime is where workflow runs live: their journals, results and
 // buffered signals. `workflow { mode }` of app.jip names one in
-// WorkflowRuntimes: `embedded` or `temporal`.
+// WorkflowRuntimes: `embedded`, `temporal` or `restate`.
 type WorkflowRuntime interface {
 	// Begin journals a new run of the workflow name.
 	Begin(name string, version int64, sites []string) (RunId, *Journal, error)
@@ -29,6 +29,7 @@ type WorkflowRuntime interface {
 var WorkflowRuntimes = map[string]func(store string) (WorkflowRuntime, error){
 	"embedded": func(store string) (WorkflowRuntime, error) { return NewEmbedded(store), nil },
 	"temporal": func(store string) (WorkflowRuntime, error) { return NewTemporal(store), nil },
+	"restate":  func(store string) (WorkflowRuntime, error) { return NewRestate(store), nil },
 }
 
 // UseWorkflowRuntime installs the adapter of mode on ctx and everything
