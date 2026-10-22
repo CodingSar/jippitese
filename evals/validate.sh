@@ -7,8 +7,8 @@
 set -u
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(dirname "$here")"
-jip="$here/out/jip"
-mkdir -p "$here/out"
+jip="$here/out/bin/jip"
+mkdir -p "$here/out/bin"
 (cd "$root/compiler" && go build -o "$jip" ./cmd/jip) || exit 3
 
 field() { sed -n "s/^$2: *//p" "$1" | head -1; }

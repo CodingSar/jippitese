@@ -33,7 +33,7 @@ import { measureTranscript } from "./count.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = dirname(here);
-const jip = join(here, "out", "jip");
+const jip = join(here, "out", "bin", "jip");
 
 const MODELS = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"];
 const MAX_OUTPUT = 50_000; // characters of one tool output the agent sees
@@ -351,6 +351,7 @@ async function main() {
     process.exit(2);
   }
   if (o.lang === "jip") {
+    mkdirSync(dirname(jip), { recursive: true });
     const b = spawnSync("go", ["build", "-o", jip, "./cmd/jip"], { cwd: join(root, "compiler"), stdio: "inherit" });
     if (b.status !== 0) process.exit(3);
   }

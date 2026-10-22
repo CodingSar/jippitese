@@ -27,7 +27,7 @@ if (!dir) {
 const rows = [];
 for (const lang of readdirSync(dir)) {
   const ld = join(dir, lang);
-  if (!statSync(ld).isDirectory()) continue;
+  if (lang !== "jip" && lang !== "go") continue;
   for (const model of readdirSync(ld)) {
     const md = join(ld, model);
     if (!statSync(md).isDirectory()) continue;
