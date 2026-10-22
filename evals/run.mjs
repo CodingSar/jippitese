@@ -2,7 +2,7 @@
 // report.mjs aggregates into the decisions §13 metric.
 //
 //   node run.mjs --lang jip|go [--model m,…] [--task id …] [--max-turns n]
-//                [--effort e] [--no-fallback] [--out dir]
+//                [--effort e] [--no-fallback] [--via api|claude-code] [--out dir]
 //
 // Each run is one model solving one task in a fresh copy of the project
 // with the acceptance tests hidden, through five tools: list_dir,
@@ -14,11 +14,17 @@
 // together with the API (Application Programming Interface) usage.
 //
 // Models default to the current Claude models and need ANTHROPIC_API_KEY
-// (or another credential the Anthropic SDK resolves). The pseudo-model
-// `reference` needs none: it replays the reference solution, which tests
-// the harness end to end offline.
+// (or another credential the Anthropic SDK resolves). `--via claude-code`
+// runs the agent through `claude -p` instead, on whatever account Claude
+// Code is signed in with: the same system prompt and the same five tools,
+// served by mcp.mjs, so the transcript and the metric are the same; the
+// usage it records includes Claude Code's own overhead, and server-side
+// fallbacks are not requested. The pseudo-model `reference` needs none:
+// it replays the reference solution, which tests the harness end to end
+// offline.
 import Anthropic from "@anthropic-ai/sdk";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
@@ -52,7 +58,7 @@ You work through tools: list_dir, read_file, write_file, edit_file, and run, whi
   },
 };
 
-const TOOLS = [
+export const TOOLS = [
   { name: "list_dir", description: "List a directory of the project. Directories end in /.",
     input_schema: { type: "object", properties: { path: { type: "string", description: "Relative to the project root; . for the root." } }, required: ["path"] } },
   { name: "read_file", description: "Read a file of the project.",
@@ -118,7 +124,7 @@ function clip(text) {
 
 // tool runs one tool call and returns the event to log; its text is what
 // the agent receives.
-function tool(lang, work, name, input) {
+export function tool(lang, work, name, input) {
   try {
     switch (name) {
       case "list_dir": {
@@ -260,8 +266,64 @@ export async function runTask({ client, lang, model, task, maxTurns, effort, fal
   return events;
 }
 
+// runTaskClaudeCode runs one task through `claude -p`: no built-in tools,
+// the harness tools over MCP, and no settings, CLAUDE.md or session file.
+export async function runTaskClaudeCode({ lang, model, task, maxTurns, effort }) {
+  const work = workspace(lang, task);
+  const aside = mkdtempSync(join(tmpdir(), "jip-eval-cc-"));
+  const log = join(aside, "events.jsonl");
+  writeFileSync(log, "");
+  const cfg = join(aside, "mcp.json");
+  writeFileSync(cfg, JSON.stringify({ mcpServers: { eval: { command: process.execPath, args: [join(here, "mcp.mjs"), lang, work, log] } } }));
+  const system = LANGS[lang].system();
+  const result = { kind: "result", via: "claude-code", turns: 0, stop: null, served_by: [], fallback: false };
+  const started = Date.now();
+  try {
+    const args = [
+      "-p", task.prompt, "--system-prompt", system, "--model", model, "--effort", effort,
+      "--tools", "", "--mcp-config", cfg, "--strict-mcp-config",
+      "--allowedTools", TOOLS.map((t) => `mcp__eval__${t.name}`).join(","),
+      "--max-turns", String(maxTurns), "--output-format", "json",
+      "--no-session-persistence", "--session-id", randomUUID(), "--setting-sources", "",
+    ];
+    const out = await new Promise((done) => {
+      const p = spawn("claude", args, { cwd: aside, stdio: ["ignore", "pipe", "pipe"] });
+      let stdout = "", stderr = "";
+      p.stdout.on("data", (d) => (stdout += d));
+      p.stderr.on("data", (d) => (stderr += d));
+      const timer = setTimeout(() => p.kill("SIGTERM"), 3_600_000);
+      p.on("close", (code) => { clearTimeout(timer); done({ code, stdout, stderr }); });
+    });
+    let r;
+    try {
+      r = JSON.parse(out.stdout);
+    } catch {
+      throw new Error(`claude exited ${out.code}: ${(out.stderr || out.stdout).slice(-2000)}`);
+    }
+    if (/authenticat|not logged in|log in/i.test(r.result ?? "") && r.is_error) throw new Fatal(`claude -p is not signed in: ${r.result}`);
+    Object.assign(result, {
+      turns: r.num_turns ?? 0, stop: r.subtype === "success" ? r.stop_reason ?? "end_turn" : r.subtype,
+      served_by: Object.keys(r.modelUsage ?? {}), usage: r.usage, cost_usd: r.total_cost_usd,
+      ...(r.is_error ? { error: String(r.result ?? r.subtype).slice(0, 2000) } : {}),
+    });
+    const a = accept(lang, task, work);
+    Object.assign(result, { accept: a.exit === 0, accept_output: a.text.slice(-4000) });
+  } catch (e) {
+    if (e instanceof Fatal) throw e;
+    Object.assign(result, { accept: false, error: String(e.stack ?? e) });
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
+  const events = [{ kind: "prompt", text: system + "\n\n" + task.prompt },
+    ...readFileSync(log, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l))];
+  rmSync(aside, { recursive: true, force: true });
+  Object.assign(result, { seconds: Math.round((Date.now() - started) / 1000) });
+  events.push(result);
+  return events;
+}
+
 function parseArgs(args) {
-  const o = { lang: null, models: MODELS, tasks: [], maxTurns: 40, effort: "high", fallback: true, out: join(here, "out") };
+  const o = { lang: null, models: MODELS, tasks: [], maxTurns: 40, effort: "high", fallback: true, via: "api", out: join(here, "out") };
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === "--lang") o.lang = args[++i];
@@ -270,11 +332,13 @@ function parseArgs(args) {
     else if (a === "--max-turns") o.maxTurns = Number(args[++i]);
     else if (a === "--effort") o.effort = args[++i];
     else if (a === "--no-fallback") o.fallback = false;
+    else if (a === "--via") o.via = args[++i];
     else if (a === "--out") o.out = resolve(args[++i]);
     else throw new Error(`unknown argument ${a}`);
   }
   if (!(o.lang in LANGS)) throw new Error("--lang must be jip or go");
   if (!(o.maxTurns > 0)) throw new Error("--max-turns must be positive");
+  if (!["api", "claude-code"].includes(o.via)) throw new Error("--via must be api or claude-code");
   return o;
 }
 
@@ -283,7 +347,7 @@ async function main() {
   try {
     o = parseArgs(process.argv.slice(2));
   } catch (e) {
-    console.error(`${e.message}\nusage: node run.mjs --lang jip|go [--model m,…] [--task id …] [--max-turns n] [--effort e] [--no-fallback] [--out dir]`);
+    console.error(`${e.message}\nusage: node run.mjs --lang jip|go [--model m,…] [--task id …] [--max-turns n] [--effort e] [--no-fallback] [--via api|claude-code] [--out dir]`);
     process.exit(2);
   }
   if (o.lang === "jip") {
@@ -291,7 +355,7 @@ async function main() {
     if (b.status !== 0) process.exit(3);
   }
   const ids = o.tasks.length ? o.tasks : readdirSync(LANGS[o.lang].tasks).filter((d) => statSync(join(LANGS[o.lang].tasks, d)).isDirectory()).sort();
-  const sdk = o.models.some((m) => m !== "reference") ? new Anthropic({ maxRetries: 5 }) : null;
+  const sdk = o.via === "api" && o.models.some((m) => m !== "reference") ? new Anthropic({ maxRetries: 5 }) : null;
   for (const model of o.models) {
     const dir = join(o.out, o.lang, model);
     for (const id of ids) {
@@ -301,7 +365,9 @@ async function main() {
       const fallback = o.fallback && /^claude-(opus|sonnet)-/.test(model);
       let events;
       try {
-        events = await runTask({ client, lang: o.lang, model, task, maxTurns: o.maxTurns, effort: o.effort, fallback });
+        events = o.via === "claude-code" && model !== "reference"
+          ? await runTaskClaudeCode({ lang: o.lang, model, task, maxTurns: o.maxTurns, effort: o.effort })
+          : await runTask({ client, lang: o.lang, model, task, maxTurns: o.maxTurns, effort: o.effort, fallback });
       } catch (e) {
         console.error(e.message);
         process.exit(3);

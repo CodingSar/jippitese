@@ -101,6 +101,7 @@ committed until a run is reported).
 node run.mjs --lang jip                       # every task, every default model
 node run.mjs --lang go --model claude-sonnet-5-5 --task 03-charge-retry
 node run.mjs --lang go --model reference --out /tmp/self-test
+node run.mjs --lang jip --via claude-code     # through `claude -p`, no API key
 node report.mjs out/
 ```
 
@@ -121,6 +122,14 @@ is marked `"fallback": true` in its result and in the report. Credentials
 come from `ANTHROPIC_API_KEY` or whatever else the Anthropic SDK resolves.
 The pseudo-model `reference` needs none: it replays each reference solution
 and tests the harness end to end.
+
+`--via claude-code` runs each agent through `claude -p` on the account
+Claude Code is signed in with, so a Claude subscription needs no API key.
+The agent gets the same system prompt and the same five tools, served over
+MCP (Model Context Protocol) by `mcp.mjs`, and no built-in tools, settings
+or `CLAUDE.md`; the transcript and the metric are therefore the same as an
+API run. Its `result` line carries `"via": "claude-code"`; its usage
+includes Claude Code's own overhead, and no fallbacks are requested.
 
 ## Status
 
