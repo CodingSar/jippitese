@@ -188,9 +188,9 @@ default fakes.
 - [x] **F2** Freeze a task set of at least ten changes over the
       `examples/` corpus (each: description, jippitese diff, Go diff of
       the emitted code or a hand-written Go equivalent).
-- [ ] **F3** (blocked: needs Anthropic API credentials; `evals/run.mjs` and the Go baseline are ready) Measure the spec 13 metric on jippitese and Go for every
+- [x] **F3** Measure the spec 13 metric on jippitese and Go for every
       task; script it under `evals/`.
-- [ ] **F4** (blocked on F3) Write the numbers into spec 09 r10 and decisions §13; only
+- [x] **F4** Write the numbers into spec 09 r10 and decisions §13; only
       then claim any figure in the docs.
 
 ## Spec bugs found
@@ -355,6 +355,7 @@ fixes under "deferred from v0"; deviations go to `decisions.md`.
       adapter interface in `rt` (`rt.WorkflowRuntime`, picked by mode from
       `rt.WorkflowRuntimes`), embedded as the first adapter; `temporal`
       and `restate` parse and fail with "no runtime adapter yet".
-- [ ] **W1b** Temporal and Restate adapters behind `rt.WorkflowRuntime`
-      (blocked: their Go SDKs vendored and a server to test against);
-      each adds its name to `app.WorkflowAdapters`.
+- [x] **W1b** Temporal and Restate adapters behind `rt.WorkflowRuntime`,
+      speaking each server's wire protocol (no SDK: builds are hermetic);
+      both in `app.WorkflowAdapters`, live tests gated on
+      `JIP_TEMPORAL_ADDR` / `JIP_RESTATE_ADDR`.

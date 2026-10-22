@@ -234,9 +234,11 @@ code 0.
 
 For the card's module, `jip context orders.billing` prints the interface
 above (tier 1) followed by tier 2, which is far smaller than the four whole
-dependency interfaces because it carries only referenced items. Line and
-token counts are measured by the §13 evaluation once the gate compiler
-exists (R15); no figure is claimed here. The card's `charge` never touches
+dependency interfaces because it carries only referenced items. Measured
+by the §13 evaluation (F3, `o200k_base`): `jip context orders.billing` on
+the `examples/orders` corpus prints 119 lines, 997 tokens, and across the 29
+`jip context` calls agents made in the eval runs the median output was 362
+tokens. The card's `charge` never touches
 `customers.*`, so that import prints as unreferenced:
 
 ```text

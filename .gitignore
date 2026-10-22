@@ -1,5 +1,5 @@
 /compiler/bin/
-/evals/out/
+/evals/out/bin/
 *.test
 # jip build output; .jip/seeds is kept (spec 12 rule 7).
 **/.jip/gen/

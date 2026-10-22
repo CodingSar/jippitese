@@ -1,0 +1,719 @@
+{
+  "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+  "results": [
+    {
+      "language": "go",
+      "model": "claude-haiku-5-5",
+      "tasks": 12,
+      "green": 12,
+      "accepted": 12,
+      "median_tokens": 2191.5,
+      "median_iterations": 1,
+      "runs": [
+        {
+          "task": "01-refund",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 2782,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "02-status-refunded",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 2876,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "03-charge-retry",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 2782,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "04-line-discount",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 2776,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "05-largest-line",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 2324,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "06-reject-large",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 1434,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "07-grand-total",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 1484,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "08-idle-30m",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 1036,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "09-active-count",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 1109,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "10-unknown-currency",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 1105,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "11-two-approvals",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 2208,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "12-raise-limit",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 2175,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        }
+      ]
+    },
+    {
+      "language": "go",
+      "model": "claude-opus-5-5",
+      "tasks": 12,
+      "green": 12,
+      "accepted": 12,
+      "median_tokens": 2185,
+      "median_iterations": 1,
+      "runs": [
+        {
+          "task": "01-refund",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 2782,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "02-status-refunded",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 2873,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "03-charge-retry",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 2788,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "04-line-discount",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 2876,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "05-largest-line",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 2782,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "06-reject-large",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 1434,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "07-grand-total",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 1403,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "08-idle-30m",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 1036,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "09-active-count",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 1041,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "10-unknown-currency",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 1098,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "11-two-approvals",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 2204,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "12-raise-limit",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 2166,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        }
+      ]
+    },
+    {
+      "language": "go",
+      "model": "claude-sonnet-5-5",
+      "tasks": 12,
+      "green": 12,
+      "accepted": 12,
+      "median_tokens": 2052,
+      "median_iterations": 1,
+      "runs": [
+        {
+          "task": "01-refund",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 2052,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "02-status-refunded",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 2122,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "03-charge-retry",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 2782,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "04-line-discount",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 2870,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "05-largest-line",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 2052,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "06-reject-large",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 1013,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "07-grand-total",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 987,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "08-idle-30m",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 1036,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "09-active-count",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 729,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "10-unknown-currency",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 1104,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "11-two-approvals",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 2199,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "12-raise-limit",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 2166,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        }
+      ]
+    },
+    {
+      "language": "jip",
+      "model": "claude-haiku-5-5",
+      "tasks": 12,
+      "green": 12,
+      "accepted": 12,
+      "median_tokens": 4215.5,
+      "median_iterations": 1,
+      "runs": [
+        {
+          "task": "01-refund",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 5812,
+          "iterations": 2,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "02-status-refunded",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 5655,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "03-charge-retry",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 5625,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "04-line-discount",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 5612,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "05-largest-line",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 5791,
+          "iterations": 2,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "06-reject-large",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 3973,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "07-grand-total",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 4458,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "08-idle-30m",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 3642,
+          "iterations": 2,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "09-active-count",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 3962,
+          "iterations": 2,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "10-unknown-currency",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 3797,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "11-two-approvals",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 2468,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "12-raise-limit",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 3647,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        }
+      ]
+    },
+    {
+      "language": "jip",
+      "model": "claude-opus-5-5",
+      "tasks": 12,
+      "green": 12,
+      "accepted": 12,
+      "median_tokens": 4182.5,
+      "median_iterations": 1,
+      "runs": [
+        {
+          "task": "01-refund",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 4843,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "02-status-refunded",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 5785,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "03-charge-retry",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 4592,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "04-line-discount",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 5794,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "05-largest-line",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 5433,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "06-reject-large",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 3939,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "07-grand-total",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 4144,
+          "iterations": 2,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "08-idle-30m",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 3623,
+          "iterations": 2,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "09-active-count",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 3469,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "10-unknown-currency",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 3639,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "11-two-approvals",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 4221,
+          "iterations": 2,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "12-raise-limit",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 3619,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        }
+      ]
+    },
+    {
+      "language": "jip",
+      "model": "claude-sonnet-5-5",
+      "tasks": 12,
+      "green": 12,
+      "accepted": 12,
+      "median_tokens": 4042,
+      "median_iterations": 1,
+      "runs": [
+        {
+          "task": "01-refund",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 5454,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "02-status-refunded",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 3623,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "03-charge-retry",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 5412,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "04-line-discount",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 5799,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "05-largest-line",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 5437,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "06-reject-large",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 3939,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "07-grand-total",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 4145,
+          "iterations": 2,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "08-idle-30m",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 3455,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "09-active-count",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 3451,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "10-unknown-currency",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 3639,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "11-two-approvals",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 3865,
+          "iterations": 1,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        },
+        {
+          "task": "12-raise-limit",
+          "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
+          "tokens": 4172,
+          "iterations": 2,
+          "green": true,
+          "accept": true,
+          "fallback": false
+        }
+      ]
+    }
+  ]
+}

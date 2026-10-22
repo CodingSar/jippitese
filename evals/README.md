@@ -92,8 +92,8 @@ object per line:
 ```
 
 The count stops at the first `jip check` (or `go vet` for Go) that exits
-0. Transcripts go to `out/<jip|go>/<model>/<task>.jsonl` (`out/` is not
-committed until a run is reported).
+0. Transcripts go to `out/<jip|go>/<model>/<task>.jsonl`; `out/bin` (the
+`jip` binary the runs use) is not committed.
 
 ## Running agents
 
@@ -136,6 +136,7 @@ includes Claude Code's own overhead, and no fallbacks are requested.
 - Tokenizer, task set, validation, counting and aggregation: done.
 - Agent runner: done (`run.mjs`); the `reference` self-test is green and
   accepted on all twelve tasks in both languages.
-- Agent runs: not started. They need Anthropic API credentials, which this
-  environment does not have.
+- Agent runs: done, one per task, model and language, through
+  `--via claude-code`; transcripts and `report.json` in `out/`, results in
+  `docs/decisions.md` §13.
 - Go baseline: done (`go/`, `validate_go.sh`).

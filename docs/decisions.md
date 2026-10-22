@@ -216,8 +216,9 @@ File extension: `.jip`. CLI: `jip`.
   `spawn` inside `run` lowers to runtime coroutines, not goroutines.
   **Language owns the step rule and types; a library owns the journal.**
   Runtime selected by `workflow: embedded | temporal | restate` in `app.jip`;
-  `embedded` (one JSON-lines journal file per run, single process) is the v0 default and the only
-  adapter so far behind the runtime adapter interface (W1); `temporal` and `restate` adapters are deferred.
+  `embedded` (one JSON-lines journal file per run, single process) is the default;
+  `temporal` and `restate` adapters keep the journal and results on those
+  servers (W1b), with the run's body still executing in the process.
   `WorkflowError<E> = Replay(ReplayError) | Approval(Rejected) | Cancelled |
   App(E)` (R11); `?` inside `run` uses the ordinary conversion rule from the
   spec (04), with no `Show`-based lift of foreign errors.
@@ -399,6 +400,28 @@ File extension: `.jip`. CLI: `jip`.
 - **Tokenizer:** `o200k_base` from `js-tiktoken` 1.0.21 (`evals/package.json`).
   **Task set:** the twelve changes frozen in `evals/tasks/` (Phase F), restated
   for the Go baseline in `evals/go/tasks/` (v1, F5).
+- **Results (F3).** One run per task, model and language, through Claude
+  Code on a subscription (`run.mjs --via claude-code`); transcripts and
+  `report.json` in `evals/out/`. All 72 runs reached green and passed the
+  hidden acceptance tests.
+
+  | Model | jippitese median tokens | without the card | Go median tokens | runs needing 2 iterations (jip / Go) |
+  |---|---|---|---|---|
+  | claude-haiku-5-5 | 4215.5 | 2033.5 | 2191.5 | 4 / 0 |
+  | claude-opus-5-5 | 4182.5 | 2000.5 | 2185 | 3 / 0 |
+  | claude-sonnet-5-5 | 4042 | 1860 | 2052 | 2 / 0 |
+
+  Median iterations to green are 1 everywhere. The language card is 2182
+  tokens and is in every jippitese prompt, so by the metric as defined
+  jippitese costs about 1.9× Go per task. Without the card it reads 7–9%
+  less than Go: per run, the median jippitese agent reads 1164 tokens of
+  files and 551 of tool output (most of it `jip context`, used in 23 of 36
+  runs), the Go agent 1887 of files and almost no tool output (`go doc` 4
+  times in 36 runs). The card pays for itself only when it is amortised
+  over several tasks in one session, or when it shrinks; the tasks are
+  small, so file reads are small next to it. Iterations favour Go: 9 of 36
+  jippitese runs needed a second `jip check`, none of the Go runs a second
+  `go vet`.
 - The performance eval includes a **collections benchmark** (persistent vs.
   mutable) before v1 locks the §7 default.
 - Run across multiple models. The eval harness is built after the spec and
@@ -506,6 +529,8 @@ reverse any row; reversing one is a spec change.
 | jip lsp (v1, T5a) | `jip lsp` speaks the Language Server Protocol (LSP) over stdio with full-text sync. Every change re-loads and re-checks the whole app the buffer belongs to, with all open buffers laid over the files on disk (`modules.LoadOverlay`), and publishes the diagnostics `jip check` prints from loading and type checking; files whose diagnostics went away get an empty publish. A file outside any app is only parsed. Positions are UTF-16 unless the client offers UTF-8. Formatting replaces the whole document with `jip fmt` output and leaves a buffer that does not parse alone. A checker panic becomes an E9999 diagnostic so the server survives half-typed code. No debounce and no incremental checking yet: apps in the corpus check in milliseconds. |
 | LSP navigation (v1, T5b, T5c) | Document symbols come from the parsed buffer alone: items and scenarios, with fields, variants, consts and methods as children; a symbol runs to the last code line before its next sibling, since the AST keeps no end positions. Hover and go to definition read the last check of the app, kept per root: a name resolves through the checker's identifier, field and call tables, and local bindings through its binding tables, so the answer is the one the compiler used. Hover shows the declaration line (a function's header with the effects it uses when it declares none), the type of a local, and the doc comment. Names inside type signatures do not resolve yet, and a buffer that does not load has no hover until it does. Definitions in the standard library return nothing, as there is no file to open. |
 | Go baseline (v1, F5) | `evals/go/` holds idiomatic Go versions of the five task projects, standard library only, and `evals/go/tasks/` the twelve tasks restated in Go (`task.md`, a hidden `accept_test.go` in the target package, `solution.patch`, frozen by `MANIFEST`, proved by `evals/validate_go.sh`). Where jippitese has a construct Go lacks, the Go side gets the plainest equivalent, never a framework: behaviours are plain types and methods (`Indexer.Deliver` for a `Worker`, `Store.RunSweeper` on a ticker for a `Cron`); the `Workflow` is a method over a small `durable` journal package (record and replay by step name, a version check), not Temporal, because the scenarios test replay and a Temporal SDK would add a server and thousands of lines an agent may read; repositories are one in-memory generic `Repo` without errors; preconditions are panics, postconditions and invariants are dropped or kept as doc comments (task 01 loses its postcondition); a declared break has no Go counterpart; fakes are a `Now func() time.Time` field (a package var in `billing`), `httptest` and `testing/quick`; there is no `main` or app wiring, since no task touches `app.jip`. Every choice makes the Go corpus smaller than its jippitese counterpart, so a measured jippitese advantage is understated, not inflated. |
+| Workflow runtimes (v1, W1b) | `temporal` and `restate` are adapters in `rt` with no SDK: generated builds are hermetic, standard library only, so each speaks its server's wire protocol directly (Temporal: gRPC over h2c with a hand-written protobuf codec; Restate: the service protocol over HTTP). The run's body still executes in the process that started it, as under `embedded`; what moves to the server is the journal, the result and the run's existence. Under `temporal` a run is a workflow execution with workflow ID = run id on task queue `jip`, started with the journal header; each journal append and approval resolution is a signal (`jip.step`, `jip.resolve`) and `finish` signals `jip.finish` with the result, which the process's own worker turns into the execution's completion, so the history is the journal and `Result` reads the close event. Under `restate` a run is a key of the virtual object `jip`, the header, entries (by sequence number) and result are its state, written through the ingress; the process serves the object's handlers on an endpoint it registers with the admin API (request-response mode, protocol v5–v7). Signals between runs stay in memory under both. Not done: resuming a dead process's run on another (the server holds the journal, but replaying it needs the body), lazy state in Restate, and TLS or auth to either server. The `store` leaf carries the address: `host:port[/namespace]` for Temporal (default `localhost:7233`, `default`), `ingress[,admin=…][,endpoint=…]` for Restate (default `localhost:8080`, admin on port 9070). Live tests run when `JIP_TEMPORAL_ADDR` or `JIP_RESTATE_ADDR` is set; both pass against Temporal's dev server and Restate 1.8.1. |
+| Eval runs (v1, F3, F4) | The runs went through `claude -p` on a Claude subscription instead of the API, with the same system prompt and five tools served over MCP (Model Context Protocol), so the transcript and the metric are identical; Claude Code's own system prompt is not in the transcript and counts for neither language. One run per cell: the spread between models is as large as the spread between tasks, so differences of a few percent are noise. The result is reported as measured even though it goes against the hypothesis that motivated the metric: the card dominates the per-task cost. |
 | Agent runner (v1, F6) | `evals/run.mjs` runs one model on one task in a fresh copy of the project through five tools (list, read, write, edit, and an allow-listed command run without a shell), then adds the hidden acceptance tests and runs them. Tokens to read count the prompt as well as every file and tool output, because the jippitese agent must be taught the language and the cost of teaching it belongs in the metric: the jippitese prompt carries the language card, the Go prompt nothing. Both prompts name the same done condition (check and tests green). Defaults are the current Claude models at high effort with adaptive thinking; Opus and Sonnet runs enable server-side refusal fallbacks, and a run a fallback model served is flagged rather than dropped. A `reference` pseudo-model replays the reference solutions so the harness is tested without credentials. |
 
 ## Resolved deferred decisions
@@ -547,7 +572,6 @@ reverse any row; reversing one is a spec change.
 | Solver-based verification | post-v1 |
 | Minimal-version selection for deps | ecosystem pressure |
 | Approvals library (decision types, visualisations, routing, audit, channels) | v0 gate; design notes in `docs/revision-plan.md` §10 |
-| `temporal` and `restate` workflow runtimes | `embedded` passing the gate |
 | Providers beyond one per role | ecosystem pressure |
 | `anthropic` and `jev` protocols, `decide<role>` on a provider, provider cost into `max_cost` | L7d |
 | Structurally shared `List` (RRB vector) | a program where `List.push` in a loop matters after W0520 |
