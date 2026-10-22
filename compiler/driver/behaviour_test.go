@@ -120,13 +120,17 @@ func TestStatefulImplCheck(t *testing.T) {
 func TestModelsInMain(t *testing.T) {
 	needGo(t)
 	env, _, errb := example(t, "triage")
-	edit(t, env, "app.jip", `smart = anthropic("claude-sonnet")`, `smart = custom("http://localhost:8080/v1", "qwen")`)
+	edit(t, env, "app.jip", `smart = anthropic("claude-sonnet-5-5")`, `smart = custom("http://localhost:8080/v1", "qwen")`)
 	if code := env.Build(BuildOptions{}); code != ExitOK {
 		t.Fatalf("build: exit %d\n%s", code, errb.String())
 	}
 	b, _ := os.ReadFile(filepath.Join(env.Root, ".jip", "gen", "main.go"))
-	if !strings.Contains(string(b), `"smart": rt.NewModel("smart", "custom", "http://localhost:8080/v1", "qwen"),`) {
+	if !strings.Contains(string(b), `"smart": rt.NewModel("smart", "custom", "http://localhost:8080/v1", "qwen"),`) || !strings.Contains(string(b), "ctx.Llm, ctx.Decide = models, models") {
 		t.Fatalf("main.go:\n%s", b)
+	}
+	cfg, _ := os.ReadFile(filepath.Join(env.Root, ".jip", "gen", "appcfg", "appcfg.go"))
+	if !strings.Contains(string(cfg), `"JIP_MODELS__SMART__KEY", "JIP_MODELS__SMART__PRICE"`) || !strings.Contains(string(cfg), "l.CheckPrices(modelKeys...)") {
+		t.Fatalf("config.go:\n%s", cfg)
 	}
 }
 

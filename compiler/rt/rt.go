@@ -123,6 +123,7 @@ type shared struct {
 	machines    map[string]any // Machine impl name → its per-key states
 	channels    map[string]ApproveFunc
 	resumed     map[string]bool // workflows whose suspended runs were resumed
+	meter       meter
 }
 
 // queue returns the in-process queue of a Worker, creating it on first use.

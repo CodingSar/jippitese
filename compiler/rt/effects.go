@@ -12,16 +12,18 @@ import (
 // model clients and approve.* into the approval channel; the other leaves
 // are read and validated but not enforced.
 type Effects struct {
-	NetTimeout     time.Duration
-	NetRetry       Retry
-	NetRatePerSec  float64 // 0 = no limit
-	LlmTimeout     time.Duration
-	LlmBudget      string // "" = no budget
-	LlmRatePerSec  float64
-	IoTimeout      time.Duration
-	DecideTimeout  time.Duration
-	ApproveChannel string // module path; "" = none
-	ApproveTimeout time.Duration
+	NetTimeout      time.Duration
+	NetRetry        Retry
+	NetRatePerSec   float64 // 0 = no limit
+	LlmTimeout      time.Duration
+	LlmBudget       string // "" = no budget
+	LlmBudgetTokens int64  // from LlmBudget; 0 = none
+	LlmBudgetCost   int64  // from LlmBudget, minor units; 0 = none
+	LlmRatePerSec   float64
+	IoTimeout       time.Duration
+	DecideTimeout   time.Duration
+	ApproveChannel  string // module path; "" = none
+	ApproveTimeout  time.Duration
 }
 
 // EffectSet is one leaf the app body sets: its literal, its config mode and
@@ -96,6 +98,11 @@ func LoadEffects(l *ConfigLoader, set map[string]EffectSet) Effects {
 	e.NetRatePerSec = num("net.ratelimit.per_second")
 	e.LlmTimeout = dur("llm.timeout")
 	e.LlmBudget = str("llm.budget")
+	if t, m, err := ParseLlmBudget(e.LlmBudget); err != nil {
+		l.parseErr("effects.llm.budget", e.LlmBudget, "`<n> tokens` or `Money(<n>)`")
+	} else {
+		e.LlmBudgetTokens, e.LlmBudgetCost = t, m
+	}
 	e.LlmRatePerSec = num("llm.ratelimit.per_second")
 	e.IoTimeout = dur("io.timeout")
 	e.DecideTimeout = dur("decide.timeout")

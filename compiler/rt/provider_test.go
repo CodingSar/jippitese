@@ -159,8 +159,16 @@ func TestNewModel(t *testing.T) {
 	if c := NewModel("fast", "ollama", "", "llama").(*ChatClient); c.URL != OllamaURL || c.Key != "" {
 		t.Errorf("ollama %+v", c)
 	}
-	if NewModel("smart", "anthropic", "", "c") != nil {
-		t.Error("anthropic is not spoken yet")
+	t.Setenv("ANTHROPIC_API_KEY", "ak")
+	if c := NewModel("fast", "anthropic", "", "claude-sonnet-5-5").(*AnthropicClient); c.URL != AnthropicURL || c.Key != "ak" || c.Price != ModelPrices["claude-sonnet-5-5"] {
+		t.Errorf("anthropic %+v", c)
+	}
+	t.Setenv("JIP_MODELS__FAST__PRICE", "3/15")
+	if c := NewModel("fast", "ollama", "", "llama").(*ChatClient); c.Price != (Price{3, 15}) {
+		t.Errorf("price override %+v", c)
+	}
+	if NewModel("smart", "gemini", "", "g") != nil {
+		t.Error("gemini is not spoken")
 	}
 }
 

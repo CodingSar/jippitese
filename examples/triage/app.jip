@@ -1,6 +1,6 @@
 app {
   name: "triage"
   models {
-    smart = anthropic("claude-sonnet")
+    smart = anthropic("claude-sonnet-5-5")
   }
 }

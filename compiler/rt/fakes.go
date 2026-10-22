@@ -390,6 +390,9 @@ func FakeLlmCalls(ctx *Ctx, f *FakeLlm) int64 {
 // Llm implements the `llm<role>(prompt, input)` expression.
 func Llm[Out any](ctx *Ctx, role, prompt string, input any) Result[Out, LlmError] {
 	v, err := ctx.Llm.Call(ctx, role, prompt, input, reflect.TypeFor[Out]())
+	if errors.Is(err, ErrLlmBudget) {
+		return Result_Err[Out](LlmError_Budget())
+	}
 	if r, ok := err.(*RefusedError); ok {
 		return Result_Err[Out](LlmError_Refused(r.Reason))
 	}
@@ -414,12 +417,13 @@ func Llm[Out any](ctx *Ctx, role, prompt string, input any) Result[Out, LlmError
 
 // DecideClient is where `decide<role>(input)` goes.
 type DecideClient interface {
-	Decide(ctx *Ctx, role string, input any) (any, error)
+	// Decide answers with a value of type out, or with Json encoding one.
+	Decide(ctx *Ctx, role string, input any, out reflect.Type) (any, error)
 }
 
 type boundaryDecide struct{}
 
-func (boundaryDecide) Decide(ctx *Ctx, role string, input any) (any, error) {
+func (boundaryDecide) Decide(ctx *Ctx, role string, input any, out reflect.Type) (any, error) {
 	boundary("decide")
 	return nil, nil
 }
@@ -433,7 +437,7 @@ type FakeDecide struct {
 	i         int
 }
 
-func (f *FakeDecide) Decide(ctx *Ctx, role string, input any) (any, error) {
+func (f *FakeDecide) Decide(ctx *Ctx, role string, input any, out reflect.Type) (any, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.hasAlways {
@@ -464,12 +468,19 @@ func FakeDecideScript[T any](ctx *Ctx, vs []T) *FakeDecide {
 // Decide implements the `decide<role>(input)` expression.
 func Decide[Out any](ctx *Ctx, role string, input any) Out {
 	var zero Out
-	v, err := ctx.Decide.Decide(ctx, role, input)
+	v, err := ctx.Decide.Decide(ctx, role, input, reflect.TypeFor[Out]())
 	if err != nil {
-		ctx.failf("%s", err.Error())
+		ctx.failf("decide<%s>: %s", role, err.Error())
 		return zero
 	}
 	out, ok := v.(Out)
+	if j, isJson := v.(Json); !ok && isJson {
+		if err := json.Unmarshal(j.Raw, &out); err != nil {
+			ctx.failf("decide<%s>: %s", role, err.Error())
+			return zero
+		}
+		ok = true
+	}
 	if !ok {
 		ctx.failf("decide<%s>: expected %T, got %T", role, zero, v)
 		return zero

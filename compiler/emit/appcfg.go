@@ -136,15 +136,16 @@ func (e *emitter) emitAppCfg() {
 	for _, fd := range app.EffectSchema {
 		known = append(known, envKey("effects."+fd.Path))
 	}
-	// A declared model role's key variable (rt.NewModel) is a field too.
+	// A declared model role's key and price variables (rt.NewModel) are
+	// fields too.
 	f.printf("\nvar modelKeys = []string{")
 	for i, m := range a.Models {
 		if i > 0 {
 			f.printf(", ")
 		}
-		k := envKey("models." + m.Role + ".key")
-		known = append(known, k)
-		f.printf("%q", k)
+		k, p := envKey("models."+m.Role+".key"), envKey("models."+m.Role+".price")
+		known = append(known, k, p)
+		f.printf("%q, %q", k, p)
 	}
 	f.printf("}\n")
 
@@ -166,6 +167,7 @@ func Load() (Config, map[string]%[1]s.RunOpts, %[1]s.Effects, error) {
 	r := runs(l)
 	fx := %[1]s.LoadEffects(l, effectsSet)
 	l.Accept(modelKeys...)
+	l.CheckPrices(modelKeys...)
 	return c, r, fx, l.Finish(known)
 }
 

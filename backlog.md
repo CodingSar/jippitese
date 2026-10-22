@@ -273,10 +273,14 @@ fixes under "deferred from v0"; deviations go to `decisions.md`.
             type; tests `rt/provider_test.go`.
       - [x] L7c generated `main.go` installs `rt.Models` from `models {}`;
             test `TestModelsInMain`; spec 10 r3, decisions.
-- [ ] **L7d** Remaining providers: Anthropic Messages protocol for
+- [x] **L7d** Remaining providers: Anthropic Messages protocol for
       `anthropic` (and `jev` once its protocol is fixed), `decide<role>`
       on a provider, token usage priced into `AgentReply.Cost` so
       `max_cost` binds, `llm.timeout`/`llm.budget` from `effects {}`.
+      Done except `jev`: `rt/anthropic.go`, `rt/meter.go`
+      (`JIP_MODELS__<ROLE>__PRICE`, list prices, `llm.budget`),
+      `decide<role>` routed through `rt.Models`, `decide.timeout`
+      applied (decisions.md, L7d row).
 - [x] **L8** Persistent collections (08 r15): run the §13 collections
       benchmark; if within budget, structurally shared `List`/`Map`/`Set`
       in `rt` behind the same API; record the numbers.

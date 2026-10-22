@@ -2,6 +2,7 @@ package rt
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 )
@@ -49,13 +50,15 @@ type AgentSpec[S, St, Ans, T any] struct {
 
 // AgentMsg is one transcript entry. Role is "user", "assistant" or
 // "tool"; an assistant entry with Tool set is a tool call, a tool entry
-// is its result.
+// is its result. The first assistant entry of a reply carries the reply's
+// Raw, which starts a new assistant turn.
 type AgentMsg struct {
 	Role string `json:"role"`
 	Text string `json:"text,omitempty"`
 	Tool string `json:"tool,omitempty"`
 	ID   string `json:"id,omitempty"`
 	Args Json   `json:"args,omitempty"`
+	Raw  Json   `json:"raw,omitzero"`
 }
 
 // AgentRequest is one model turn: the goal, the tools and the transcript.
@@ -73,12 +76,16 @@ type AgentCallReq struct {
 }
 
 // AgentReply is the model's answer to one turn. Cost is in Money minor
-// units.
+// units. Raw is the provider's own encoding of the turn (for `anthropic`,
+// its content blocks with any thinking), which a provider that needs it
+// sends back verbatim. Budget marks a turn refused by effects.llm.budget.
 type AgentReply struct {
 	Text    string         `json:"text,omitempty"`
 	Calls   []AgentCallReq `json:"calls,omitempty"`
 	Refused bool           `json:"refused,omitempty"`
 	Cost    int64          `json:"cost,omitempty"`
+	Raw     Json           `json:"raw,omitzero"`
+	Budget  bool           `json:"budget,omitempty"`
 }
 
 // AgentClient runs one model turn of an Agent loop.
@@ -133,22 +140,31 @@ func AgentRun[S, St, Ans, T any](ctx *Ctx, spec *AgentSpec[S, St, Ans, T], site,
 		req := AgentRequest{Goal: goal, Tools: tools, Transcript: append([]AgentMsg(nil), transcript...)}
 		reply := Step(ctx, base+"/turn", func() AgentReply {
 			r, err := client.Turn(ctx, string(spec.Model), req)
+			if errors.Is(err, ErrLlmBudget) {
+				return AgentReply{Budget: true}
+			}
 			if err != nil {
 				ctx.failf("%s.run: %s", spec.Name, err.Error())
 			}
 			return r
 		})
+		if reply.Budget {
+			return Outcome_Stopped[Ans](BudgetExceeded_Cost())
+		}
 		turns++
 		cost += reply.Cost
 		if reply.Refused {
 			return Outcome_Refused[Ans](reply.Text)
 		}
+		raw := reply.Raw
 		if reply.Text != "" {
-			transcript = append(transcript, AgentMsg{Role: "assistant", Text: reply.Text})
+			transcript = append(transcript, AgentMsg{Role: "assistant", Text: reply.Text, Raw: raw})
+			raw = Json{}
 			st = spec.Observe(pure, s, st, Event_Said[T](reply.Text))
 		}
 		for _, c := range reply.Calls {
-			transcript = append(transcript, AgentMsg{Role: "assistant", Tool: c.Name, ID: c.ID, Args: c.Args})
+			transcript = append(transcript, AgentMsg{Role: "assistant", Tool: c.Name, ID: c.ID, Args: c.Args, Raw: raw})
+			raw = Json{}
 			out := agentCall(ctx, spec, s, base, c, &st)
 			transcript = append(transcript, AgentMsg{Role: "tool", Tool: c.Name, ID: c.ID, Text: out})
 		}

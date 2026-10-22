@@ -259,7 +259,9 @@ it is not admitted in the `run` list of `app.jip`.
 21. **Outcome.** `enum Outcome<Answer> { Finished(Answer),
     Stopped(BudgetExceeded), Refused(Str) }` with `BudgetExceeded = Turns |
     Cost`. `max_cost` is checked before each model call and may be exceeded
-    by at most one call.
+    by at most one call; a call's cost is its token usage at the role's
+    price (section 10 rule 3), rounded up to a minor unit. A spent
+    `effects.llm.budget` also stops the agent with `Stopped(Cost)`.
 22. **Inside a `Workflow`.** `Name.run(goal)` called from `run` is journaled
     as one step per model call (`Triage.run@<site>#1/turn#k`) plus one per
     gate decision (`/gate#k`), reviewer answer (`/approve#k`) and tool

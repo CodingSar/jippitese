@@ -415,11 +415,11 @@ func (e *emitter) emitMain() {
 		f.printf("\tif err := ctx.UseWorkflowRuntime(%q, %q); err != nil {\n\t\tfmt.Fprintln(os.Stderr, \"error: \"+err.Error())\n\t\tos.Exit(2)\n\t}\n", app.Workflow.Mode, app.Workflow.Store)
 	}
 	if app != nil && len(app.Models) > 0 {
-		f.printf("\tctx.Llm = %s.Models{\n", rtp)
+		f.printf("\tmodels := %s.Models{\n", rtp)
 		for _, m := range app.Models {
 			f.printf("\t\t%q: %s.NewModel(%q, %q, %q, %q),\n", m.Role, rtp, m.Role, m.Provider, m.URL, m.Name)
 		}
-		f.printf("\t}\n")
+		f.printf("\t}\n\tctx.Llm, ctx.Decide = models, models\n")
 	}
 	if app != nil && len(app.Runs) > 0 {
 		f.printf("\t%s.Serve(ctx", rtp)
