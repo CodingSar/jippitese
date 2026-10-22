@@ -1,6 +1,7 @@
 package rt
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"testing"
@@ -148,5 +149,73 @@ func TestCron(t *testing.T) {
 	want := time.Date(2026, 10, 19, 9, 0, 0, 0, time.UTC)
 	if !n.Equal(want) {
 		t.Fatalf("next = %v want %v", n, want)
+	}
+}
+
+func TestWorkflowResumesSuspendedRun(t *testing.T) {
+	calls := 0
+	spec := &WorkflowSpec[wfState, int64, int64, Unit, LlmError]{
+		Name: "Billing", Version: 2, Sites: []string{"charge@a.jip:1:1", "approve@a.jip:2:2"},
+		Init: func(*Ctx) (wfState, error) { return wfState{}, nil },
+		Run: func(ctx *Ctx, s wfState, in int64) Result[int64, WorkflowError[LlmError]] {
+			r := Step(ctx, "charge@a.jip:1:1", func() int64 { calls++; return in * 2 })
+			a := Approve[bool](ctx, "approve@a.jip:2:2", Review{Title: "ok?"})
+			if a.Tag == ResultTag_Err || !a.Ok_0 {
+				return Result_Err[int64](WorkflowError_App[LlmError](LlmError_Budget()))
+			}
+			return Result_Ok[int64, WorkflowError[LlmError]](r)
+		},
+	}
+	dir := t.TempDir()
+
+	// The first process asks through a channel that never answers, then
+	// goes away.
+	gctx, stop := context.WithCancel(context.Background())
+	defer stop()
+	ctx1 := NewCtx()
+	ctx1.Go = gctx
+	if err := ctx1.UseWorkflowRuntime("embedded", dir); err != nil {
+		t.Fatal(err)
+	}
+	asked := make(chan string, 1)
+	ctx1.Approve = ApproveFunc(func(c *Ctx, id string, _ Review) ReviewAnswer {
+		asked <- id
+		<-c.Go.Done()
+		return ReviewAnswer_Reject(Option_None[string]())
+	})
+	id := StartWorkflow(ctx1, spec, 21)
+	var key string
+	select {
+	case key = <-asked:
+	case <-time.After(5 * time.Second):
+		t.Fatal("approval not asked")
+	}
+	if key != string(id)+"/approve@a.jip:2:2#1" {
+		t.Fatalf("review id %q", key)
+	}
+
+	// The second process resumes the run under its id and asks again.
+	ctx2 := NewCtx()
+	if err := ctx2.UseWorkflowRuntime("embedded", dir); err != nil {
+		t.Fatal(err)
+	}
+	ctx2.Approve = FakeApproveScript(ctx2, []Result[bool, Rejected]{Result_Ok[bool, Rejected](true)})
+	ResumeWorkflows(ctx2, spec)
+	ResumeWorkflows(ctx2, spec) // once per workflow
+	var out any
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
+		var done bool
+		if out, done = WorkflowResult(ctx2, id); done {
+			break
+		}
+	}
+	if r, ok := out.(Result[int64, WorkflowError[LlmError]]); !ok || r.Tag != ResultTag_Ok || r.Ok_0 != 42 {
+		t.Fatalf("resumed result %s", Show(out))
+	}
+	if calls != 1 {
+		t.Fatalf("charge ran %d times; the resumed run should replay it", calls)
+	}
+	if left := ctx2.workflows().(*Embedded).Suspended("Billing"); len(left) != 0 {
+		t.Fatalf("%d runs still suspended", len(left))
 	}
 }

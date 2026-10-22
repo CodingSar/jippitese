@@ -49,6 +49,8 @@ pub type Retry { max: Int, backoff: Backoff }
 pub type Review { title: Str, body: Str, timeout: Option<Duration>, data: Option<Json> }
 /// Why an approval did not return a value.
 pub type Rejected { reason: Option<Str>, timed_out: Bool }
+/// A reviewer's answer from an approval channel's `ask`: `Approve` carries the decision value as JSON, decoded as the `approve` call's `T`; `Reject` an optional reason.
+pub enum ReviewAnswer { Approve(Json), Reject(Option<Str>) }
 /// A journal that does not match the code replaying it.
 pub type ReplayError { expected: Int, found: Int }
 /// Liveness and readiness of a running impl.

@@ -103,8 +103,11 @@ type Ctx struct {
 	// Journal is non-nil inside Workflow.run.
 	Journal *Journal
 
-	scn *Scn
-	sh  *shared
+	// reviewKey is the id a user approval channel gets for the pending
+	// workflow approval being asked.
+	reviewKey string
+	scn       *Scn
+	sh        *shared
 }
 
 // shared is the state every child ctx of a program or scenario sees.
@@ -118,6 +121,8 @@ type shared struct {
 	queues      map[string]chan any
 	fakes       map[string]any // impl name → MemRepo or MemCache; nil substitutes nothing
 	machines    map[string]any // Machine impl name → its per-key states
+	channels    map[string]ApproveFunc
+	resumed     map[string]bool // workflows whose suspended runs were resumed
 }
 
 // queue returns the in-process queue of a Worker, creating it on first use.
@@ -179,6 +184,7 @@ func NewCtx() *Ctx {
 func (c *Ctx) child() *Ctx {
 	d := *c
 	d.Journal = nil
+	d.reviewKey = ""
 	return &d
 }
 

@@ -105,7 +105,8 @@ func LoadEffects(l *ConfigLoader, set map[string]EffectSet) Effects {
 }
 
 // ApplyEffects installs the resolved effects: the real HTTP client takes
-// net.timeout and net.retry, and approve.channel starts its endpoint.
+// net.timeout and net.retry, and approve.channel starts its endpoint or
+// installs the user channel registered under its name.
 func (c *Ctx) ApplyEffects(e Effects) error {
 	c.Effects = e
 	c.Http = RealHttp{Timeout: e.NetTimeout, Retry: e.NetRetry}
@@ -123,7 +124,13 @@ func (c *Ctx) ApplyEffects(e Effects) error {
 		fmt.Fprintf(os.Stderr, "jip: approvals at http://%s/reviews\n", a.Addr)
 		c.Approve = a
 	default:
-		return fmt.Errorf("effects.approve.channel `%s`: v1 ships only `%s`", e.ApproveChannel, ApproveHttpChannel)
+		c.sh.mu.Lock()
+		f := c.sh.channels[e.ApproveChannel]
+		c.sh.mu.Unlock()
+		if f == nil {
+			return fmt.Errorf("effects.approve.channel `%s` is not a channel of this build (`%s` or a module with `pub fn ask(id: Str, review: Review) -> ReviewAnswer`)", e.ApproveChannel, ApproveHttpChannel)
+		}
+		c.Approve = f
 	}
 	return nil
 }

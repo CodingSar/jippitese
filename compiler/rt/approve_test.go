@@ -123,3 +123,70 @@ func TestApproveAddr(t *testing.T) {
 		t.Fatalf("user channel: %v", err)
 	}
 }
+
+func TestApproveFunc(t *testing.T) {
+	ctx := NewCtx()
+	ctx.Effects.ApproveTimeout = time.Minute
+	out := reflect.TypeOf(Result[int64, Rejected]{})
+	ask := func(f ApproveFunc, r Review) Result[int64, Rejected] {
+		return f.Ask(ctx, r, out).(Result[int64, Rejected])
+	}
+	var gotId string
+	approve := ApproveFunc(func(c *Ctx, id string, r Review) ReviewAnswer {
+		gotId = id
+		return ReviewAnswer_Approve(Json{Raw: []byte(r.Body)})
+	})
+	if r := ask(approve, Review{Title: "refund", Body: "42"}); r.Tag != ResultTag_Ok || r.Ok_0 != 42 || gotId == "" {
+		t.Fatalf("approve: %+v id %q", r, gotId)
+	}
+	if r := ask(approve, Review{Title: "refund", Body: `"many"`}); r.Tag != ResultTag_Err || r.Err_0.Reason.Tag != OptionTag_Some || !strings.Contains(r.Err_0.Reason.Some_0, "does not decode") {
+		t.Fatalf("bad decision: %+v", r)
+	}
+	reject := ApproveFunc(func(*Ctx, string, Review) ReviewAnswer { return ReviewAnswer_Reject(Option_Some("too large")) })
+	if r := ask(reject, Review{Title: "refund"}); r.Tag != ResultTag_Err || r.Err_0.Reason.Some_0 != "too large" || r.Err_0.Timed_out {
+		t.Fatalf("reject: %+v", r)
+	}
+
+	// a channel that never answers times out, and its ctx is cancelled
+	stopped := make(chan struct{})
+	block := ApproveFunc(func(c *Ctx, _ string, _ Review) ReviewAnswer {
+		<-c.Go.Done()
+		close(stopped)
+		return ReviewAnswer_Reject(Option_None[string]())
+	})
+	if r := ask(block, Review{Title: "refund", Timeout: Option_Some(20 * time.Millisecond)}); r.Tag != ResultTag_Err || !r.Err_0.Timed_out {
+		t.Fatalf("timeout: %+v", r)
+	}
+	select {
+	case <-stopped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("channel ctx not cancelled")
+	}
+
+	// a panic in the channel is raised on the asking goroutine
+	boom := ApproveFunc(func(*Ctx, string, Review) ReviewAnswer { panic("channel down") })
+	func() {
+		defer func() {
+			if p := recover(); p != "channel down" {
+				t.Fatalf("panic %v", p)
+			}
+		}()
+		ask(boom, Review{Title: "refund"})
+	}()
+}
+
+func TestApplyEffectsUserChannel(t *testing.T) {
+	ctx := NewCtx()
+	e := DefaultEffects()
+	e.ApproveChannel = "acme.slack"
+	if err := ctx.ApplyEffects(e); err == nil || !strings.Contains(err.Error(), "not a channel of this build") {
+		t.Fatalf("unregistered: %v", err)
+	}
+	ctx.AddApproveChannel("acme.slack", func(*Ctx, string, Review) ReviewAnswer { return ReviewAnswer_Reject(Option_None[string]()) })
+	if err := ctx.ApplyEffects(e); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := ctx.Approve.(ApproveFunc); !ok {
+		t.Fatalf("approve client %T", ctx.Approve)
+	}
+}

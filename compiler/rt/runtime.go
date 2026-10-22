@@ -3,6 +3,7 @@ package rt
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"sync"
 )
@@ -84,6 +85,25 @@ func (e *Embedded) Begin(name string, version int64, sites []string) (RunId, *Jo
 		j.file = e.Store + string(os.PathSeparator) + name + "-" + string(id) + ".jsonl"
 	}
 	return id, j, nil
+}
+
+// Suspended loads the journals under Store of the runs of workflow name
+// that are suspended on an approval and carry their input.
+func (e *Embedded) Suspended(name string) []*Journal {
+	if e.Store == "" {
+		return nil
+	}
+	paths, _ := filepath.Glob(filepath.Join(e.Store, name+"-*.jsonl"))
+	sort.Strings(paths)
+	var out []*Journal
+	for _, p := range paths {
+		j, err := LoadJournal(p)
+		if err != nil || j.Workflow != name || j.Run == "" || len(j.Input) == 0 || !j.pending() {
+			continue
+		}
+		out = append(out, j)
+	}
+	return out
 }
 
 func (e *Embedded) Finish(id RunId, res any) {

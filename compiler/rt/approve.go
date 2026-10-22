@@ -2,6 +2,7 @@ package rt
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,7 +16,8 @@ import (
 	"time"
 )
 
-// ApproveHttpChannel is the one `effects.approve.channel` v1 ships.
+// ApproveHttpChannel is the built-in `effects.approve.channel`; any other
+// names a user channel module registered with AddApproveChannel.
 const ApproveHttpChannel = "std.approve.http"
 
 // DefaultApproveAddr is where `std.approve.http` listens unless
@@ -127,6 +129,88 @@ func (a *ApproveHttp) Ask(ctx *Ctx, review Review, out reflect.Type) any {
 		a.take(p.id)
 		panic(fmt.Errorf("approve %q: shut down while pending", review.Title))
 	}
+}
+
+// ApproveFunc is a user approval channel: the `ask` of the module that
+// effects.approve.channel names, `pub fn ask(id: Str, review: Review) ->
+// ReviewAnswer`, blocking until a reviewer answers. id is stable for
+// a workflow approval (`<run id>/<journal key>`), so a channel can match a
+// review asked again after a restart.
+type ApproveFunc func(ctx *Ctx, id string, review Review) ReviewAnswer
+
+// Ask runs the channel on its own goroutine under the same timeout and
+// shutdown rules as std.approve.http; the channel's ctx is cancelled when
+// either fires, and an answer it gives later is dropped. A panic in the
+// channel is re-raised here. An Approve whose JSON does not decode as the
+// decision type is a rejection naming the error.
+func (f ApproveFunc) Ask(ctx *Ctx, review Review, out reflect.Type) any {
+	timeout := ctx.Effects.ApproveTimeout
+	if review.Timeout.Tag == OptionTag_Some {
+		timeout = review.Timeout.Some_0
+	}
+	id := ctx.reviewKey
+	if id == "" {
+		id = string(newRunId())
+	}
+	base := ctx.Go
+	if base == nil {
+		base = context.Background()
+	}
+	cctx, cancel := context.WithCancel(base)
+	defer cancel()
+	c := ctx.child()
+	c.Go = cctx
+	type reply struct {
+		a     ReviewAnswer
+		p     any
+		panic bool
+	}
+	done := make(chan reply, 1)
+	go func() {
+		defer func() {
+			if p := recover(); p != nil {
+				done <- reply{p: p, panic: true}
+			}
+		}()
+		done <- reply{a: f(c, id, review)}
+	}()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	reject := func(r Rejected) any {
+		b, _ := json.Marshal(r)
+		v, _ := answerOf(out, `{"Err":`+string(b)+`}`)
+		return v
+	}
+	select {
+	case r := <-done:
+		if r.panic {
+			panic(r.p)
+		}
+		if r.a.Tag == ReviewAnswerTag_Reject {
+			return reject(Rejected{Reason: r.a.Reject_0})
+		}
+		raw, _ := r.a.Approve_0.MarshalJSON()
+		v, err := answerOf(out, `{"Ok":`+string(raw)+`}`)
+		if err != nil {
+			return reject(Rejected{Reason: Option_Some(fmt.Sprintf("approve %q: answer %s does not decode: %v", review.Title, raw, err))})
+		}
+		return v
+	case <-timer.C:
+		return reject(Rejected{Timed_out: true})
+	case <-base.Done():
+		panic(fmt.Errorf("approve %q: shut down while pending", review.Title))
+	}
+}
+
+// AddApproveChannel registers the `ask` of a user channel module, which
+// ApplyEffects installs when effects.approve.channel names it.
+func (c *Ctx) AddApproveChannel(module string, f ApproveFunc) {
+	c.sh.mu.Lock()
+	defer c.sh.mu.Unlock()
+	if c.sh.channels == nil {
+		c.sh.channels = map[string]ApproveFunc{}
+	}
+	c.sh.channels[module] = f
 }
 
 // take removes a pending review; false if it was already answered.

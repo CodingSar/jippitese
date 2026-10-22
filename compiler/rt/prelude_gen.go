@@ -46,6 +46,28 @@ type Rejected struct {
 	Timed_out bool           `json:"timed_out"`
 }
 
+// ReviewAnswer is `ReviewAnswer`.
+type ReviewAnswer struct {
+	Tag       uint8
+	Approve_0 Json
+	Reject_0  Option[string]
+}
+
+const (
+	ReviewAnswerTag_Approve uint8 = iota
+	ReviewAnswerTag_Reject
+)
+
+func ReviewAnswer_Approve(a0 Json) ReviewAnswer {
+	return ReviewAnswer{Tag: ReviewAnswerTag_Approve, Approve_0: a0}
+}
+func ReviewAnswer_Reject(a0 Option[string]) ReviewAnswer {
+	return ReviewAnswer{Tag: ReviewAnswerTag_Reject, Reject_0: a0}
+}
+func (ReviewAnswer) JipVariants() []string           { return []string{"Approve", "Reject"} }
+func (v ReviewAnswer) MarshalJSON() ([]byte, error)  { return MarshalEnum(v) }
+func (v *ReviewAnswer) UnmarshalJSON(b []byte) error { return UnmarshalEnum(v, b) }
+
 // ReplayError is `ReplayError`.
 type ReplayError struct {
 	Expected int64 `json:"expected"`

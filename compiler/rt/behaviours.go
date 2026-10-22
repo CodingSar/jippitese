@@ -586,6 +586,7 @@ func (r *workflowRunner[S, In, Out, Sig, E]) Routes(ctx *Ctx, mux *http.ServeMux
 func (r *workflowRunner[S, In, Out, Sig, E]) Run(ctx *Ctx) error {
 	return protect(ctx, r.spec.Name, func() {
 		Instance(ctx, r.spec.Name, r.spec.Init)
+		ResumeWorkflows(ctx, r.spec)
 		<-ctx.Go.Done()
 	})
 }
@@ -604,9 +605,11 @@ type JournalEntry struct {
 }
 
 type journalHeader struct {
-	Workflow string   `json:"workflow"`
-	Version  int64    `json:"version"`
-	Sites    []string `json:"sites"`
+	Workflow string          `json:"workflow"`
+	Version  int64           `json:"version"`
+	Sites    []string        `json:"sites"`
+	Run      RunId           `json:"run,omitempty"`
+	Input    json.RawMessage `json:"input,omitempty"`
 }
 
 // Journal is one workflow run's history: a JSONL file of step results,
@@ -616,6 +619,9 @@ type Journal struct {
 	Version  int64
 	Sites    []string
 	Entries  []JournalEntry
+	// Run and Input, set by StartWorkflow, let a restart resume the run.
+	Run   RunId
+	Input json.RawMessage
 
 	cursor   int
 	counters map[string]int
@@ -648,7 +654,7 @@ func LoadJournal(path string) (*Journal, error) {
 			if err := json.Unmarshal([]byte(line), &h); err != nil {
 				return nil, fmt.Errorf("%s: header: %v", path, err)
 			}
-			j.Workflow, j.Version, j.Sites = h.Workflow, h.Version, h.Sites
+			j.Workflow, j.Version, j.Sites, j.Run, j.Input = h.Workflow, h.Version, h.Sites, h.Run, h.Input
 			continue
 		}
 		var e JournalEntry
@@ -703,11 +709,25 @@ func (j *Journal) append(e JournalEntry) {
 	}
 	defer f.Close()
 	if e.Seq == 1 {
-		h, _ := json.Marshal(journalHeader{Workflow: j.Workflow, Version: j.Version, Sites: j.Sites})
-		f.Write(append(h, '\n'))
+		f.Write(append(j.header(), '\n'))
 	}
 	b, _ := json.Marshal(e)
 	f.Write(append(b, '\n'))
+}
+
+func (j *Journal) header() []byte {
+	h, _ := json.Marshal(journalHeader{Workflow: j.Workflow, Version: j.Version, Sites: j.Sites, Run: j.Run, Input: j.Input})
+	return h
+}
+
+// pending reports whether the run is suspended on an approval.
+func (j *Journal) pending() bool {
+	for _, e := range j.Entries {
+		if e.Kind == "pending" {
+			return true
+		}
+	}
+	return false
 }
 
 func (j *Journal) resolve(key string, ans any) {
@@ -728,8 +748,7 @@ func (j *Journal) resolve(key string, ans any) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	var sb strings.Builder
-	h, _ := json.Marshal(journalHeader{Workflow: j.Workflow, Version: j.Version, Sites: j.Sites})
-	sb.Write(h)
+	sb.Write(j.header())
 	sb.WriteByte('\n')
 	for _, e := range j.Entries {
 		b, _ := json.Marshal(e)
@@ -884,7 +903,12 @@ func runJournaled[S, In, Out, Sig, E any](ctx *Ctx, spec *WorkflowSpec[S, In, Ou
 		if pend == nil {
 			return res
 		}
-		ans := ctx.Approve.Ask(ctx, pend.review, pend.out)
+		ac := ctx.child()
+		ac.reviewKey = pend.key
+		if j.Run != "" {
+			ac.reviewKey = string(j.Run) + "/" + pend.key
+		}
+		ans := ctx.Approve.Ask(ac, pend.review, pend.out)
 		j.resolve(pend.key, ans)
 	}
 }
@@ -903,15 +927,56 @@ func StartWorkflow[S, In, Out, Sig, E any](ctx *Ctx, spec *WorkflowSpec[S, In, O
 	if err != nil {
 		panic(err)
 	}
-	go func() {
-		var res Result[Out, WorkflowError[E]]
-		err := protect(ctx, spec.Name, func() { res = runJournaled(ctx, spec, in, j) })
-		if err != nil {
-			res = Result_Err[Out](WorkflowError_Cancelled[E]())
-		}
-		wf.Finish(id, res)
-	}()
+	j.Run = id
+	j.Input, _ = json.Marshal(in)
+	go finishWorkflow(ctx, wf, spec, id, in, j)
 	return id
+}
+
+func finishWorkflow[S, In, Out, Sig, E any](ctx *Ctx, wf WorkflowRuntime, spec *WorkflowSpec[S, In, Out, Sig, E], id RunId, in In, j *Journal) {
+	var res Result[Out, WorkflowError[E]]
+	err := protect(ctx, spec.Name, func() { res = runJournaled(ctx, spec, in, j) })
+	if err != nil {
+		res = Result_Err[Out](WorkflowError_Cancelled[E]())
+	}
+	wf.Finish(id, res)
+}
+
+// suspendedRuns is a workflow runtime that keeps the journals of runs
+// suspended on an approval across restarts.
+type suspendedRuns interface {
+	Suspended(name string) []*Journal
+}
+
+// ResumeWorkflows restarts every run of the workflow that an earlier
+// process left suspended on an approval: each replays its journal under
+// its old run id and asks for the pending approval again. Only the
+// embedded runtime keeps such runs; on the others it does nothing.
+func ResumeWorkflows[S, In, Out, Sig, E any](ctx *Ctx, spec *WorkflowSpec[S, In, Out, Sig, E]) {
+	wf := ctx.workflows()
+	sr, ok := wf.(suspendedRuns)
+	if !ok {
+		return
+	}
+	ctx.sh.mu.Lock()
+	done := ctx.sh.resumed[spec.Name]
+	if ctx.sh.resumed == nil {
+		ctx.sh.resumed = map[string]bool{}
+	}
+	ctx.sh.resumed[spec.Name] = true
+	ctx.sh.mu.Unlock()
+	if done { // a supervised restart of the runner, not of the process
+		return
+	}
+	for _, j := range sr.Suspended(spec.Name) {
+		var in In
+		if err := json.Unmarshal(j.Input, &in); err != nil {
+			ctx.Logf("jip: %s: run %s not resumed: input: %v", spec.Name, j.Run, err)
+			continue
+		}
+		ctx.Logf("jip: %s: resuming run %s", spec.Name, j.Run)
+		go finishWorkflow(ctx, wf, spec, j.Run, in, j)
+	}
 }
 
 // WorkflowResult returns a finished run's result.
