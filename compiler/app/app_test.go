@@ -48,8 +48,11 @@ func TestParseWorkflow(t *testing.T) {
 	if err != nil || a.Workflow.Store != "var/wf" {
 		t.Fatalf("store: %+v %v", a, err)
 	}
-	if _, err := parse("  workflow { mode: temporal }\n"); err == nil || !strings.Contains(err.Error(), "no runtime adapter") {
+	if _, err := parse("  workflow { mode: temporal, store: default \"localhost:7233/default\" }\n"); err != nil {
 		t.Fatalf("temporal: %v", err)
+	}
+	if _, err := parse("  workflow { mode: restate }\n"); err == nil || !strings.Contains(err.Error(), "no runtime adapter") {
+		t.Fatalf("restate: %v", err)
 	}
 	if _, err := parse("  workflow { mode: cadence }\n"); err == nil || !strings.Contains(err.Error(), "must be") {
 		t.Fatalf("cadence: %v", err)

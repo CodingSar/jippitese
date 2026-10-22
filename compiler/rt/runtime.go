@@ -9,10 +9,10 @@ import (
 
 // WorkflowRuntime is where workflow runs live: their journals, results and
 // buffered signals. `workflow { mode }` of app.jip names one in
-// WorkflowRuntimes; `embedded` is the only adapter so far.
+// WorkflowRuntimes: `embedded` or `temporal`.
 type WorkflowRuntime interface {
 	// Begin journals a new run of the workflow name.
-	Begin(name string, version int64, sites []string) (RunId, *Journal)
+	Begin(name string, version int64, sites []string) (RunId, *Journal, error)
 	// Finish records the result of a run.
 	Finish(id RunId, res any)
 	// Result is a finished run's result.
@@ -28,6 +28,7 @@ type WorkflowRuntime interface {
 // is `workflow { store }`.
 var WorkflowRuntimes = map[string]func(store string) (WorkflowRuntime, error){
 	"embedded": func(store string) (WorkflowRuntime, error) { return NewEmbedded(store), nil },
+	"temporal": func(store string) (WorkflowRuntime, error) { return NewTemporal(store), nil },
 }
 
 // UseWorkflowRuntime installs the adapter of mode on ctx and everything
@@ -74,14 +75,14 @@ func NewEmbedded(store string) *Embedded {
 	return &Embedded{Store: store, signals: map[string][]any{}, results: map[RunId]any{}}
 }
 
-func (e *Embedded) Begin(name string, version int64, sites []string) (RunId, *Journal) {
+func (e *Embedded) Begin(name string, version int64, sites []string) (RunId, *Journal, error) {
 	id := newRunId()
 	j := NewJournal(name, version, sites)
 	if e.Store != "" {
 		_ = os.MkdirAll(e.Store, 0o755)
 		j.file = e.Store + string(os.PathSeparator) + name + "-" + string(id) + ".jsonl"
 	}
-	return id, j
+	return id, j, nil
 }
 
 func (e *Embedded) Finish(id RunId, res any) {

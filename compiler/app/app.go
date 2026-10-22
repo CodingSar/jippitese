@@ -508,7 +508,7 @@ var WorkflowModes = []string{"embedded", "temporal", "restate"}
 
 // WorkflowAdapters are the modes with a runtime adapter in rt
 // (rt.WorkflowRuntimes); a test keeps the two in step.
-var WorkflowAdapters = []string{"embedded"}
+var WorkflowAdapters = []string{"embedded", "temporal"}
 
 // DefaultWorkflowStore is the journal directory when `workflow { store }`
 // is absent: one JSON-lines file per run (spec 07 rule 16).

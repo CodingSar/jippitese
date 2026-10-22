@@ -26,7 +26,7 @@ func TestWorkflowAdaptersMatchApp(t *testing.T) {
 }
 
 func TestUseWorkflowRuntimeRejectsUnknownMode(t *testing.T) {
-	if err := NewCtx().UseWorkflowRuntime("temporal", ""); err == nil {
-		t.Fatal("temporal accepted without an adapter")
+	if err := NewCtx().UseWorkflowRuntime("restate", ""); err == nil {
+		t.Fatal("restate accepted without an adapter")
 	}
 }

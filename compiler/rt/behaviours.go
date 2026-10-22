@@ -551,7 +551,11 @@ func (r *workflowRunner[S, In, Out, Sig, E]) Routes(ctx *Ctx, mux *http.ServeMux
 			http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
 			return
 		}
-		id := StartWorkflow(ctx, r.spec, in)
+		var id RunId
+		if err := protect(ctx, name, func() { id = StartWorkflow(ctx, r.spec, in) }); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		writeJSON(w, http.StatusAccepted, map[string]any{"id": id})
 	})
 	mux.HandleFunc("POST /"+name+"/signal", func(w http.ResponseWriter, req *http.Request) {
@@ -618,6 +622,9 @@ type Journal struct {
 	depth    int
 	file     string
 	mu       sync.Mutex
+	// record, when set, is told of every write: op `jip.step` with an
+	// appended entry, `jip.resolve` with a resolved one.
+	record func(op string, e JournalEntry)
 }
 
 // NewJournal starts an empty history.
@@ -682,6 +689,9 @@ func (j *Journal) key(site string) string {
 func (j *Journal) append(e JournalEntry) {
 	e.Seq = len(j.Entries) + 1
 	j.Entries = append(j.Entries, e)
+	if j.record != nil {
+		j.record("jip.step", e)
+	}
 	if j.file == "" {
 		return
 	}
@@ -706,6 +716,9 @@ func (j *Journal) resolve(key string, ans any) {
 			v, _ := json.Marshal(ans)
 			j.Entries[i].Kind = "step"
 			j.Entries[i].Value = v
+			if j.record != nil {
+				j.record("jip.resolve", j.Entries[i])
+			}
 			break
 		}
 	}
@@ -882,10 +895,14 @@ func newRunId() RunId {
 	return RunId(hex.EncodeToString(b[:]))
 }
 
-// StartWorkflow starts a run in the background and returns its id.
+// StartWorkflow starts a run in the background and returns its id; it
+// panics with the error of a runtime that cannot begin one.
 func StartWorkflow[S, In, Out, Sig, E any](ctx *Ctx, spec *WorkflowSpec[S, In, Out, Sig, E], in In) RunId {
 	wf := ctx.workflows()
-	id, j := wf.Begin(spec.Name, spec.Version, spec.Sites)
+	id, j, err := wf.Begin(spec.Name, spec.Version, spec.Sites)
+	if err != nil {
+		panic(err)
+	}
 	go func() {
 		var res Result[Out, WorkflowError[E]]
 		err := protect(ctx, spec.Name, func() { res = runJournaled(ctx, spec, in, j) })
