@@ -403,25 +403,29 @@ File extension: `.jip`. CLI: `jip`.
 - **Results (F3).** One run per task, model and language, through Claude
   Code on a subscription (`run.mjs --via claude-code`); transcripts and
   `report.json` in `evals/out/`. All 72 runs reached green and passed the
-  hidden acceptance tests.
+  hidden acceptance tests. The jippitese runs below use the 1202-token card
+  (an excerpt of `examples/orders` that compiles, `TestLanguageCard`); the
+  first runs, with a 2182-token card, are in git history.
 
   | Model | jippitese median tokens | without the card | Go median tokens | runs needing 2 iterations (jip / Go) |
   |---|---|---|---|---|
-  | claude-haiku-5-5 | 4215.5 | 2033.5 | 2191.5 | 4 / 0 |
-  | claude-opus-5-5 | 4182.5 | 2000.5 | 2185 | 3 / 0 |
-  | claude-sonnet-5-5 | 4042 | 1860 | 2052 | 2 / 0 |
+  | claude-haiku-5-5 | 2694.5 | 1492.5 | 2191.5 | 2 / 0 |
+  | claude-opus-5-5 | 3061.5 | 1859.5 | 2185 | 2 / 0 |
+  | claude-sonnet-5-5 | 3279.5 | 2077.5 | 2052 | 3 / 0 |
 
-  Median iterations to green are 1 everywhere. The language card is 2182
-  tokens and is in every jippitese prompt, so by the metric as defined
-  jippitese costs about 1.9× Go per task. Without the card it reads 7–9%
-  less than Go: per run, the median jippitese agent reads 1164 tokens of
-  files and 551 of tool output (most of it `jip context`, used in 23 of 36
-  runs), the Go agent 1887 of files and almost no tool output (`go doc` 4
-  times in 36 runs). The card pays for itself only when it is amortised
-  over several tasks in one session, or when it shrinks; the tasks are
-  small, so file reads are small next to it. Iterations favour Go: 9 of 36
-  jippitese runs needed a second `jip check`, none of the Go runs a second
-  `go vet`.
+  Median iterations to green are 1 everywhere. The card is in every
+  jippitese prompt, so by the metric as defined jippitese costs 1.2–1.6×
+  Go per task (1.44× over all runs), down from about 1.9× with the
+  first card (medians 4042–4215). Without the card it reads about what Go
+  reads; the first runs read 7–9% less than Go (median 1164 tokens of
+  files and 551 of tool output, most of it `jip context`, against Go's 1887
+  of files and almost no tool output). With one run per task the
+  without-card medians move by a few hundred tokens between rounds, so
+  that difference is noise. The card pays for itself only when it is
+  amortised over several tasks in one session; the tasks are small, so
+  file reads are small next to it. Iterations favour Go: 7 of 36
+  jippitese runs needed a second `jip check` (9 of 36 with the first
+  card), none of the Go runs a second `go vet`.
 - The performance eval includes a **collections benchmark** (persistent vs.
   mutable) before v1 locks the §7 default.
 - Run across multiple models. The eval harness is built after the spec and

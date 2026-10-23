@@ -364,13 +364,13 @@
       "tasks": 12,
       "green": 12,
       "accepted": 12,
-      "median_tokens": 4215.5,
+      "median_tokens": 2694.5,
       "median_iterations": 1,
       "runs": [
         {
           "task": "01-refund",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 5812,
+          "tokens": 4990,
           "iterations": 2,
           "green": true,
           "accept": true,
@@ -379,7 +379,7 @@
         {
           "task": "02-status-refunded",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 5655,
+          "tokens": 2643,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -388,7 +388,7 @@
         {
           "task": "03-charge-retry",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 5625,
+          "tokens": 4447,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -397,7 +397,7 @@
         {
           "task": "04-line-discount",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 5612,
+          "tokens": 2635,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -406,8 +406,8 @@
         {
           "task": "05-largest-line",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 5791,
-          "iterations": 2,
+          "tokens": 4646,
+          "iterations": 1,
           "green": true,
           "accept": true,
           "fallback": false
@@ -415,7 +415,7 @@
         {
           "task": "06-reject-large",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 3973,
+          "tokens": 3000,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -424,7 +424,7 @@
         {
           "task": "07-grand-total",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 4458,
+          "tokens": 3484,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -433,7 +433,7 @@
         {
           "task": "08-idle-30m",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 3642,
+          "tokens": 2698,
           "iterations": 2,
           "green": true,
           "accept": true,
@@ -442,8 +442,8 @@
         {
           "task": "09-active-count",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 3962,
-          "iterations": 2,
+          "tokens": 2422,
+          "iterations": 1,
           "green": true,
           "accept": true,
           "fallback": false
@@ -451,7 +451,7 @@
         {
           "task": "10-unknown-currency",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 3797,
+          "tokens": 2527,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -460,7 +460,7 @@
         {
           "task": "11-two-approvals",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 2468,
+          "tokens": 2691,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -469,7 +469,7 @@
         {
           "task": "12-raise-limit",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 3647,
+          "tokens": 2641,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -483,13 +483,13 @@
       "tasks": 12,
       "green": 12,
       "accepted": 12,
-      "median_tokens": 4182.5,
+      "median_tokens": 3061.5,
       "median_iterations": 1,
       "runs": [
         {
           "task": "01-refund",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 4843,
+          "tokens": 4671,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -498,7 +498,7 @@
         {
           "task": "02-status-refunded",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 5785,
+          "tokens": 4805,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -507,7 +507,7 @@
         {
           "task": "03-charge-retry",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 4592,
+          "tokens": 3560,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -516,7 +516,7 @@
         {
           "task": "04-line-discount",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 5794,
+          "tokens": 4822,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -525,7 +525,7 @@
         {
           "task": "05-largest-line",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 5433,
+          "tokens": 4457,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -534,7 +534,7 @@
         {
           "task": "06-reject-large",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 3939,
+          "tokens": 2959,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -543,7 +543,7 @@
         {
           "task": "07-grand-total",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 4144,
+          "tokens": 3164,
           "iterations": 2,
           "green": true,
           "accept": true,
@@ -552,8 +552,8 @@
         {
           "task": "08-idle-30m",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 3623,
-          "iterations": 2,
+          "tokens": 2447,
+          "iterations": 1,
           "green": true,
           "accept": true,
           "fallback": false
@@ -561,7 +561,7 @@
         {
           "task": "09-active-count",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 3469,
+          "tokens": 2471,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -570,8 +570,8 @@
         {
           "task": "10-unknown-currency",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 3639,
-          "iterations": 1,
+          "tokens": 2942,
+          "iterations": 2,
           "green": true,
           "accept": true,
           "fallback": false
@@ -579,8 +579,8 @@
         {
           "task": "11-two-approvals",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 4221,
-          "iterations": 2,
+          "tokens": 2869,
+          "iterations": 1,
           "green": true,
           "accept": true,
           "fallback": false
@@ -588,7 +588,7 @@
         {
           "task": "12-raise-limit",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 3619,
+          "tokens": 2639,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -602,13 +602,13 @@
       "tasks": 12,
       "green": 12,
       "accepted": 12,
-      "median_tokens": 4042,
+      "median_tokens": 3279.5,
       "median_iterations": 1,
       "runs": [
         {
           "task": "01-refund",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 5454,
+          "tokens": 4474,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -617,7 +617,7 @@
         {
           "task": "02-status-refunded",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 3623,
+          "tokens": 4294,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -626,7 +626,7 @@
         {
           "task": "03-charge-retry",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 5412,
+          "tokens": 3439,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -635,7 +635,7 @@
         {
           "task": "04-line-discount",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 5799,
+          "tokens": 4730,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -644,7 +644,7 @@
         {
           "task": "05-largest-line",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 5437,
+          "tokens": 4457,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -653,7 +653,7 @@
         {
           "task": "06-reject-large",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 3939,
+          "tokens": 2975,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -662,7 +662,7 @@
         {
           "task": "07-grand-total",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 4145,
+          "tokens": 3168,
           "iterations": 2,
           "green": true,
           "accept": true,
@@ -671,7 +671,7 @@
         {
           "task": "08-idle-30m",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 3455,
+          "tokens": 2475,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -680,7 +680,7 @@
         {
           "task": "09-active-count",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 3451,
+          "tokens": 2471,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -689,7 +689,7 @@
         {
           "task": "10-unknown-currency",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 3639,
+          "tokens": 2659,
           "iterations": 1,
           "green": true,
           "accept": true,
@@ -698,8 +698,8 @@
         {
           "task": "11-two-approvals",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 3865,
-          "iterations": 1,
+          "tokens": 3231,
+          "iterations": 2,
           "green": true,
           "accept": true,
           "fallback": false
@@ -707,7 +707,7 @@
         {
           "task": "12-raise-limit",
           "tokenizer": "o200k_base (js-tiktoken 1.0.21)",
-          "tokens": 4172,
+          "tokens": 3328,
           "iterations": 2,
           "green": true,
           "accept": true,
