@@ -11,8 +11,9 @@ labelled as hypotheses and carry no figure (R15).
 1. jippitese lost on every cost axis the runs recorded, not only on "tokens
    to read". API usage: median input 59–79k tokens per jippitese run against
    26–29k for Go; summed cost 1.1–1.6× Go per model; median wall-clock
-   25–31 s against 16–25 s; 14 failed `jip check` runs against 0 failed
-   `go vet` runs. All 72 runs were accepted.
+   25–31 s against 16–25 s; 14 failed `jip check` calls in 13 runs against 0
+   failed `go vet` calls (13 of the 14 were interface drift, E0201; see
+   report (k)). All 72 runs were accepted.
 2. The language itself is denser: the five projects' sources are 3,602
    tokens in jippitese and 4,968 in Go (−27%); their tests 1,544 against
    2,747 (−44%). That saving lands on the smallest term of the bill and is
@@ -92,8 +93,9 @@ language-independent form of the "bounded context" pillar.
 1. **Optimised the smallest term.** Syntax density acts on file reads and
    edit text; the bill is prefix × turns plus model price.
 2. **Paid a per-turn novelty tax.** A card is replayed every turn, the agent
-   reaches for `jip context` (extra tool output), and missing priors cost
-   failed checks.
+   reaches for `jip context` (extra tool output), and the interface drift
+   gate (E0201) costs a failing check on every public change. Missing priors
+   caused errors in only 2 of 36 runs.
 3. **Measured a proxy, not the bill.** "Tokens to read" ignores turns, output,
    price per model and time. The API usage and seconds were in the
    transcripts all along.
