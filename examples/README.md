@@ -7,7 +7,7 @@ pass under the default fakes.
 
 | Project | Shows | Scenarios |
 |---|---|---|
-| `orders/` | The language card: `charge`, `withdraw`, `total`, `max_by`, the `BillingApi` service, the `Billing` workflow, a vendored dependency and an `extern` | `FakeHttp`, properties with `any … via` and `any … where`, a table, an `@extern` check; the derived check of `withdraw` (`pre` and `post`) |
+| `orders/` | The source the language card excerpts: `charge`, `withdraw`, `total`, `max_by`, the `BillingApi` service, the `Billing` workflow, a vendored dependency and an `extern` | `FakeHttp`, properties with `any … via` and `any … where`, a table, an `@extern` check; the derived check of `withdraw` (`pre` and `post`) |
 | `shop/` | A `Worker` consuming the `placed` topic and writing to in-process `Repository` impls, counting each order id once | delivery through `topics.placed.publish`, retry then dead letter, a redelivered order counted once; the derived `Totals.round_trip`, `Counted.round_trip` and `Indexer.idempotent` |
 | `sessions/` | A `Cron` sweeping idle sessions | the sweep fired by an injected `tick`; the fake clock alone never fires it; the derived `Sessions.round_trip` over `any Instant` |
 | `rates/` | A `Cache` with per-entry ttl | an entry served before and gone after its ttl under the fake clock |

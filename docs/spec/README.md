@@ -17,7 +17,7 @@ v0 behaviour.
 
 | File | Covers | v0 |
 |---|---|---|
-| `00-language-card.md` | Every construct in one compiling example | all of it compiles under v0 |
+| `00-language-card.md` | What differs from Rust, in one compiling excerpt of `examples/orders` | all of it compiles under v0 (`TestLanguageCard`) |
 | `01-lexical-structure.md` | Files, `module` line, tokens, literals, comments, statement termination | all |
 | `02-types.md` | Primitives, records, enums, newtypes, `Option`/`Result`, collections, generics | all; `Int` traps on overflow (R2) |
 | `03-functions-and-effects.md` | `fn`, signatures, effect sets, `fn` closures, inherent `impl` (R3) | all |
